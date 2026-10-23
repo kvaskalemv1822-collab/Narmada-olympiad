@@ -11,21 +11,31 @@ const firebaseConfig = {
   databaseURL: "https://narmadaolympiad-default-rtdb.asia-south1.firebasedatabase.app"
 };
 
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
+let db;
+try {
+  const app = initializeApp(firebaseConfig);
+  db = getFirestore(app);
+} catch (e) {
+  console.error("Firebase Initialization Error:", e);
+}
 
-// Run Grand Welcome Animation immediately
-startGrandWelcomeAnimation();
+// Run Grand Welcome Animation safely on DOM load
+window.addEventListener("DOMContentLoaded", () => {
+  startGrandWelcomeAnimation();
+});
 
 function startGrandWelcomeAnimation() {
   const welcomeScreen = document.getElementById("grand-welcome-screen");
-  welcomeScreen?.classList.remove("hidden", "reveal-open");
+  const countdownEl = document.getElementById("welcome-countdown");
+  const progressEl = document.getElementById("welcome-progress");
+  const mainContainer = document.getElementById("question-main-container");
+
+  if (!welcomeScreen) return;
+
+  welcomeScreen.classList.remove("hidden", "reveal-open");
 
   let countdown = 5;
   let progressWidth = 0;
-
-  const countdownEl = document.getElementById("welcome-countdown");
-  const progressEl = document.getElementById("welcome-progress");
 
   const progressInterval = setInterval(() => {
     progressWidth += 2;
@@ -40,26 +50,30 @@ function startGrandWelcomeAnimation() {
       clearInterval(countdownInterval);
       clearInterval(progressInterval);
       
-      welcomeScreen?.classList.add("reveal-open");
+      welcomeScreen.classList.add("reveal-open");
 
       setTimeout(() => {
-        welcomeScreen?.classList.add("hidden");
-        document.getElementById("question-main-container")?.classList.remove("hidden");
-        startQuestionBankListener();
+        welcomeScreen.classList.add("hidden");
+        if (mainContainer) mainContainer.classList.remove("hidden");
+        if (db) startQuestionBankListener();
       }, 800);
     }
   }, 1000);
 }
 
 window.addNewQuestionToBank = async () => {
-  const targetClass = document.getElementById("q-class-select").value;
-  const subject = document.getElementById("q-subject-select").value;
-  const qText = document.getElementById("q-text").value.trim();
-  const optA = document.getElementById("q-opt-a").value.trim();
-  const optB = document.getElementById("q-opt-b").value.trim();
-  const optC = document.getElementById("q-opt-c").value.trim();
-  const optD = document.getElementById("q-opt-d").value.trim();
-  const correctOpt = document.getElementById("q-correct-opt").value;
+  if (!db) {
+    alert("Database connection error!");
+    return;
+  }
+  const targetClass = document.getElementById("q-class-select")?.value;
+  const subject = document.getElementById("q-subject-select")?.value;
+  const qText = document.getElementById("q-text")?.value.trim();
+  const optA = document.getElementById("q-opt-a")?.value.trim();
+  const optB = document.getElementById("q-opt-b")?.value.trim();
+  const optC = document.getElementById("q-opt-c")?.value.trim();
+  const optD = document.getElementById("q-opt-d")?.value.trim();
+  const correctOpt = document.getElementById("q-correct-opt")?.value;
 
   if (!qText || !optA || !optB || !optC || !optD) {
     alert("Please fill question statement and all 4 options!");
@@ -88,6 +102,7 @@ window.addNewQuestionToBank = async () => {
 };
 
 function startQuestionBankListener() {
+  if (!db) return;
   onSnapshot(collection(db, "questions"), (snapshot) => {
     const tbody = document.querySelector("#questions-table tbody");
     if (!tbody) return;
@@ -122,6 +137,7 @@ function startQuestionBankListener() {
 }
 
 window.deleteQuestion = async (id) => {
+  if (!db) return;
   if (confirm("Delete this question from exam database?")) {
     await deleteDoc(doc(db, "questions", id));
   }
