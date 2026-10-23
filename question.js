@@ -19,10 +19,12 @@ try {
   console.error("Firebase Initialization Error:", e);
 }
 
-// Run Grand Welcome Animation safely on DOM load
-window.addEventListener("DOMContentLoaded", () => {
+// Safely start animation whether DOM is ready or still loading
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", startGrandWelcomeAnimation);
+} else {
   startGrandWelcomeAnimation();
-});
+}
 
 function startGrandWelcomeAnimation() {
   const welcomeScreen = document.getElementById("grand-welcome-screen");
