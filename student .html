@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>NVMSO - Student Registration & Exam Portal</title>
+  <link rel="stylesheet" href="student.css">
+  <link href="https://fonts.googleapis.com/css2?family=Alex+Brush&family=Plus+Jakarta+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+</head>
+<body oncontextmenu="return false;">
+
+<div class="container">
+  <h1>Narmada Valley Maths & Science Olympiad (NVMSO)</h1>
+  <div id="display-academic-year" class="subtitle">Official Student Portal | Directed by V.K Olympiad</div>
+
+  <div id="portal-status-msg" class="status-msg">Checking Portal Status...</div>
+
+  <div class="tab-nav">
+    <button type="button" class="tab-btn active-tab" onclick="switchTab('reg')">Student Registration</button>
+    <button type="button" class="tab-btn" onclick="switchTab('login')">Exam Login</button>
+  </div>
+
+  <!-- REGISTRATION VIEW -->
+  <div id="registration-view" class="hidden">
+    <div style="background: rgba(217, 83, 79, 0.12); border: 1px solid #d9534f; color: #b52b27; padding: 12px 15px; border-radius: 8px; margin-bottom: 20px; font-weight: 600; text-align: center; font-size: 13px; line-height: 1.5;">
+      🏫 <strong>Notice:</strong> Participation is routed through school organizers only.
+    </div>
+
+    <form id="reg-form">
+      <div class="form-group">
+        <label>Enter School Organizer Code:</label>
+        <input type="text" id="org-code" placeholder="e.g. SCH101 or ORG1024" oninput="fetchSchoolName(this.value)" required>
+        <div id="school-name-display" class="highlight-text"></div>
+      </div>
+
+      <div class="form-group">
+        <label>Student Full Name:</label>
+        <div style="display: flex; gap: 10px;">
+          <select id="std-salutation" style="width: 110px;" required>
+            <option value="Mr.">Mr.</option>
+            <option value="Ms.">Ms.</option>
+            <option value="Mrs.">Mrs.</option>
+          </select>
+          <input type="text" id="std-name" placeholder="Enter student full name" required style="flex: 1;">
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>Mother's Name:</label>
+        <input type="text" id="std-mother" placeholder="Enter mother's full name" required>
+      </div>
+
+      <div class="form-group">
+        <label>Father's Name:</label>
+        <input type="text" id="std-father" placeholder="Enter father's full name" required>
+      </div>
+
+      <div class="grid-2">
+        <div class="form-group">
+          <label>Class:</label>
+          <select id="std-class" onchange="handleClassChange(this.value)" required>
+            <option value="">Select Class</option>
+            <option value="3">Class 3</option>
+            <option value="4">Class 4</option>
+            <option value="5">Class 5</option>
+            <option value="6">Class 6</option>
+            <option value="7">Class 7</option>
+            <option value="8">Class 8</option>
+            <option value="9">Class 9</option>
+            <option value="10">Class 10</option>
+            <option value="11">Class 11</option>
+            <option value="12">Class 12</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label>Roll Number (Unique in School - Numbers Only):</label>
+          <input type="text" id="std-roll" inputmode="numeric" pattern="[0-9]*" placeholder="e.g. 101" required>
+        </div>
+      </div>
+
+      <div id="stream-group" class="form-group hidden">
+        <label>Select Stream (For Class 11 & 12):</label>
+        <select id="std-stream">
+          <option value="">Select Stream</option>
+          <option value="Maths">Mathematics (Science / Maths)</option>
+          <option value="Science">Biology / General Science</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label>10-Digit Contact Number (Numbers Only):</label>
+        <input type="text" id="std-contact" inputmode="numeric" pattern="[0-9]*" maxlength="10" placeholder="Enter mobile number" required>
+      </div>
+
+      <div class="form-group">
+        <label>Payment Mode:</label>
+        <select id="payment-mode" onchange="handlePaymentModeChange(this.value)">
+          <option value="cash">Pay Cash to School Organizer (Fee: ₹<span id="display-reg-fee">100</span>)</option>
+          <option value="online">Pay Online via QR / UPI (Fee: ₹<span id="display-reg-fee-online">100</span>)</option>
+        </select>
+      </div>
+
+      <div id="razorpay-qr-container" class="qr-box hidden">
+        <p style="font-weight: bold; color: #0275d8; margin-bottom: 5px;">Scan QR Code or Pay via UPI App</p>
+        <p style="margin-bottom: 8px; font-size: 14px;"><strong>UPI ID:</strong> <span id="display-upi-id" style="color: #1e3c72; font-weight: bold;">Loading...</span></p>
+        
+        <img id="razorpay-qr-img" src="Qrcode.jpg" alt="Payment QR Code" class="qr-img">
+        
+        <div style="margin: 10px 0;">
+          <a id="upi-intent-btn" href="#" style="display: inline-block; background: #28a745; color: white; padding: 10px 18px; border-radius: 6px; text-decoration: none; font-size: 14px; font-weight: bold;">📱 Click to Pay via GPay / PhonePe / Paytm</a>
+        </div>
+
+        <div class="form-group" style="margin-top: 10px; text-align: left;">
+          <label>Enter UTR / Transaction Reference No:</label>
+          <input type="text" id="std-utr" placeholder="Enter UPI UTR Number after payment">
+        </div>
+      </div>
+
+      <div class="form-group" style="margin: 20px 0; display: flex; align-items: flex-start; gap: 10px; background: rgba(0,0,0,0.02); padding: 12px; border-radius: 6px; border: 1px solid #ddd;">
+        <input type="checkbox" id="terms-checkbox" required style="width: 20px; height: 20px; cursor: pointer; margin-top: 2px;">
+        <label for="terms-checkbox" style="font-size: 13px; color: #444; cursor: pointer; font-weight: normal; line-height: 1.4;">
+          I confirm that my details are correct and I agree to the <a href="terms.html" target="_blank" style="color: #1e3c72; font-weight: bold; text-decoration: underline;">Terms & Conditions</a> and <a href="terms.html#refund" target="_blank" style="color: #1e3c72; font-weight: bold; text-decoration: underline;">Refund Policy</a>.
+        </label>
+      </div>
+
+      <button type="submit" class="btn-submit">Complete Registration</button>
+    </form>
+  </div>
+
+  <!-- EXAM LOGIN VIEW -->
+  <div id="login-view" class="hidden">
+    <h2>🔐 Student Exam Login</h2>
+    <p style="text-align:center; color:#666; margin-bottom:20px;">Use your Roll Number and Password to login and take your exam.</p>
+    
+    <form id="login-form">
+      <div class="form-group">
+        <label>Roll Number (Numbers Only):</label>
+        <input type="text" id="login-roll" inputmode="numeric" pattern="[0-9]*" placeholder="Enter your Roll No" required>
+      </div>
+      <div class="form-group">
+        <label>Password:</label>
+        <input type="password" id="login-password" placeholder="Enter password" required>
+      </div>
+      <button type="submit" class="btn-submit">Start Online Exam</button>
+    </form>
+  </div>
+
+  <!-- EXAM INTERFACE VIEW -->
+  <div id="exam-view" class="hidden">
+    <div class="timer-box">⏳ Time Remaining: <span id="time-remaining">30:00</span></div>
+    <h2>✍️ Narmada Valley Maths & Science Olympiad Exam</h2>
+    <form id="exam-form">
+      <div id="question-container"></div>
+      <button type="submit" class="btn-submit" style="background: #28a745; margin-top: 25px;">Finalize & Submit Exam Paper</button>
+    </form>
+  </div>
+
+  <!-- RESULT LOGIN VIEW -->
+  <div id="result-login-view" class="hidden">
+    <h2>🏆 Check Exam Result & Scorecard</h2>
+    <form id="result-verify-form">
+      <div class="form-group">
+        <label>Roll Number (Numbers Only):</label>
+        <input type="text" id="res-verify-roll" inputmode="numeric" pattern="[0-9]*" placeholder="Enter Roll No" required>
+      </div>
+      <div class="form-group">
+        <label>Password:</label>
+        <input type="password" id="res-verify-pass" placeholder="Enter Password" required>
+      </div>
+      <button type="submit" class="btn-submit" style="background: #ffc107; color: #000;">View Scorecard & Certificate</button>
+    </form>
+  </div>
+
+  <!-- SCORECARD & CERTIFICATE VIEW -->
+  <div id="score-card-view" class="hidden">
+    <div class="score-card">
+      <h3>🎉 Exam Evaluated Successfully!</h3>
+      <p>Marks Obtained: <span id="res-marks" style="color: #4ade80;">0</span></p>
+      <p>Percentage: <span id="res-percentage" style="color: #38bdf8;">0%</span></p>
+    </div>
+
+    <div id="certificate" class="cert-card">
+      <img src="certificate-template.jpg" alt="Certificate Template" class="cert-bg-img">
+      
+      <!-- Dynamic Academic Year Header Overlay on Certificate -->
+      <div style="position: absolute; top: 21%; width: 100%; text-align: center; pointer-events: none;">
+        <span id="cert-academic-year" style="font-size: clamp(16px, 2.8vw, 28px); font-weight: 800; color: #fef08a; text-shadow: 0 2px 6px rgba(0,0,0,0.9); letter-spacing: 1px;">2026-27</span>
+      </div>
+
+      <div class="cert-text-overlay" style="flex-direction:column; text-align:center;">
+        <div id="cert-student-name" class="cert-student-name">Student Name</div>
+        <div id="cert-student-class" style="font-size: clamp(14px, 2.5vw, 22px); font-weight: 700; color: #ffffff; text-shadow: 0 2px 6px rgba(0,0,0,0.9); margin-top: 6px; letter-spacing: 0.5px;">Class: III</div>
+        <div id="cert-school-name" style="font-size: clamp(13px, 2.2vw, 20px); font-weight: 600; color: #fef08a; text-shadow: 0 2px 6px rgba(0,0,0,0.9); margin-top: 4px; letter-spacing: 0.5px;">School Name</div>
+      </div>
+    </div>
+
+    <button type="button" onclick="downloadHighQualityPDF()" class="btn-submit" style="background: #10b981; margin-top: 20px;">📥 Download Official Certificate (PDF)</button>
+  </div>
+
+</div>
+
+<script type="module" src="student.js"></script>
+</body>
+</html>
