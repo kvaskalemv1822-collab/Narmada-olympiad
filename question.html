@@ -3,109 +3,145 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>NVMSO - Question Bank Manager</title>
-  <link rel="stylesheet" href="admin.css">
+  <title>NVMSO - Central Command Panel</title>
+  <link rel="stylesheet" href="central.css">
 </head>
 <body>
 
+<!-- ADMIN LOGIN SCREEN -->
+<div id="admin-login-screen" class="login-wrapper">
+  <div class="login-outer-box">
+    <div class="login-header-title">🛡️ NVMSO CENTRAL COMMAND</div>
+    <div class="login-header-sub">Authorized Administrator Access Only</div>
+    
+    <div class="login-card">
+      <div class="login-card-title">🔐 Security Verification</div>
+      <label for="admin-pass-input">Enter Admin Password:</label>
+      <input type="password" id="admin-pass-input" placeholder="Enter password" style="margin-bottom: 15px;">
+      <button type="button" id="btn-admin-auth" onclick="verifyAdminPassword()" class="btn-primary" style="width: 100%;">Login to Command Panel</button>
+      <p id="login-security-alert" style="color: #f87171; font-size: 12px; margin-top: 10px; display: none;"></p>
+    </div>
+  </div>
+</div>
+
 <!-- 5-SECOND GRAND WELCOME ANIMATION SCREEN -->
-<div id="grand-welcome-screen" class="welcome-overlay">
+<div id="grand-welcome-screen" class="welcome-overlay hidden">
   <div class="welcome-curtain-top"></div>
   <div class="welcome-curtain-bottom"></div>
   
   <div class="welcome-box">
-    <div class="pulse-ring">⏳</div>
-    <h1 class="welcome-title">WELCOME NVMS CHIEF</h1>
-    <p class="welcome-sub">Initializing NVMSO Question Bank Manager...</p>
+    <div class="pulse-ring">⚡</div>
+    <h1 class="welcome-title">WELCOME COMMANDER</h1>
+    <p class="welcome-sub">Initializing NVMSO Central Command Database...</p>
     
     <div class="loader-bar-bg">
       <div id="welcome-progress" class="loader-bar-fill"></div>
     </div>
     <p style="color:#fbbf24; font-size:14px; font-weight:700; margin-top:12px; position:relative; z-index:10;">
-      Opening Question Panel in <span id="welcome-countdown">5</span> Seconds...
+      Opening Central Panel in <span id="welcome-countdown">5</span> Seconds...
     </p>
   </div>
 </div>
 
-<!-- MAIN QUESTION MANAGER CONTAINER -->
-<div id="question-main-container" class="container hidden">
-  <h1>📚 Exam Question Bank Manager</h1>
-  <div class="director-title" style="margin-bottom: 20px;">
-    <a href="central.html" style="color: #38bdf8; text-decoration: none; font-weight: bold;">⬅ Back to Admin Command Panel</a>
+<!-- MAIN ADMIN CONTAINER -->
+<div id="admin-main-container" class="container hidden">
+  <h1>⚡ NVMSO Central Command & Management</h1>
+  <div class="admin-subtitle">Manage Exam Master Switches, Students, Organizers, UTR Verification & Finances</div>
+
+  <!-- Quick Navigation Links -->
+  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 10px;">
+    <a href="question.html" class="btn-3d-question" style="text-decoration: none; font-size: 14px; padding: 10px 20px;">📚 Open Question Bank Manager</a>
+    <button type="button" onclick="logoutAdminSession()" style="background: #ef4444; color: #fff; padding: 10px 16px;">🔒 Logout Session</button>
   </div>
 
-  <div class="control-box" style="border: 1px solid #c084fc; background: rgba(15, 23, 42, 0.85); padding: 20px; border-radius: 12px;">
-    <h3 style="color:#c084fc; margin-bottom: 15px;">➕ Add New Exam Question</h3>
-    
-    <div class="setting-card" style="border: 1px dashed #c084fc; padding: 15px; border-radius: 10px;">
-      <div class="grid-2" style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
-        <div>
-          <label style="color: #cbd5e1; font-weight: 600; font-size: 13px; margin-bottom: 6px; display: block;">Select Target Class Range:</label>
-          <select id="q-class-select" style="width: 100%; padding: 10px; border-radius: 8px; background: #020617; color: #fff; border: 1px solid #475569;">
-            <option value="3-5">Class 3rd to 5th (Set 1)</option>
-            <option value="6-8" selected>Class 6th to 8th (Set 2)</option>
-            <option value="9-12">Class 9th to 12th (Set 3)</option>
-          </select>
-        </div>
-        <div>
-          <label style="color: #cbd5e1; font-weight: 600; font-size: 13px; margin-bottom: 6px; display: block;">Subject:</label>
-          <select id="q-subject-select" style="width: 100%; padding: 10px; border-radius: 8px; background: #020617; color: #fff; border: 1px solid #475569;">
-            <option value="Maths">Mathematics</option>
-            <option value="Science">Science</option>
-            <option value="GK">General Knowledge / Reasoning</option>
-          </select>
-        </div>
+  <!-- Master Exam Configuration Box -->
+  <div class="card-box" style="margin-bottom: 20px;">
+    <h3 style="color: #fbbf24; margin-bottom: 12px;">⚙️ Master Exam Configuration & Switches</h3>
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+      <div>
+        <label>Online Fee (₹):</label>
+        <input type="number" id="cfg-online-fee">
       </div>
-
-      <div style="margin-top: 15px;">
-        <label style="color: #cbd5e1; font-weight: 600; font-size: 13px; margin-bottom: 6px; display: block;">Question Statement (Hindi/English):</label>
-        <textarea id="q-text" rows="2" placeholder="e.g. मध्य प्रदेश की राजधानी क्या है? / What is the capital of MP?" style="width:100%; padding:10px; border-radius:8px; background:#020617; color:#fff; border:1px solid rgba(56,189,248,0.3); outline: none;"></textarea>
+      <div>
+        <label>Offline Fee (₹):</label>
+        <input type="number" id="cfg-offline-fee">
       </div>
-
-      <div class="grid-2" style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 15px;">
-        <div><label style="color: #cbd5e1; font-size: 12px; margin-bottom: 4px; display: block;">Option A:</label><input type="text" id="q-opt-a" placeholder="Option A" style="width: 100%; padding: 10px; border-radius: 8px; background: #020617; color: #fff; border: 1px solid #475569;"></div>
-        <div><label style="color: #cbd5e1; font-size: 12px; margin-bottom: 4px; display: block;">Option B:</label><input type="text" id="q-opt-b" placeholder="Option B" style="width: 100%; padding: 10px; border-radius: 8px; background: #020617; color: #fff; border: 1px solid #475569;"></div>
-      </div>
-
-      <div class="grid-2" style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 12px;">
-        <div><label style="color: #cbd5e1; font-size: 12px; margin-bottom: 4px; display: block;">Option C:</label><input type="text" id="q-opt-c" placeholder="Option C" style="width: 100%; padding: 10px; border-radius: 8px; background: #020617; color: #fff; border: 1px solid #475569;"></div>
-        <div><label style="color: #cbd5e1; font-size: 12px; margin-bottom: 4px; display: block;">Option D:</label><input type="text" id="q-opt-d" placeholder="Option D" style="width: 100%; padding: 10px; border-radius: 8px; background: #020617; color: #fff; border: 1px solid #475569;"></div>
-      </div>
-
-      <div style="margin-top: 15px; max-width: 250px;">
-        <label style="color: #cbd5e1; font-weight: 600; font-size: 13px; margin-bottom: 6px; display: block;">Correct Answer Key:</label>
-        <select id="q-correct-opt" style="width: 100%; padding: 10px; border-radius: 8px; background: #020617; color: #fff; border: 1px solid #475569;">
-          <option value="A">Option A</option>
-          <option value="B">Option B</option>
-          <option value="C">Option C</option>
-          <option value="D">Option D</option>
-        </select>
-      </div>
-
-      <button type="button" onclick="addNewQuestionToBank()" style="margin-top:20px; padding: 12px 20px; font-weight: bold; border-radius: 8px; border: none; cursor: pointer; background: linear-gradient(135deg, #7c3aed 0%, #c084fc 100%); color: #fff;">💾 Save Question to Database</button>
     </div>
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+      <div>
+        <label>Exam Duration (Minutes):</label>
+        <input type="number" id="cfg-duration">
+      </div>
+      <div>
+        <label>UPI ID:</label>
+        <input type="text" id="cfg-upi">
+      </div>
+    </div>
+    <div style="margin-bottom: 15px;">
+      <label>QR Image URL / Filename:</label>
+      <input type="text" id="cfg-qr-url">
+    </div>
+    <div style="display: flex; gap: 20px; margin-bottom: 15px; flex-wrap: wrap;">
+      <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;"><input type="checkbox" id="cfg-reg-active"> Registration Active</label>
+      <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;"><input type="checkbox" id="cfg-exam-active"> Exam Active</label>
+      <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;"><input type="checkbox" id="cfg-result-allowed"> Show Results Allowed</label>
+    </div>
+    <div style="margin-bottom: 15px;">
+      <label>Broadcast Notice Banner:</label>
+      <input type="text" id="admin-broadcast-input" placeholder="Important announcement for students/organizers">
+      <button type="button" onclick="updateBroadcastNotice()" class="btn-primary" style="margin-top: 8px;">Publish Notice</button>
+    </div>
+    <button type="button" onclick="saveGlobalConfig()" class="btn-primary">Save Global Settings</button>
+  </div>
 
-    <h4 style="color:#f8fafc; margin-top:30px; margin-bottom: 10px;">Questions in Database (<span id="total-questions-count">0</span>)</h4>
+  <!-- Online UTR Verification Table -->
+  <div class="card-box" style="margin-bottom: 20px;">
+    <h3 style="color: #38bdf8; margin-bottom: 12px;">💳 Online Payment & UTR Verification</h3>
     <div style="overflow-x: auto;">
-      <table id="questions-table" style="width: 100%; border-collapse: collapse; font-size: 13px;">
+      <table id="admin-utr-table">
         <thead>
-          <tr style="background: #020617; color: #fbbf24; text-align: left;">
-            <th style="padding: 10px;">Set / Class</th>
-            <th style="padding: 10px;">Subject</th>
-            <th style="padding: 10px;">Question</th>
-            <th style="padding: 10px;">Options</th>
-            <th style="padding: 10px;">Correct Ans</th>
-            <th style="padding: 10px;">Action</th>
+          <tr>
+            <th>Roll No</th>
+            <th>Name</th>
+            <th>School / Org</th>
+            <th>Mode</th>
+            <th>UTR Number</th>
+            <th>Fee</th>
+            <th>Verification Status</th>
           </tr>
         </thead>
         <tbody>
-          <tr><td colspan="6" style="text-align:center; color:#94a3b8; padding: 15px;">No questions added yet.</td></tr>
+          <tr><td colspan="7" style="text-align:center; color:#94a3b8; padding: 15px;">Loading UTR records...</td></tr>
         </tbody>
       </table>
     </div>
   </div>
+
+  <!-- All Registered Students Table -->
+  <div class="card-box" style="margin-bottom: 20px;">
+    <h3 style="color: #4ade80; margin-bottom: 12px;">👥 All Registered Students Management</h3>
+    <div style="overflow-x: auto;">
+      <table id="admin-all-students-table">
+        <thead>
+          <tr>
+            <th>Roll No</th>
+            <th>Name</th>
+            <th>School / Org</th>
+            <th>Class</th>
+            <th>Payment Status</th>
+            <th>Account Status</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td colspan="7" style="text-align:center; color:#94a3b8; padding: 15px;">Loading students data...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
 </div>
 
-<script type="module" src="questions.js"></script>
+<script type="module" src="central.js"></script>
 </body>
 </html>
