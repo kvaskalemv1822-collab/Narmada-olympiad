@@ -124,6 +124,6 @@ function startQuestionBankListener() {
 
 window.deleteQuestion = async (id) => {
   if (confirm("Delete this question from exam database?")) {
-    await deleteDoc(doc(db, "questions", id));
+    await deleteDoc(doc(db, "question", id));
   }
 };
