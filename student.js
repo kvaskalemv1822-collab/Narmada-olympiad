@@ -172,9 +172,11 @@ if (regForm) {
     if (!portalConfig.regActive) { alert("Registrations are closed by admin!"); return; }
     if (!activeOrganizer) { alert("Enter a valid Organizer Code!"); return; }
 
-    const rawName = document.getElementById("std-name").value.trim();
-    const salutation = document.getElementById("std-salutation") ? document.getElementById("std-salutation").value : "Mr.";
-    const name = `${salutation} ${rawName}`;
+    let rawName = document.getElementById("std-name").value.trim();
+    // Clean up Mr, Mrs, Ms prefixes if entered by user
+    rawName = rawName.replace(/^(mr\.?|ms\.?|mrs\.?)\s+/i, '');
+    const name = rawName;
+
     const roll = document.getElementById("std-roll").value.trim().replace(/[^0-9]/g, '');
     const contact = document.getElementById("std-contact").value.trim().replace(/[^0-9]/g, '');
     const stdClass = document.getElementById("std-class").value;
@@ -466,8 +468,8 @@ document.getElementById("result-verify-form")?.addEventListener("submit", async 
       document.getElementById("res-marks").textContent = `${resData.marks} / ${resData.totalMarks}`;
       document.getElementById("res-percentage").textContent = `${resData.percentage}%`;
       
-      // Remove Mr., Ms., Mrs. from the displayed name on certificate
-      let cleanName = matchedStd.name.replace(/^(Mr\.|Ms\.|Mrs\.)\s*/i, '');
+      // Strip Mr/Ms/Mrs if stored in name
+      let cleanName = (matchedStd.name || "").replace(/^(mr\.?|ms\.?|mrs\.?)\s+/i, '');
       document.getElementById("cert-student-name").textContent = cleanName;
       
       const certClassEl = document.getElementById("cert-student-class");
