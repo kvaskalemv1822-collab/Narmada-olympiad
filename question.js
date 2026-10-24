@@ -23,7 +23,7 @@ function startGrandWelcomeAnimation() {
   const welcomeScreen = document.getElementById("grand-welcome-screen");
   welcomeScreen?.classList.remove("hidden", "reveal-open");
 
-  let countdown = 3; // 5 से बदलकर 3 सेकंड किया गया है
+  let countdown = 3; // 3 सेकंड का टाइमर
   let progressWidth = 0;
 
   const countdownEl = document.getElementById("welcome-countdown");
@@ -102,19 +102,6 @@ function startQuestionBankListener() {
       count++;
       const q = d.data();
       const tr = document.createElement("tr");
-      tr.innerHTML = `
-        <td><strong style="color:#c084fc;">Class ${q.targetClass}</strong></td>
-        <td>${q.subject}</td>
-        <td><strong>${q.qText}</strong></td>
-        <td>
-          <small>A: ${q.optA} | B: ${q.optB}<br>C: ${q.optC} | D: ${q.optD}</small>
-        </td>
-        <td style="color:#4ade80; font-weight:bold;">Option ${q.correctOpt}</td>
-        <td>
-          exact <button onclick="deleteQuestion('${d.id}')" style="padding:4px 8px; font-size:11px; background:#ef4444; color:#fff; border-radius:4px; cursor:pointer;">Delete</button>
-        </td>
-      `;
-      // Note: keeping standard button innerHTML mapping clean below
       tr.innerHTML = `
         <td><strong style="color:#c084fc;">Class ${q.targetClass}</strong></td>
         <td>${q.subject}</td>
