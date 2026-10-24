@@ -489,7 +489,7 @@ window.downloadHighQualityPDF = () => {
     filename: `NVMSO_Certificate_${studentName.replace(/\s+/g, '_')}.pdf`,
     image: { type: 'png', quality: 0.98 },
     html2canvas: { scale: 2, useCORS: true },
-    jsPDF: { unit: 'px', format: [2000, 1414], orientation: 'landscape' }
+    jsPDF: { unit: 'in', format: [13.33, 9.42], orientation: 'landscape' }
   };
   html2pdf().set(opt).from(element).save();
 };
