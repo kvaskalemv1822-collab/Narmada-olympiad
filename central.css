@@ -203,7 +203,13 @@ h1 {
   top: 6px;
 }
 
+/* Required Hidden and Reveal Classes for Timer / Panel Transition */
 .hidden { display: none !important; }
+
+.reveal-open {
+  opacity: 0;
+  transition: opacity 0.8s ease;
+}
 
 .card-box { 
   background: #1f2937; 
