@@ -484,27 +484,26 @@ window.downloadHighQualityPDF = () => {
   const element = document.getElementById("certificate");
   const studentName = document.getElementById("cert-student-name")?.textContent || "Student";
   
-  // Save original style
   const originalStyle = element.style.cssText;
   
-  // Force full A4 landscape pixel dimensions for perfect fitting
-  element.style.width = '1123px';
-  element.style.height = '794px';
+  // सर्टिफिकेट को exact landscape dimensions पर सेट करें ताकि कट न हो
+  element.style.width = '2000px';
+  element.style.height = '1414px';
   element.style.maxWidth = 'none';
   element.style.margin = '0';
-  element.style.borderRadius = '0';
-  element.style.boxShadow = 'none';
+  element.style.position = 'relative';
+  element.style.left = '0';
 
   const opt = {
     margin: 0,
     filename: `NVMSO_Certificate_${studentName.replace(/\s+/g, '_')}.pdf`,
     image: { type: 'png', quality: 1.0 },
-    html2canvas: { scale: 2, useCORS: true, logging: false, windowWidth: 1123 },
-    jsPDF: { unit: 'px', format: [1123, 794], orientation: 'landscape' }
+    html2canvas: { scale: 2, useCORS: true, logging: false, x: 0, y: 0 },
+    jsPDF: { unit: 'px', format: [2000, 1414], orientation: 'landscape' }
   };
   
   html2pdf().from(element).set(opt).save().then(() => {
-    // Restore original style back after download
+    // डाउनलोड होने के बाद ओरिजिनल स्टाइल वापस सेट करें
     element.style.cssText = originalStyle;
   });
 };
