@@ -58,9 +58,6 @@ onSnapshot(doc(db, "settings", "examConfig"), (docSnap) => {
     const subTitleEl = document.getElementById("display-academic-year");
     if (subTitleEl) subTitleEl.textContent = `Official Student Portal (${sessionYear}) | Directed by V.K Olympiad`;
 
-    const certYearEl = document.getElementById("cert-academic-year");
-    if (certYearEl) certYearEl.textContent = sessionYear;
-
     const qrImg = document.getElementById("razorpay-qr-img");
     if (qrImg) qrImg.src = portalConfig.qrImageUrl || DEFAULT_QR_SRC;
 
@@ -97,19 +94,19 @@ function updateUIState() {
   if (!msg) return;
 
   if (portalConfig.resultAllowed) {
-    msg.textContent = " Result is Live! Enter your credentials below to view your Scorecard & Certificate.";
+    msg.textContent = "🏆 Result is Live! Enter your credentials below to view your Scorecard & Certificate.";
     msg.style.background = "#d4edda"; msg.style.color = "#155724";
     regView?.classList.add("hidden"); loginView?.classList.add("hidden"); resultView?.classList.remove("hidden"); tabNav?.classList.add("hidden");
   } else if (portalConfig.examActive) {
-    msg.textContent = " Exam Portal is Active. Registrations are Closed.";
+    msg.textContent = "🚀 Exam Portal is Active. Registrations are Closed.";
     msg.style.background = "#fff3cd"; msg.style.color = "#856404";
     regView?.classList.add("hidden"); loginView?.classList.remove("hidden"); resultView?.classList.add("hidden"); tabNav?.classList.add("hidden");
   } else if (portalConfig.regActive) {
-    msg.textContent = " Registration is Open";
+    msg.textContent = "📝 Registration is Open";
     msg.style.background = "#d4edda"; msg.style.color = "#155724";
     regView?.classList.remove("hidden"); loginView?.classList.add("hidden"); resultView?.classList.add("hidden"); tabNav?.classList.remove("hidden");
   } else {
-    msg.textContent = " Portal is Currently Closed by Admin";
+    msg.textContent = "🔒 Portal is Currently Closed by Admin";
     msg.style.background = "#f8d7da"; msg.style.color = "#721c24";
     regView?.classList.add("hidden"); loginView?.classList.add("hidden"); resultView?.classList.add("hidden"); tabNav?.classList.add("hidden");
   }
@@ -130,7 +127,7 @@ window.fetchSchoolName = async (code) => {
 
       if (!orgData.principalApproved) {
         if (display) {
-          display.textContent = " Code Locked: School Principal Permission Pending from Organizer!";
+          display.textContent = "⚠️ Code Locked: School Principal Permission Pending from Organizer!";
           display.style.background = "#ef4444";
         }
         activeOrganizer = null;
@@ -139,12 +136,12 @@ window.fetchSchoolName = async (code) => {
 
       activeOrganizer = orgData;
       if (display) {
-        display.textContent = ` ${activeOrganizer.schoolName} (Mode: ${activeOrganizer.examMode ? activeOrganizer.examMode.toUpperCase() : 'ONLINE'})`;
+        display.textContent = `✅ ${activeOrganizer.schoolName} (Mode: ${activeOrganizer.examMode ? activeOrganizer.examMode.toUpperCase() : 'ONLINE'})`;
         display.style.background = "linear-gradient(135deg, #1e3c72 0%, #2a5298 100%)";
       }
       updateOrganizerFeeDisplay();
     } else {
-      if(display) display.textContent = " Invalid Organizer Code";
+      if(display) display.textContent = "❌ Invalid Organizer Code";
       activeOrganizer = null;
     }
   } catch (err) { console.error(err); }
@@ -192,14 +189,14 @@ if (regForm) {
       const studentDocId = `${activeOrganizer.code}_c${stdClass}_${roll}`;
       const existingStdDoc = await getDoc(doc(db, "students", studentDocId));
       if (existingStdDoc.exists()) {
-        alert(` Roll No "${roll}" in Class "${stdClass}" is already registered for this school.`);
+        alert(`⚠️ Roll No "${roll}" in Class "${stdClass}" is already registered for this school.`);
         return;
       }
 
       if (payMode === "online") {
         if (!utr || utr.length < 6) { alert("Enter a valid UTR Number!"); return; }
         const utrSnap = await getDocs(query(collection(db, "students"), where("utr", "==", utr)));
-        if (!utrSnap.empty) { alert(` UTR "${utr}" is already used by another student.`); return; }
+        if (!utrSnap.empty) { alert(`⚠️ UTR "${utr}" is already used by another student.`); return; }
       }
 
       const mother = document.getElementById("std-mother").value.trim();
@@ -220,9 +217,9 @@ if (regForm) {
         await setDoc(doc(db, "students", studentDocId), studentData);
 
         if (payMode === "cash") {
-          alert(` Registration Pending Cash Approval!\n\nRoll No: ${roll}\nStatus: PENDING CASH APPROVAL\n\nYour password will be active once your school organizer approves your cash payment.`);
+          alert(`📌 Registration Pending Cash Approval!\n\nRoll No: ${roll}\nStatus: PENDING CASH APPROVAL\n\nYour password will be active once your school organizer approves your cash payment.`);
         } else {
-          alert(` Registration Successful!\n\nRoll No: ${roll}\nPassword: ${password}`);
+          alert(`✅ Registration Successful!\n\nRoll No: ${roll}\nPassword: ${password}`);
         }
         window.location.href = window.location.pathname;
       }
@@ -248,18 +245,18 @@ if (loginForm) {
         currentUser = matchedStudent;
 
         if (currentUser.blocked) {
-          alert(" Your account has been blocked by the admin.");
+          alert("❌ Your account has been blocked by the admin.");
           return;
         }
 
         if (currentUser.payMode === "cash" && !currentUser.paymentConfirmed) {
-          alert(" Registration Pending: Your cash payment has not been approved by your School Organizer yet.");
+          alert("⏳ Registration Pending: Your cash payment has not been approved by your School Organizer yet.");
           return;
         }
 
         const resDoc = await getDoc(doc(db, "results", currentUser.id || roll));
         if (resDoc.exists()) {
-          alert(" You have ALREADY SUBMITTED this exam!");
+          alert("⚠️ You have ALREADY SUBMITTED this exam!");
           return;
         }
 
@@ -282,14 +279,14 @@ function showStudentVerificationModal(student) {
 
   modal.innerHTML = `
     <div style="background:#1e293b; color:#fff; padding:25px; border-radius:12px; max-width:450px; width:100%; border:2px solid #38bdf8;">
-      <h3 style="color:#fbbf24; text-align:center; margin-bottom:15px;"> Verify Your Details</h3>
+      <h3 style="color:#fbbf24; text-align:center; margin-bottom:15px;">🔍 Verify Your Details</h3>
       <div style="background:#0f172a; padding:12px; border-radius:8px; font-size:14px; line-height:1.6; margin-bottom:20px;">
         <p><strong>Student Name:</strong> ${student.name}</p>
         <p><strong>Roll Number:</strong> ${student.roll}</p>
         <p><strong>Class:</strong> Class ${student.stdClass} ${student.stream ? `(${student.stream})` : ''}</p>
         <p><strong>School:</strong> ${student.schoolName}</p>
       </div>
-      <button id="btn-confirm-exam-start" style="width:100%; padding:12px; background:#10b981; color:#fff; border:none; border-radius:6px; font-weight:bold; cursor:pointer;">Confirm & Start Exam </button>
+      <button id="btn-confirm-exam-start" style="width:100%; padding:12px; background:#10b981; color:#fff; border:none; border-radius:6px; font-weight:bold; cursor:pointer;">Confirm & Start Exam 🚀</button>
     </div>
   `;
 
@@ -345,7 +342,7 @@ function startExamEngine() {
 
     if (timeRemaining <= 0) {
       clearInterval(examTimerInterval);
-      alert(" Time UP! Auto-submitting exam.");
+      alert("⏳ Time UP! Auto-submitting exam.");
       submitExamPaper(true);
     }
   }, 1000);
@@ -418,7 +415,7 @@ function showExamSuccessScreen(score, totalMarks, percentage) {
   let countdown = 10;
   successModal.innerHTML = `
     <div style="background:#1e293b; padding:35px; border-radius:16px; max-width:500px; width:100%; border:2px solid #10b981; box-shadow:0 15px 35px rgba(0,0,0,0.6);">
-      <h2 style="color:#4ade80; margin-bottom:15px; font-size:28px;"> Exam Successfully Completed!</h2>
+      <h2 style="color:#4ade80; margin-bottom:15px; font-size:28px;">🎉 Exam Successfully Completed!</h2>
       <p style="color:#94a3b8; font-size:15px; margin-bottom:20px;">Great job! Your answers have been successfully evaluated and recorded.</p>
       
       <div style="background:#0f172a; padding:15px; border-radius:10px; margin-bottom:25px; font-size:18px;">
@@ -428,7 +425,7 @@ function showExamSuccessScreen(score, totalMarks, percentage) {
 
       <p style="color:#facc15; font-size:14px; margin-bottom:15px;">Returning to Home Portal in <strong id="success-countdown" style="font-size:18px;">10</strong> seconds...</p>
       
-      <button id="btn-force-reload" style="width:100%; padding:14px; background:linear-gradient(135deg, #0284c7 0%, #38bdf8 100%); color:#fff; border:none; border-radius:8px; font-weight:bold; font-size:16px; cursor:pointer; pointer-events:auto;"> Back to Home / Next Student</button>
+      <button id="btn-force-reload" style="width:100%; padding:14px; background:linear-gradient(135deg, #0284c7 0%, #38bdf8 100%); color:#fff; border:none; border-radius:8px; font-weight:bold; font-size:16px; cursor:pointer; pointer-events:auto;">🏠 Back to Home / Next Student</button>
     </div>
   `;
 
@@ -464,14 +461,6 @@ document.getElementById("result-verify-form")?.addEventListener("submit", async 
     if (resDoc.exists()) {
       const resData = resDoc.data();
       
-      let displayYear = matchedStd.academicYear || portalConfig.academicYear || "2026-27";
-      if (matchedStd.orgCode) {
-        const orgDoc = await getDoc(doc(db, "organizers", matchedStd.orgCode));
-        if (orgDoc.exists() && orgDoc.data().academicYear) {
-          displayYear = orgDoc.data().academicYear;
-        }
-      }
-
       document.getElementById("result-login-view")?.classList.add("hidden");
       document.getElementById("score-card-view")?.classList.remove("hidden");
       document.getElementById("res-marks").textContent = `${resData.marks} / ${resData.totalMarks}`;
@@ -483,9 +472,6 @@ document.getElementById("result-verify-form")?.addEventListener("submit", async 
       
       const certSchoolEl = document.getElementById("cert-school-name");
       if(certSchoolEl) certSchoolEl.textContent = matchedStd.schoolName;
-
-      const certYearEl = document.getElementById("cert-academic-year");
-      if (certYearEl) certYearEl.textContent = displayYear;
 
     } else { alert("Result not declared yet!"); }
   } else { alert("Incorrect credentials!"); }
