@@ -211,6 +211,14 @@ h1 {
   transition: opacity 0.8s ease;
 }
 
+/* Fix to completely hide welcome overlay after timer without breaking central panel */
+.welcome-overlay.hidden {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
 .card-box { 
   background: #1f2937; 
   padding: 20px; 
