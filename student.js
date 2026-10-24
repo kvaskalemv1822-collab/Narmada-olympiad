@@ -173,7 +173,6 @@ if (regForm) {
     if (!activeOrganizer) { alert("Enter a valid Organizer Code!"); return; }
 
     let rawName = document.getElementById("std-name").value.trim();
-    // Clean up Mr, Mrs, Ms prefixes if entered by user
     rawName = rawName.replace(/^(mr\.?|ms\.?|mrs\.?)\s+/i, '');
     const name = rawName;
 
@@ -468,7 +467,6 @@ document.getElementById("result-verify-form")?.addEventListener("submit", async 
       document.getElementById("res-marks").textContent = `${resData.marks} / ${resData.totalMarks}`;
       document.getElementById("res-percentage").textContent = `${resData.percentage}%`;
       
-      // Strip Mr/Ms/Mrs if stored in name
       let cleanName = (matchedStd.name || "").replace(/^(mr\.?|ms\.?|mrs\.?)\s+/i, '');
       document.getElementById("cert-student-name").textContent = cleanName;
       
@@ -489,9 +487,9 @@ window.downloadHighQualityPDF = () => {
   const opt = {
     margin: 0,
     filename: `NVMSO_Certificate_${studentName.replace(/\s+/g, '_')}.pdf`,
-    image: { type: 'jpeg', quality: 0.98 },
+    image: { type: 'png', quality: 0.98 },
     html2canvas: { scale: 2, useCORS: true },
-    jsPDF: { unit: 'in', format: 'a4', orientation: 'landscape' }
+    jsPDF: { unit: 'px', format: [2000, 1414], orientation: 'landscape' }
   };
   html2pdf().set(opt).from(element).save();
 };
