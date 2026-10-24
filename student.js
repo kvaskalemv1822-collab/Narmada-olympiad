@@ -172,9 +172,7 @@ if (regForm) {
     if (!portalConfig.regActive) { alert("Registrations are closed by admin!"); return; }
     if (!activeOrganizer) { alert("Enter a valid Organizer Code!"); return; }
 
-    const rawName = document.getElementById("std-name").value.trim();
-    const salutation = document.getElementById("std-salutation") ? document.getElementById("std-salutation").value : "Mr.";
-    const name = `${salutation} ${rawName}`;
+    const name = document.getElementById("std-name").value.trim();
     const roll = document.getElementById("std-roll").value.trim().replace(/[^0-9]/g, '');
     const contact = document.getElementById("std-contact").value.trim().replace(/[^0-9]/g, '');
     const stdClass = document.getElementById("std-class").value;
