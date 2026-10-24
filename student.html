@@ -35,8 +35,10 @@
       </div>
 
       <div class="form-group">
-        <label>Student Full Name (Without Salutation):</label>
-        <input type="text" id="std-name" placeholder="Enter student full name" required>
+        <label>Student Full Name (Without Mr/Ms):</label>
+        <div style="display: flex; gap: 10px;">
+          <input type="text" id="std-name" placeholder="Enter student full name" required style="flex: 1;">
+        </div>
       </div>
 
       <div class="form-group">
@@ -68,7 +70,7 @@
         </div>
 
         <div class="form-group">
-          <label>Roll Number (Numbers Only):</label>
+          <label>Roll Number (Unique in School - Numbers Only):</label>
           <input type="text" id="std-roll" inputmode="numeric" pattern="[0-9]*" placeholder="e.g. 101" required>
         </div>
       </div>
@@ -174,9 +176,9 @@
       <p>Percentage: <span id="res-percentage" style="color: #38bdf8;">0%</span></p>
     </div>
 
-    <!-- Certificate Section with 2000x1414 resolution layout -->
-    <div id="certificate" class="cert-card">
-      <img src="certificate-template.jpg" alt="Certificate Template" class="cert-bg-img">
+    <!-- Certificate Section (2000x1414 High-Quality Card Proportion) -->
+    <div id="certificate" class="cert-card" style="position: relative; overflow: hidden;">
+      <img src="certificate-template.jpg" alt="Certificate Template" class="cert-bg-img" style="width: 100%; display: block;">
       
       <div class="cert-text-overlay">
         <div id="cert-student-name" class="cert-student-name">Student Name</div>
