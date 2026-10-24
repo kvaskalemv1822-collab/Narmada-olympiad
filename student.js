@@ -172,7 +172,9 @@ if (regForm) {
     if (!portalConfig.regActive) { alert("Registrations are closed by admin!"); return; }
     if (!activeOrganizer) { alert("Enter a valid Organizer Code!"); return; }
 
-    const name = document.getElementById("std-name").value.trim();
+    const rawName = document.getElementById("std-name").value.trim();
+    const salutation = document.getElementById("std-salutation") ? document.getElementById("std-salutation").value : "Mr.";
+    const name = `${salutation} ${rawName}`;
     const roll = document.getElementById("std-roll").value.trim().replace(/[^0-9]/g, '');
     const contact = document.getElementById("std-contact").value.trim().replace(/[^0-9]/g, '');
     const stdClass = document.getElementById("std-class").value;
@@ -463,7 +465,10 @@ document.getElementById("result-verify-form")?.addEventListener("submit", async 
       document.getElementById("score-card-view")?.classList.remove("hidden");
       document.getElementById("res-marks").textContent = `${resData.marks} / ${resData.totalMarks}`;
       document.getElementById("res-percentage").textContent = `${resData.percentage}%`;
-      document.getElementById("cert-student-name").textContent = matchedStd.name;
+      
+      // Remove Mr., Ms., Mrs. from the displayed name on certificate
+      let cleanName = matchedStd.name.replace(/^(Mr\.|Ms\.|Mrs\.)\s*/i, '');
+      document.getElementById("cert-student-name").textContent = cleanName;
       
       const certClassEl = document.getElementById("cert-student-class");
       if(certClassEl) certClassEl.textContent = `Class: ${matchedStd.stdClass} ${matchedStd.stream ? `(${matchedStd.stream})` : ''}`;
