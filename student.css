@@ -43,6 +43,7 @@ h1 {
   font-weight: bold; 
   margin-bottom: 20px; 
   font-size: 15px;
+  letter-spacing: 0.3px;
 }
 
 .tab-nav { 
@@ -176,7 +177,7 @@ input:focus, select:focus {
   text-align: center;
 }
 
-/* Certificate Card with 2000 x 1414 High Quality Aspect Ratio */
+/* High-Quality Card Size (2000x1414 Proportion) */
 .cert-card {
   position: relative;
   width: 100%;
@@ -186,7 +187,7 @@ input:focus, select:focus {
   border-radius: 12px;
   overflow: hidden;
   background: #000000;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 10px 30px rgba(0,0,0,0.35);
 }
 
 .cert-bg-img {
@@ -198,47 +199,46 @@ input:focus, select:focus {
 
 .cert-text-overlay {
   position: absolute;
-  top: 42%;
-  left: 0;
-  width: 100%;
-  display: flex;
+  top: 45%; 
+  left: 0; 
+  width: 100%; 
+  display: flex; 
   flex-direction: column;
-  align-items: center;
+  align-items: center; 
   text-align: center;
   z-index: 5;
   pointer-events: none;
 }
 
-/* Student Name with #C48067 color and shining glow */
+/* Transparent Student Name with #C48067 color & proper gap */
 .cert-student-name {
   font-family: 'Alex Brush', cursive;
-  font-size: min(8.5vw, 62px);
+  font-size: min(8vw, 56px);
   font-weight: 700;
-  background: linear-gradient(180deg, #fce4dc 0%, #C48067 60%, #8a4e37 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  filter: drop-shadow(0px 0px 3px #ffffff) 
-          drop-shadow(0px 0px 8px rgba(255, 255, 255, 0.8))
-          drop-shadow(2px 2px 4px rgba(0, 0, 0, 0.9));
-  margin: 0;
+  color: #C48067;
+  background: transparent !important;
+  -webkit-text-fill-color: #C48067;
+  margin: 0 0 8px 0;
   padding: 0;
   line-height: 1.1;
 }
 
-/* Class in Pure White with proper spacing to prevent overlap */
+/* Class style in Pure White with spacing */
 .cert-student-class {
-  font-size: clamp(14px, 2.4vw, 22px);
+  font-size: clamp(14px, 2.3vw, 21px);
   font-weight: 700;
   color: #ffffff !important;
-  text-shadow: 0 2px 5px rgba(0, 0, 0, 0.9);
-  margin-top: 14px;
+  text-shadow: 0 2px 4px rgba(0,0,0,0.8);
+  margin: 0 0 6px 0;
+  background: transparent !important;
 }
 
-/* School Name in #DAB963 with proper spacing */
+/* School Name style in #DAB963 */
 .cert-school-name {
-  font-size: clamp(13px, 2.2vw, 20px);
+  font-size: clamp(13px, 2.1vw, 19px);
   font-weight: 600;
   color: #DAB963 !important;
-  text-shadow: 0 2px 5px rgba(0, 0, 0, 0.9);
-  margin-top: 6px;
+  text-shadow: 0 2px 4px rgba(0,0,0,0.8);
+  margin: 0;
+  background: transparent !important;
 }
