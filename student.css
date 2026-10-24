@@ -177,7 +177,7 @@ input:focus, select:focus {
   text-align: center;
 }
 
-/* Certificate Card Size: 2000x1414 proportion */
+/* Landscape Card Proportion 2000x1414 */
 .cert-card {
   position: relative;
   width: 100%;
@@ -210,7 +210,7 @@ input:focus, select:focus {
   pointer-events: none;
 }
 
-/* Transparent Student Name with #C48067 color & proper gap */
+/* Transparent Student Name with #C48067 color */
 .cert-student-name {
   font-family: 'Alex Brush', cursive;
   font-size: min(8vw, 56px);
@@ -218,22 +218,22 @@ input:focus, select:focus {
   color: #C48067;
   background: transparent !important;
   -webkit-text-fill-color: #C48067;
-  margin: 0 0 10px 0;
+  margin: 0 0 8px 0;
   padding: 0;
   line-height: 1.1;
 }
 
-/* Class style in Pure White with spacing */
+/* Class in Pure White */
 .cert-student-class {
   font-size: clamp(14px, 2.3vw, 21px);
   font-weight: 700;
   color: #ffffff !important;
   text-shadow: 0 2px 4px rgba(0,0,0,0.8);
-  margin: 0 0 8px 0;
+  margin: 0 0 6px 0;
   background: transparent !important;
 }
 
-/* School Name style in #DAB963 */
+/* School Name in #DAB963 */
 .cert-school-name {
   font-size: clamp(13px, 2.1vw, 19px);
   font-weight: 600;
