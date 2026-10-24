@@ -484,13 +484,27 @@ window.downloadHighQualityPDF = () => {
   const element = document.getElementById("certificate");
   const studentName = document.getElementById("cert-student-name")?.textContent || "Student";
   
+  // PDF डाउनलोड के समय सर्टिफिकेट को अस्थायी रूप से फुल-विथ (full width) सेट करें
+  const originalWidth = element.style.width;
+  const originalMaxWidth = element.style.maxWidth;
+  const originalMargin = element.style.margin;
+  
+  element.style.width = '100%';
+  element.style.maxWidth = 'none';
+  element.style.margin = '0';
+
   const opt = {
     margin: 0,
     filename: `NVMSO_Certificate_${studentName.replace(/\s+/g, '_')}.pdf`,
-    image: { type: 'png', quality: 0.98 },
-    html2canvas: { scale: 3, useCORS: true, logging: false },
-    jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' }
+    image: { type: 'png', quality: 1.0 },
+    html2canvas: { scale: 3, useCORS: true, logging: false, windowWidth: 2000 },
+    jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape', compress: true }
   };
   
-  html2pdf().set(opt).from(element).save();
+  html2pdf().from(element).set(opt).save().then(() => {
+    // डाउनलोड पूरा होने के बाद ओरिजिनल स्टाइल वापस सेट करें
+    element.style.width = originalWidth;
+    element.style.maxWidth = originalMaxWidth;
+    element.style.margin = originalMargin;
+  });
 };
