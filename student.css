@@ -177,7 +177,7 @@ input:focus, select:focus {
   text-align: center;
 }
 
-/* High-Quality Card Size (2000x1414 Proportion) */
+/* Certificate Card Size: 2000x1414 proportion */
 .cert-card {
   position: relative;
   width: 100%;
@@ -218,7 +218,7 @@ input:focus, select:focus {
   color: #C48067;
   background: transparent !important;
   -webkit-text-fill-color: #C48067;
-  margin: 0 0 8px 0;
+  margin: 0 0 10px 0;
   padding: 0;
   line-height: 1.1;
 }
@@ -229,7 +229,7 @@ input:focus, select:focus {
   font-weight: 700;
   color: #ffffff !important;
   text-shadow: 0 2px 4px rgba(0,0,0,0.8);
-  margin: 0 0 6px 0;
+  margin: 0 0 8px 0;
   background: transparent !important;
 }
 
