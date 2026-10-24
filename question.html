@@ -4,17 +4,11 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>NVMSO - Question Bank Manager</title>
-  <link rel="stylesheet" href="central.css">
+  <link rel="stylesheet" href="admin.css">
 </head>
 <body>
 
-<!-- Shooting Stars Background Elements -->
-<div class="shooting-star"></div>
-<div class="shooting-star"></div>
-<div class="shooting-star"></div>
-<div class="shooting-star"></div>
-
-<!-- 5-SECOND GRAND WELCOME ANIMATION SCREEN -->
+<!-- 3-SECOND GRAND WELCOME ANIMATION SCREEN -->
 <div id="grand-welcome-screen" class="welcome-overlay">
   <div class="welcome-curtain-top"></div>
   <div class="welcome-curtain-bottom"></div>
@@ -28,7 +22,7 @@
       <div id="welcome-progress" class="loader-bar-fill"></div>
     </div>
     <p style="color:#fbbf24; font-size:14px; font-weight:700; margin-top:12px; position:relative; z-index:10;">
-      Opening Question Panel in <span id="welcome-countdown">5</span> Seconds...
+      Opening Question Panel in <span id="welcome-countdown">3</span> Seconds...
     </p>
   </div>
 </div>
@@ -37,17 +31,17 @@
 <div id="question-main-container" class="container hidden">
   <h1>📚 Exam Question Bank Manager</h1>
   <div class="director-title" style="margin-bottom: 20px;">
-    <a href="central.html" style="color: #38bdf8; text-decoration: none; font-weight: bold;">⬅ Back to Central Command Panel</a>
+    <a href="admin.html" style="color: #38bdf8; text-decoration: none; font-weight: bold;">⬅ Back to Admin Command Panel</a>
   </div>
 
-  <div class="control-box card-box" style="border: 1px solid #c084fc;">
+  <div class="control-box" style="border: 1px solid #c084fc; background: rgba(15, 23, 42, 0.85); padding: 20px; border-radius: 12px;">
     <h3 style="color:#c084fc; margin-bottom: 15px;">➕ Add New Exam Question</h3>
     
-    <div class="setting-card" style="border: 1px dashed #c084fc; padding: 15px; border-radius: 10px; background: rgba(11, 15, 25, 0.6);">
+    <div class="setting-card" style="border: 1px dashed #c084fc; padding: 15px; border-radius: 10px;">
       <div class="grid-2" style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
         <div>
           <label style="color: #cbd5e1; font-weight: 600; font-size: 13px; margin-bottom: 6px; display: block;">Select Target Class Range:</label>
-          <select id="q-class-select">
+          <select id="q-class-select" style="width: 100%; padding: 10px; border-radius: 8px; background: #020617; color: #fff; border: 1px solid #475569;">
             <option value="3-5">Class 3rd to 5th (Set 1)</option>
             <option value="6-8" selected>Class 6th to 8th (Set 2)</option>
             <option value="9-12">Class 9th to 12th (Set 3)</option>
@@ -55,7 +49,7 @@
         </div>
         <div>
           <label style="color: #cbd5e1; font-weight: 600; font-size: 13px; margin-bottom: 6px; display: block;">Subject:</label>
-          <select id="q-subject-select">
+          <select id="q-subject-select" style="width: 100%; padding: 10px; border-radius: 8px; background: #020617; color: #fff; border: 1px solid #475569;">
             <option value="Maths">Mathematics</option>
             <option value="Science">Science</option>
             <option value="GK">General Knowledge / Reasoning</option>
@@ -65,22 +59,22 @@
 
       <div style="margin-top: 15px;">
         <label style="color: #cbd5e1; font-weight: 600; font-size: 13px; margin-bottom: 6px; display: block;">Question Statement (Hindi/English):</label>
-        <textarea id="q-text" rows="2" placeholder="e.g. मध्य प्रदेश की राजधानी क्या है? / What is the capital of MP?" style="width:100%; padding:11px 14px; border-radius:8px; background:#090d16; color:#fff; border:1px solid rgba(56,189,248,0.3); outline: none; box-shadow: inset 0 3px 6px rgba(0,0,0,0.8);"></textarea>
+        <textarea id="q-text" rows="2" placeholder="e.g. मध्य प्रदेश की राजधानी क्या है? / What is the capital of MP?" style="width:100%; padding:10px; border-radius:8px; background:#020617; color:#fff; border:1px solid rgba(56,189,248,0.3); outline: none;"></textarea>
       </div>
 
       <div class="grid-2" style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 15px;">
-        <div><label style="color: #cbd5e1; font-size: 12px; margin-bottom: 4px; display: block;">Option A:</label><input type="text" id="q-opt-a" placeholder="Option A"></div>
-        <div><label style="color: #cbd5e1; font-size: 12px; margin-bottom: 4px; display: block;">Option B:</label><input type="text" id="q-opt-b" placeholder="Option B"></div>
+        <div><label style="color: #cbd5e1; font-size: 12px; margin-bottom: 4px; display: block;">Option A:</label><input type="text" id="q-opt-a" placeholder="Option A" style="width: 100%; padding: 10px; border-radius: 8px; background: #020617; color: #fff; border: 1px solid #475569;"></div>
+        <div><label style="color: #cbd5e1; font-size: 12px; margin-bottom: 4px; display: block;">Option B:</label><input type="text" id="q-opt-b" placeholder="Option B" style="width: 100%; padding: 10px; border-radius: 8px; background: #020617; color: #fff; border: 1px solid #475569;"></div>
       </div>
 
       <div class="grid-2" style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 12px;">
-        <div><label style="color: #cbd5e1; font-size: 12px; margin-bottom: 4px; display: block;">Option C:</label><input type="text" id="q-opt-c" placeholder="Option C"></div>
-        <div><label style="color: #cbd5e1; font-size: 12px; margin-bottom: 4px; display: block;">Option D:</label><input type="text" id="q-opt-d" placeholder="Option D"></div>
+        <div><label style="color: #cbd5e1; font-size: 12px; margin-bottom: 4px; display: block;">Option C:</label><input type="text" id="q-opt-c" placeholder="Option C" style="width: 100%; padding: 10px; border-radius: 8px; background: #020617; color: #fff; border: 1px solid #475569;"></div>
+        <div><label style="color: #cbd5e1; font-size: 12px; margin-bottom: 4px; display: block;">Option D:</label><input type="text" id="q-opt-d" placeholder="Option D" style="width: 100%; padding: 10px; border-radius: 8px; background: #020617; color: #fff; border: 1px solid #475569;"></div>
       </div>
 
       <div style="margin-top: 15px; max-width: 250px;">
         <label style="color: #cbd5e1; font-weight: 600; font-size: 13px; margin-bottom: 6px; display: block;">Correct Answer Key:</label>
-        <select id="q-correct-opt">
+        <select id="q-correct-opt" style="width: 100%; padding: 10px; border-radius: 8px; background: #020617; color: #fff; border: 1px solid #475569;">
           <option value="A">Option A</option>
           <option value="B">Option B</option>
           <option value="C">Option C</option>
@@ -88,7 +82,7 @@
         </select>
       </div>
 
-      <button type="button" onclick="addNewQuestionToBank()" style="margin-top:20px; padding: 12px 20px; font-weight: bold; border-radius: 8px; border: none; cursor: pointer; background: linear-gradient(135deg, #7c3aed 0%, #c084fc 100%); color: #fff; box-shadow: 0 4px 15px rgba(124, 58, 237, 0.4);">💾 Save Question to Database</button>
+      <button type="button" onclick="addNewQuestionToBank()" style="margin-top:20px; padding: 12px 20px; font-weight: bold; border-radius: 8px; border: none; cursor: pointer; background: linear-gradient(135deg, #7c3aed 0%, #c084fc 100%); color: #fff;">💾 Save Question to Database</button>
     </div>
 
     <h4 style="color:#f8fafc; margin-top:30px; margin-bottom: 10px;">Questions in Database (<span id="total-questions-count">0</span>)</h4>
