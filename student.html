@@ -35,15 +35,8 @@
       </div>
 
       <div class="form-group">
-        <label>Student Full Name:</label>
-        <div style="display: flex; gap: 10px;">
-          <select id="std-salutation" style="width: 110px;" required>
-            <option value="Mr.">Mr.</option>
-            <option value="Ms.">Ms.</option>
-            <option value="Mrs.">Mrs.</option>
-          </select>
-          <input type="text" id="std-name" placeholder="Enter student full name" required style="flex: 1;">
-        </div>
+        <label>Student Full Name (Without Salutation):</label>
+        <input type="text" id="std-name" placeholder="Enter student full name" required>
       </div>
 
       <div class="form-group">
@@ -75,7 +68,7 @@
         </div>
 
         <div class="form-group">
-          <label>Roll Number (Unique in School - Numbers Only):</label>
+          <label>Roll Number (Numbers Only):</label>
           <input type="text" id="std-roll" inputmode="numeric" pattern="[0-9]*" placeholder="e.g. 101" required>
         </div>
       </div>
@@ -181,14 +174,14 @@
       <p>Percentage: <span id="res-percentage" style="color: #38bdf8;">0%</span></p>
     </div>
 
-    <!-- Certificate Section -->
-    <div id="certificate" class="cert-card" style="position: relative; overflow: hidden;">
-      <img src="certificate-template.jpg" alt="Certificate Template" class="cert-bg-img" style="width: 100%; display: block;">
+    <!-- Certificate Section with 2000x1414 resolution layout -->
+    <div id="certificate" class="cert-card">
+      <img src="certificate-template.jpg" alt="Certificate Template" class="cert-bg-img">
       
-      <div class="cert-text-overlay" style="position: absolute; top: 48%; width: 100%; display: flex; flex-direction: column; align-items: center; text-align: center; background: transparent !important; box-shadow: none !important; border: none !important; padding: 0;">
-        <div id="cert-student-name" class="cert-student-name" style="background: transparent !important; border: none !important; box-shadow: none !important; margin: 0;">Student Name</div>
-        <div id="cert-student-class" style="font-size: clamp(13px, 2.2vw, 20px); font-weight: 700; color: #ffffff; text-shadow: 0 2px 4px rgba(0,0,0,0.8); margin-top: 4px; background: transparent !important; border: none !important;">Class: III</div>
-        <div id="cert-school-name" style="font-size: clamp(12px, 2vw, 18px); font-weight: 600; color: #DAB963; text-shadow: 0 2px 4px rgba(0,0,0,0.8); margin-top: 4px; background: transparent !important; border: none !important;">School Name</div>
+      <div class="cert-text-overlay">
+        <div id="cert-student-name" class="cert-student-name">Student Name</div>
+        <div id="cert-student-class" class="cert-student-class">Class: III</div>
+        <div id="cert-school-name" class="cert-school-name">School Name</div>
       </div>
     </div>
 
