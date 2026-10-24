@@ -36,12 +36,13 @@ function startGrandWelcomeAnimation() {
 
   welcomeScreen.classList.remove("hidden", "reveal-open");
 
-  let countdown = 5;
+  let countdown = 3; // Yahan 5 se badal kar 3 kar diya hai
   let progressWidth = 0;
 
+  // 3 second ke hisab se progress speed adjust ki gayi hai (~33% har 100ms mein)
   const progressInterval = setInterval(() => {
-    progressWidth += 2;
-    if (progressEl) progressEl.style.width = `${progressWidth}%`;
+    progressWidth += 3.33;
+    if (progressEl) progressEl.style.width = `${Math.min(progressWidth, 100)}%`;
   }, 100);
 
   const countdownInterval = setInterval(() => {
