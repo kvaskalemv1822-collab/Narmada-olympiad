@@ -102,19 +102,24 @@
         </select>
       </div>
 
-      <!-- Online Payment Options & QR Toggle -->
+      <!-- Online Payment Options & Direct UPI App Button -->
       <div id="online-payment-section" class="hidden" style="margin-bottom: 15px;">
-        <button type="button" id="toggle-qr-btn" onclick="toggleQrCode()" style="background: #0275d8; color: white; border: none; padding: 10px 15px; border-radius: 6px; font-weight: bold; cursor: pointer; width: 100%;">
-          📱 Pay via QR Code / UPI App
+        <!-- Direct UPI App Intent Trigger Button -->
+        <button type="button" onclick="openDirectUpiApp()" style="background: #0284c7; color: #fff; padding: 12px; width: 100%; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; margin-bottom: 10px;">
+          ⚡ Pay via UPI App (GPay / PhonePe / Paytm)
         </button>
 
-        <div id="razorpay-qr-container" class="qr-box hidden">
+        <button type="button" id="toggle-qr-btn" onclick="toggleQrCode()" style="background: #334155; color: white; border: none; padding: 8px 15px; border-radius: 6px; font-weight: bold; cursor: pointer; width: 100%; font-size: 13px;">
+          📱 View / Hide QR Code (Alternative)
+        </button>
+
+        <div id="razorpay-qr-container" class="qr-box hidden" style="margin-top: 10px;">
           <p style="font-weight: bold; color: #0275d8; margin-bottom: 5px;">Scan QR Code or Pay via UPI App</p>
           <p style="margin-bottom: 8px; font-size: 14px;"><strong>UPI ID:</strong> <span id="display-upi-id" style="color: #1e3c72; font-weight: bold;">Loading...</span></p>
           <img id="razorpay-qr-img" src="Qrcode.jpg" alt="Payment QR Code" class="qr-img">
         </div>
 
-        <div class="form-group" style="margin-top: 10px; text-align: left;">
+        <div class="form-group" style="margin-top: 15px; text-align: left;">
           <label>Enter Single-Use UTR / Transaction Reference No:</label>
           <input type="text" id="std-utr" placeholder="Enter Unique UTR Number">
         </div>
