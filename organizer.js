@@ -30,10 +30,12 @@ function enforceNumericOnly(inputElement) {
 
 document.addEventListener("DOMContentLoaded", () => {
   enforceNumericOnly(document.getElementById("new-org-contact"));
+  enforceNumericOnly(document.getElementById("new-org-pin"));
   enforceNumericOnly(document.getElementById("reset-org-contact"));
+  enforceNumericOnly(document.getElementById("reset-org-pin"));
 });
 
-onSnapshot(doc(db, "settings", "examConfig"), (docSnap) => {
+onSnapshot(doc(db, "settings", "portal_config"), (docSnap) => {
   if (docSnap.exists()) {
     portalConfig = docSnap.data();
 
@@ -46,15 +48,9 @@ onSnapshot(doc(db, "settings", "examConfig"), (docSnap) => {
       noticeBanner.classList.add("hidden");
     }
 
-    const adminUpi = portalConfig.upiId || "narmadaolympiad@upi";
+    const adminUpi = portalConfig.upiId || "narmada@upi";
     const upiEl = document.getElementById("admin-settle-upi");
     if (upiEl) upiEl.textContent = adminUpi;
-
-    const upiBtn = document.getElementById("admin-upi-btn");
-    if (upiBtn) {
-      const fee = portalConfig.onlineFee || 100;
-      upiBtn.href = `upi://pay?pa=${adminUpi}&pn=NVMSO%20Admin%20Settlement&am=${fee}&cu=INR`;
-    }
 
     const qrImg = document.getElementById("admin-settle-qr");
     if (qrImg) {
@@ -64,6 +60,14 @@ onSnapshot(doc(db, "settings", "examConfig"), (docSnap) => {
     if (currentOrg) updateScheduleAndFeeUI();
   }
 });
+
+// Toggle Admin QR Code visibility on Pay click
+window.toggleSettlementQr = () => {
+  const qrBox = document.getElementById("admin-qr-box");
+  if (qrBox) {
+    qrBox.classList.toggle("hidden");
+  }
+};
 
 window.switchOrgTab = (tab) => {
   document.getElementById("org-reg-box")?.classList.add("hidden");
@@ -82,9 +86,11 @@ document.getElementById("org-reg-form")?.addEventListener("submit", async (e) =>
   const schoolName = document.getElementById("new-org-school").value.trim();
   const contact = document.getElementById("new-org-contact").value.trim().replace(/[^0-9]/g, '');
   const password = document.getElementById("new-org-pass").value.trim();
+  const pin = document.getElementById("new-org-pin").value.trim();
   const refCode = document.getElementById("new-org-ref").value.trim().toUpperCase();
 
   if (contact.length !== 10) { alert("Enter a valid 10-digit mobile number!"); return; }
+  if (pin.length !== 4) { alert("Secret PIN must be exactly 4 digits!"); return; }
 
   try {
     const q = query(collection(db, "organizers"), where("contact", "==", contact));
@@ -94,16 +100,63 @@ document.getElementById("org-reg-form")?.addEventListener("submit", async (e) =>
     const generatedCode = `ORG${Math.floor(1000 + Math.random() * 9000)}`;
 
     await setDoc(doc(db, "organizers", generatedCode), {
-      code: generatedCode, name, schoolName, contact, password,
+      orgCode: generatedCode, code: generatedCode, name, schoolName, contact, password, pin,
       refCode: refCode || null, examMode: "online", academicYear: "2026-27", principalApproved: false, manualSettled: false, registeredAt: new Date().toISOString()
     });
 
-    alert(`🎉 Registration Successful!\n\nOrganizer Code: ${generatedCode}\nPassword: ${password}`);
+    alert(`🎉 Registration Successful!\n\nYour Organizer Code: ${generatedCode}\nSecret PIN: ${pin}\n(Keep your PIN safe for recovery).`);
     document.getElementById("org-code-input").value = generatedCode;
     document.getElementById("org-pass-input").value = password;
     switchOrgTab('login');
-  } catch (err) { alert("Error registering organizer account."); }
+  } catch (err) { 
+    console.error(err);
+    alert("Error registering organizer account."); 
+  }
 });
+
+window.executePinReset = async () => {
+  const contact = document.getElementById("reset-org-contact").value.trim().replace(/[^0-9]/g, '');
+  const enteredPin = document.getElementById("reset-org-pin").value.trim();
+  const newPass = document.getElementById("reset-org-pass").value.trim();
+
+  if (contact.length !== 10) { alert("Enter a valid 10-digit mobile number!"); return; }
+  if (enteredPin.length !== 4) { alert("Enter your valid 4-digit Secret PIN!"); return; }
+  if (!newPass) { alert("Enter your new password!"); return; }
+
+  try {
+    const q = query(collection(db, "organizers"), where("contact", "==", contact));
+    const snap = await getDocs(q);
+
+    if (snap.empty) {
+      alert("❌ Mobile number not found in database!");
+      return;
+    }
+
+    let matchedDocId = null;
+    snap.forEach(d => {
+      const data = d.data();
+      if (data.pin === enteredPin) {
+        matchedDocId = d.id;
+      }
+    });
+
+    if (!matchedDocId) {
+      alert("❌ Incorrect Secret PIN! Verification failed.");
+      return;
+    }
+
+    await updateDoc(doc(db, "organizers", matchedDocId), { password: newPass });
+
+    alert(`✅ Verification Successful!\n\nYour Organizer Code is: ${matchedDocId}\nPassword has been reset successfully.`);
+    document.getElementById("org-code-input").value = matchedDocId;
+    document.getElementById("org-pass-input").value = newPass;
+    switchOrgTab('login');
+
+  } catch (err) {
+    console.error(err);
+    alert("Error resetting password.");
+  }
+};
 
 window.verifyOrgLogin = async () => {
   const code = document.getElementById("org-code-input").value.trim().toUpperCase();
@@ -120,30 +173,12 @@ window.verifyOrgLogin = async () => {
   } catch (err) { alert("Error logging in."); }
 };
 
-document.getElementById("btn-reset-exec")?.addEventListener("click", async () => {
-  const contact = document.getElementById("reset-org-contact").value.trim().replace(/[^0-9]/g, '');
-  const newPass = document.getElementById("reset-org-pass").value.trim();
-
-  try {
-    const q = query(collection(db, "organizers"), where("contact", "==", contact));
-    const snap = await getDocs(q);
-    if (snap.empty) { alert("❌ Mobile number not found!"); return; }
-
-    let targetCode = "";
-    snap.forEach(d => targetCode = d.id);
-
-    await updateDoc(doc(db, "organizers", targetCode), { password: newPass });
-    alert(`✅ Password Reset! Code is: ${targetCode}`);
-    switchOrgTab('login');
-  } catch (err) { alert("Error resetting password."); }
-});
-
 function loadDashboardView() {
-  document.getElementById("org-login-box")?.classList.add("hidden");
+  document.getElementById("org-auth-section")?.classList.add("hidden");
   document.getElementById("org-view")?.classList.remove("hidden");
 
   document.getElementById("display-org-name").textContent = currentOrg.name;
-  document.getElementById("display-org-code").textContent = currentOrg.code;
+  document.getElementById("display-org-code").textContent = currentOrg.code || currentOrg.orgCode;
   document.getElementById("display-org-school").textContent = currentOrg.schoolName;
 
   updatePermissionUI(currentOrg.principalApproved);
@@ -158,7 +193,8 @@ window.togglePrincipalPermission = async (isChecked) => {
   if (!currentOrg) return;
 
   try {
-    await updateDoc(doc(db, "organizers", currentOrg.code), {
+    const orgCodeKey = currentOrg.code || currentOrg.orgCode;
+    await updateDoc(doc(db, "organizers", orgCodeKey), {
       principalApproved: isChecked,
       approvedAt: isChecked ? new Date().toISOString() : null
     });
@@ -191,7 +227,8 @@ function updatePermissionUI(isApproved) {
 }
 
 function listenToAdminManualSettlement() {
-  onSnapshot(doc(db, "organizers", currentOrg.code), (docSnap) => {
+  const orgCodeKey = currentOrg.code || currentOrg.orgCode;
+  onSnapshot(doc(db, "organizers", orgCodeKey), (docSnap) => {
     if (docSnap.exists()) {
       currentOrg = docSnap.data();
       recalculateFinancials();
@@ -201,11 +238,7 @@ function listenToAdminManualSettlement() {
 
 function updateScheduleAndFeeUI() {
   const mode = currentOrg.examMode || "online";
-  const selectedYear = currentOrg.academicYear || portalConfig.academicYear || "2026-27";
   const fee = mode === "offline" ? (portalConfig.offlineFee || 120) : (portalConfig.onlineFee || 100);
-
-  const selectedYearEl = document.getElementById("display-selected-year");
-  if (selectedYearEl) selectedYearEl.textContent = selectedYear;
 
   const modeEl = document.getElementById("display-exam-mode");
   if (modeEl) modeEl.textContent = mode.toUpperCase();
@@ -214,60 +247,35 @@ function updateScheduleAndFeeUI() {
   if (feeEl) feeEl.textContent = fee;
 
   const durEl = document.getElementById("display-exam-duration");
-  if (durEl) durEl.textContent = portalConfig.duration || 30;
+  if (durEl) durEl.textContent = portalConfig.examDuration || 30;
 
-  const yearSelect = document.getElementById("org-academic-year-select");
-  if (yearSelect) yearSelect.value = selectedYear;
+  const modeSelect = document.getElementById("org-exam-mode-select");
+  if (modeSelect) modeSelect.value = mode;
 
   const startEl = document.getElementById("display-exam-start");
   if (startEl) startEl.textContent = portalConfig.examStartTime ? new Date(portalConfig.examStartTime).toLocaleString() : "Not Scheduled Yet";
 
   const closeEl = document.getElementById("display-exam-close");
   if (closeEl) closeEl.textContent = portalConfig.examEndTime ? new Date(portalConfig.examEndTime).toLocaleString() : "Not Scheduled Yet";
-
-  const regBadge = document.getElementById("status-reg-badge");
-  const examBadge = document.getElementById("status-exam-badge");
-  const resultBadge = document.getElementById("status-result-badge");
-
-  if (regBadge) {
-    regBadge.textContent = portalConfig.regActive ? "ACTIVE 🟢" : "INACTIVE 🔴";
-    regBadge.style.color = portalConfig.regActive ? "#4ade80" : "#f87171";
-  }
-  if (examBadge) {
-    examBadge.textContent = portalConfig.examActive ? "ACTIVE 🚀" : "INACTIVE 🔴";
-    examBadge.style.color = portalConfig.examActive ? "#4ade80" : "#f87171";
-  }
-  if (resultBadge) {
-    resultBadge.textContent = portalConfig.resultAllowed ? "ACTIVE 🏆" : "INACTIVE 🔴";
-    resultBadge.style.color = portalConfig.resultAllowed ? "#4ade80" : "#f87171";
-  }
 }
 
-window.updateAcademicYear = async (newYear) => {
-  if (!currentOrg) return;
-  currentOrg.academicYear = newYear;
-  await updateDoc(doc(db, "organizers", currentOrg.code), { academicYear: newYear });
-  
-  const stdQuery = query(collection(db, "students"), where("orgCode", "==", currentOrg.code));
-  const snap = await getDocs(stdQuery);
-  snap.forEach(async (d) => {
-    await updateDoc(doc(db, "students", d.id), { academicYear: newYear });
-  });
-
-  updateScheduleAndFeeUI();
-  alert(`🎓 Academic Session Year updated to: ${newYear}`);
-};
-
 window.updateExamMode = async (newMode) => {
+  const orgCodeKey = currentOrg.code || currentOrg.orgCode;
   currentOrg.examMode = newMode;
-  await updateDoc(doc(db, "organizers", currentOrg.code), { examMode: newMode });
-  updateScheduleAndFeeUI();
-  recalculateFinancials();
-  alert(`Exam mode updated to: ${newMode.toUpperCase()}`);
+  try {
+    await updateDoc(doc(db, "organizers", orgCodeKey), { examMode: newMode });
+    updateScheduleAndFeeUI();
+    recalculateFinancials();
+    alert(`✅ Exam Conduct Mode updated to: ${newMode.toUpperCase()}\n\nStudents registering with your code will now see this mode.`);
+  } catch (err) {
+    console.error(err);
+    alert("Error updating Exam Mode.");
+  }
 };
 
 function startRealtimeStudentsListener() {
-  const stdQuery = query(collection(db, "students"), where("orgCode", "==", currentOrg.code));
+  const orgCodeKey = currentOrg.code || currentOrg.orgCode;
+  const stdQuery = query(collection(db, "students"), where("orgCode", "==", orgCodeKey));
   onSnapshot(stdQuery, (snapshot) => {
     orgStudents = [];
     snapshot.forEach(d => orgStudents.push({ id: d.id, ...d.data() }));
@@ -277,11 +285,13 @@ function startRealtimeStudentsListener() {
 }
 
 function startResultsListener() {
-  onSnapshot(collection(db, "results"), (snapshot) => {
+  onSnapshot(collection(db, "students"), (snapshot) => {
     studentResults = {};
     snapshot.forEach(d => {
       const data = d.data();
-      studentResults[data.roll] = data;
+      if (data.examCompleted) {
+        studentResults[data.rollNumber] = data;
+      }
     });
     renderStudentsTable();
   });
@@ -293,18 +303,18 @@ function renderStudentsTable() {
   tbody.innerHTML = "";
 
   if (orgStudents.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="9" style="text-align:center; padding:15px; color:#94a3b8;">No registered students found.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="8" style="text-align:center; padding:15px; color:#94a3b8;">No registered students found.</td></tr>`;
     return;
   }
 
   let classWiseGroup = {};
   orgStudents.forEach(s => {
-    const stdClass = parseInt(s.stdClass);
+    const stdClass = parseInt(s.studentClass || s.stdClass);
     const category = (stdClass >= 3 && stdClass <= 6) ? "cat_3_6" : "cat_7_12";
     if (!classWiseGroup[category]) classWiseGroup[category] = [];
     
-    const res = studentResults[s.roll];
-    const score = res ? (res.percentage || res.marks || 0) : 0;
+    const res = studentResults[s.rollNumber || s.roll];
+    const score = res ? (res.percentage || res.score || 0) : 0;
     classWiseGroup[category].push({ ...s, score, res });
   });
 
@@ -312,18 +322,22 @@ function renderStudentsTable() {
   Object.keys(classWiseGroup).forEach(cat => {
     classWiseGroup[cat].sort((a, b) => b.score - a.score);
     classWiseGroup[cat].forEach((st, idx) => {
-      rankMap[st.roll] = idx + 1;
+      rankMap[st.rollNumber || st.roll] = idx + 1;
     });
   });
 
   orgStudents.forEach((s) => {
     const tr = document.createElement("tr");
-    const isPaid = s.paymentConfirmed || s.payMode === "online";
-    const res = studentResults[s.roll];
-    const rank = rankMap[s.roll] || 0;
+    const roll = s.rollNumber || s.roll;
+    const name = s.studentName || s.name;
+    const stdClass = s.studentClass || s.stdClass;
+    const payMode = s.paymentMode || s.payMode || 'cash';
+    const isPaid = s.cashApproved || s.paymentConfirmed || payMode === "online";
+    const res = studentResults[roll];
+    const rank = rankMap[roll] || 0;
 
     let awardBadge = "⏳ Pending Exam";
-    if (portalConfig.resultAllowed && res) {
+    if (portalConfig.isResultDeclared && res) {
       if (rank === 1) awardBadge = "🥇 Gold Medal + Memento";
       else if (rank === 2) awardBadge = "🥈 Silver Medal + Memento";
       else if (rank === 3) awardBadge = "🥉 Bronze Medal + Memento";
@@ -332,16 +346,15 @@ function renderStudentsTable() {
     }
 
     tr.innerHTML = `
-      <td><strong>${s.roll}</strong></td>
-      <td>${s.name}</td>
-      <td><code style="background:#0f172a; padding:3px 6px; border-radius:4px; color:#38bdf8;">${s.password || 'N/A'}</code></td>
-      <td>Class ${s.stdClass}${s.stream ? ` (${s.stream})` : ''}</td>
-      <td><span style="text-transform:uppercase;">${s.payMode || 'cash'}</span></td>
+      <td><strong>${roll}</strong></td>
+      <td>${name}</td>
+      <td>Class ${stdClass}${s.stream ? ` (${s.stream})` : ''}</td>
+      <td><span style="text-transform:uppercase;">${payMode}</span></td>
       <td><span style="color:${isPaid ? '#4ade80' : '#facc15'}; font-weight:bold;">${isPaid ? 'CONFIRMED' : 'PENDING CASH'}</span></td>
-      <td>${portalConfig.resultAllowed && res ? `<strong style="color:#fbbf24;">${res.marks}/${res.totalMarks} (${res.percentage}%)</strong>` : `<span style="color:#94a3b8;">Hidden until result</span>`}</td>
+      <td>${portalConfig.isResultDeclared && res ? `<strong style="color:#fbbf24;">${res.score || 0} (${res.percentage || 0}%)</strong>` : `<span style="color:#94a3b8;">Hidden until result</span>`}</td>
       <td><span style="color:#38bdf8; font-weight:bold;">${awardBadge}</span></td>
       <td>
-        ${!isPaid && s.payMode === 'cash' ? 
+        ${!isPaid && payMode === 'cash' ? 
           `<button onclick="confirmCashPayment('${s.id}')" class="btn-primary" style="padding:6px 10px; font-size:12px; background:#10b981;">Approve Cash</button>` : 
           `<span style="color:#38bdf8;">Verified</span>`}
       </td>
@@ -352,7 +365,7 @@ function renderStudentsTable() {
 
 window.confirmCashPayment = async (studentDocId) => {
   if (confirm("Confirm Cash receipt for this student?")) {
-    await updateDoc(doc(db, "students", studentDocId), { paymentConfirmed: true });
+    await updateDoc(doc(db, "students", studentDocId), { cashApproved: true, paymentConfirmed: true });
     alert("✅ Cash Payment Approved!");
   }
 };
@@ -362,13 +375,22 @@ function recalculateFinancials() {
   let onlineColl = 0;
 
   orgStudents.forEach(s => {
-    const fee = s.fee || (currentOrg.examMode === "offline" ? (portalConfig.offlineFee || 120) : (portalConfig.onlineFee || 100));
-    if (s.payMode === "cash" && s.paymentConfirmed) cashColl += fee;
-    else if (s.payMode === "online") onlineColl += fee;
+    const fee = Number(s.feePaid || s.fee) || (currentOrg.examMode === "offline" ? (portalConfig.offlineFee || 120) : (portalConfig.onlineFee || 100));
+    const payMode = s.paymentMode || s.payMode;
+    const isApproved = s.cashApproved || s.paymentConfirmed;
+
+    if (payMode === "cash" && isApproved) cashColl += fee;
+    else if (payMode === "online") onlineColl += fee;
   });
 
-  const totalConfirmed = orgStudents.filter(s => s.paymentConfirmed || s.payMode === "online").length;
-  let directComm = currentOrg.examMode === "offline" ? (totalConfirmed * 20) : ((cashColl + onlineColl) * 0.20);
+  const totalConfirmedStudents = orgStudents.filter(s => (s.cashApproved || s.paymentConfirmed || (s.paymentMode || s.payMode) === "online")).length;
+  
+  let directComm = 0;
+  if (currentOrg.examMode === "offline") {
+    directComm = totalConfirmedStudents * 15;
+  } else {
+    directComm = (cashColl + onlineColl) * 0.15;
+  }
 
   let refComm = 0;
   referralOrgs.forEach(sub => refComm += (sub.totalColl || 0) * 0.05);
@@ -396,7 +418,7 @@ function recalculateFinancials() {
 
   if (settText) {
     if (netCashPayableToNVMSO > 0) {
-      settText.textContent = `⚠️ Excess Cash Pending. Net Amount Payable to NVMSO Admin (After Deducting Commission): ₹${netCashPayableToNVMSO.toFixed(2)}`;
+      settText.textContent = `⚠️ Excess Cash Pending. Net Amount Payable to NVMSO Admin: ₹${netCashPayableToNVMSO.toFixed(2)}`;
       settText.style.color = "#f87171";
       settPayContainer?.classList.remove("hidden");
     } else {
@@ -408,7 +430,8 @@ function recalculateFinancials() {
 }
 
 function startReferralTrackingListener() {
-  const refQuery = query(collection(db, "organizers"), where("refCode", "==", currentOrg.code));
+  const orgCodeKey = currentOrg.code || currentOrg.orgCode;
+  const refQuery = query(collection(db, "organizers"), where("refCode", "==", orgCodeKey));
   onSnapshot(refQuery, async (snapshot) => {
     referralOrgs = [];
     const tbody = document.querySelector("#org-referral-tracking-table tbody");
@@ -429,7 +452,11 @@ function startReferralTrackingListener() {
       const subStds = await getDocs(query(collection(db, "students"), where("orgCode", "==", sub.code)));
       let subTotal = 0;
       subStds.forEach(sd => {
-        if (sd.data().paymentConfirmed || sd.data().payMode === "online") subTotal += sd.data().fee || 100;
+        const data = sd.data();
+        const payMode = data.paymentMode || data.payMode;
+        if (data.cashApproved || data.paymentConfirmed || payMode === "online") {
+          subTotal += Number(data.feePaid || data.fee) || 100;
+        }
       });
       sub.totalColl = subTotal;
 
@@ -449,11 +476,12 @@ function startReferralTrackingListener() {
 document.getElementById("settlement-pay-form")?.addEventListener("submit", async (e) => {
   e.preventDefault();
   const utr = document.getElementById("settlement-utr").value.trim();
+  const orgCodeKey = currentOrg.code || currentOrg.orgCode;
 
   if (!utr || utr.length < 6) { alert("Enter a valid UTR Number!"); return; }
 
-  await setDoc(doc(db, "settlement_payments", currentOrg.code), {
-    orgCode: currentOrg.code, orgName: currentOrg.name, schoolName: currentOrg.schoolName,
+  await setDoc(doc(db, "settlement_payments", orgCodeKey), {
+    orgCode: orgCodeKey, orgName: currentOrg.name, schoolName: currentOrg.schoolName,
     utrNumber: utr, amount: netCashPayableToNVMSO, submittedAt: new Date().toISOString(), status: "PENDING"
   });
 
@@ -463,9 +491,10 @@ document.getElementById("settlement-pay-form")?.addEventListener("submit", async
 
 document.getElementById("payout-form")?.addEventListener("submit", async (e) => {
   e.preventDefault();
+  const orgCodeKey = currentOrg.code || currentOrg.orgCode;
 
   if (netCashPayableToNVMSO > 0) {
-    alert(`⛔ Payout Blocked!\n\nYou have ₹${netCashPayableToNVMSO.toFixed(2)} un-cleared cash payable to NVMSO.\n\nPlease clear/pay the remaining cash balance to NVMSO first before requesting a payout.`);
+    alert(`⛔ Payout Blocked!\n\nYou have ₹${netCashPayableToNVMSO.toFixed(2)} un-cleared cash payable to NVMSO.`);
     return;
   }
 
@@ -474,8 +503,8 @@ document.getElementById("payout-form")?.addEventListener("submit", async (e) => 
 
   if (!upi) { alert("Enter your UPI ID or Payment Number!"); return; }
 
-  await setDoc(doc(db, "payout_requests", currentOrg.code), {
-    orgCode: currentOrg.code, orgName: currentOrg.name, schoolName: currentOrg.schoolName,
+  await setDoc(doc(db, "payout_requests", orgCodeKey), {
+    orgCode: orgCodeKey, orgName: currentOrg.name, schoolName: currentOrg.schoolName,
     upi, qrUrl: qrUrl || null, requestedAt: new Date().toISOString(), status: "PENDING"
   });
 
@@ -484,10 +513,12 @@ document.getElementById("payout-form")?.addEventListener("submit", async (e) => 
 
 window.sendHelpQuery = async () => {
   const message = document.getElementById("support-msg")?.value.trim();
+  const orgCodeKey = currentOrg.code || currentOrg.orgCode;
+
   if (!message) { alert("Enter your query message!"); return; }
 
   await addDoc(collection(db, "support_queries"), {
-    orgCode: currentOrg.code, orgName: currentOrg.name, schoolName: currentOrg.schoolName,
+    orgCode: orgCodeKey, orgName: currentOrg.name, schoolName: currentOrg.schoolName,
     message, status: "PENDING", timestamp: new Date().toISOString()
   });
 
