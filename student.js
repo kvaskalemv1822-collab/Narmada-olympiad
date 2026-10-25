@@ -408,7 +408,6 @@ function setupEventListeners() {
         qSnap.forEach(docSnap => {
           const qData = docSnap.data();
           const qTarget = qData.targetClass || "6-8";
-          const qSubj = qData.subject || "Maths";
 
           let isMatch = false;
           const sClass = Number(activeStudent.studentClass);
@@ -417,11 +416,8 @@ function setupEventListeners() {
           if (qTarget === "3-5" && sClass >= 3 && sClass <= 5) isMatch = true;
           else if (qTarget === "6-8" && sClass >= 6 && sClass <= 8) isMatch = true;
           else if (qTarget === "9-10" && sClass >= 9 && sClass <= 10) isMatch = true;
-          else if (qTarget === "9-12" && sClass >= 9 && sClass <= 12) isMatch = true;
-          else if (qTarget === "11-12" && sClass >= 11 && sClass <= 12) {
-            if (sStream === "Maths" && qSubj === "Maths") isMatch = true;
-            if (sStream === "Science" && qSubj === "Science") isMatch = true;
-          }
+          else if (qTarget === "11-12-Maths" && sClass >= 11 && sClass <= 12 && sStream === "Maths") isMatch = true;
+          else if (qTarget === "11-12-Science" && sClass >= 11 && sClass <= 12 && sStream === "Science") isMatch = true;
 
           if (isMatch) {
             totalQuestions++;
@@ -570,18 +566,14 @@ async function loadExamQuestions(studentClass, studentStream) {
     qSnap.forEach(docSnap => {
       const q = docSnap.data();
       const qTarget = q.targetClass || "6-8";
-      const qSubj = q.subject || "Maths";
 
       let includeQuestion = false;
 
       if (qTarget === "3-5" && sClass >= 3 && sClass <= 5) includeQuestion = true;
       else if (qTarget === "6-8" && sClass >= 6 && sClass <= 8) includeQuestion = true;
       else if (qTarget === "9-10" && sClass >= 9 && sClass <= 10) includeQuestion = true;
-      else if (qTarget === "9-12" && sClass >= 9 && sClass <= 12) includeQuestion = true;
-      else if (qTarget === "11-12" && sClass >= 11 && sClass <= 12) {
-        if (sStream === "Maths" && qSubj === "Maths") includeQuestion = true;
-        if (sStream === "Science" && qSubj === "Science") includeQuestion = true;
-      }
+      else if (qTarget === "11-12-Maths" && sClass >= 11 && sClass <= 12 && sStream === "Maths") includeQuestion = true;
+      else if (qTarget === "11-12-Science" && sClass >= 11 && sClass <= 12 && sStream === "Science") includeQuestion = true;
 
       if (includeQuestion) {
         count++;
@@ -605,7 +597,7 @@ async function loadExamQuestions(studentClass, studentStream) {
     if (document.getElementById("exam-neg-mark")) document.getElementById("exam-neg-mark").textContent = portalConfigData.negativeMarking || 0;
 
     if (count === 0) {
-      container.innerHTML = `<p style='color: #f87171;'>⚠️ No matching questions found for Class ${sClass} (${sStream}) in the database. Please check Question Bank Manager.</p>`;
+      container.innerHTML = `<p style='color: #f87171;'>⚠️ No matching questions found for Class ${sClass} (${sStream}) in the database. Please add questions for this category in Question Bank Manager.</p>`;
     }
   } catch (e) {
     console.error("Error loading questions:", e);
@@ -613,7 +605,6 @@ async function loadExamQuestions(studentClass, studentStream) {
   }
 }
 
-// Strict Edge-to-Edge Full Landscape PDF Download
 window.downloadHighQualityPDF = () => {
   const element = document.getElementById("certificate");
   if (!element) return;
