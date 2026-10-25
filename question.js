@@ -14,6 +14,12 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
+// Back Button Fix: Mobile ya browser ka back dabate hi Central Panel par bhejega
+history.pushState(null, '', window.location.href);
+window.addEventListener('popstate', function () {
+  window.location.href = 'central.html';
+});
+
 // Start fetching questions immediately on load
 document.addEventListener("DOMContentLoaded", () => {
   startQuestionBankListener();
