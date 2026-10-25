@@ -81,6 +81,22 @@ function initRealtimePortalSync() {
   });
 }
 
+// ⚡ Direct UPI App Intent Trigger Function
+window.openDirectUpiApp = function() {
+  // Check applicable fee based on verified organizer mode
+  let applicableFee = verifiedOrgExamMode === "offline" ? (portalConfigData.offlineFee || 120) : (portalConfigData.onlineFee || 100);
+  let merchantUpiID = portalConfigData.upiId || "narmada@upi";
+  let payeeName = "NVMSO Exam Fee";
+
+  let upiUrl = `upi://pay?pa=${encodeURIComponent(merchantUpiID)}&pn=${encodeURIComponent(payeeName)}&am=${encodeURIComponent(applicableFee)}&cu=INR`;
+
+  if (/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) {
+    window.location.href = upiUrl;
+  } else {
+    alert("Direct UPI app payment works best on mobile devices. Please scan the QR code using your phone.");
+  }
+};
+
 window.switchTab = (tabName) => {
   document.getElementById("registration-view").classList.add("hidden");
   document.getElementById("login-view").classList.add("hidden");
