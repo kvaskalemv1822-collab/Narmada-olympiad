@@ -14,44 +14,10 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-// Run 3-second Grand Welcome Animation on page load
+// Start fetching questions immediately on load
 document.addEventListener("DOMContentLoaded", () => {
-  startGrandWelcomeAnimation();
+  startQuestionBankListener();
 });
-
-function startGrandWelcomeAnimation() {
-  const welcomeScreen = document.getElementById("grand-welcome-screen");
-  welcomeScreen?.classList.remove("hidden", "reveal-open");
-
-  let countdown = 3;
-  let progressWidth = 0;
-
-  const countdownEl = document.getElementById("welcome-countdown");
-  const progressEl = document.getElementById("welcome-progress");
-
-  const progressInterval = setInterval(() => {
-    progressWidth += 3.33;
-    if (progressEl) progressEl.style.width = `${Math.min(progressWidth, 100)}%`;
-  }, 100);
-
-  const countdownInterval = setInterval(() => {
-    countdown--;
-    if (countdownEl) countdownEl.textContent = countdown;
-
-    if (countdown <= 0) {
-      clearInterval(countdownInterval);
-      clearInterval(progressInterval);
-      
-      welcomeScreen?.classList.add("reveal-open");
-
-      setTimeout(() => {
-        welcomeScreen?.classList.add("hidden");
-        document.getElementById("question-main-container")?.classList.remove("hidden");
-        startQuestionBankListener();
-      }, 800);
-    }
-  }, 1000);
-}
 
 window.addNewQuestionToBank = async () => {
   const targetClass = document.getElementById("q-class-select").value;
@@ -94,7 +60,8 @@ function startQuestionBankListener() {
     const tbody = document.querySelector("#questions-table tbody");
     if (!tbody) return;
     tbody.innerHTML = "";
-    document.getElementById("total-questions-count").textContent = snapshot.size;
+    const countEl = document.getElementById("total-questions-count");
+    if (countEl) countEl.textContent = snapshot.size;
 
     let count = 0;
     snapshot.forEach(d => {
