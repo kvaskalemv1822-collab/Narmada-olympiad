@@ -1,5 +1,5 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-import { getFirestore, doc, collection, addDoc, deleteDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+import { getFirestore, doc, getDoc, setDoc, collection, addDoc, deleteDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyBVPLR8q1NpUNSpmsDdKcqPAo_z1vZOvnA",
@@ -20,10 +20,47 @@ window.addEventListener('popstate', function () {
   window.location.href = 'central.html';
 });
 
-// Start fetching questions immediately on load
+// Start fetching questions and config settings immediately on load
 document.addEventListener("DOMContentLoaded", () => {
   startQuestionBankListener();
+  loadExamScoringConfig();
 });
+
+// Load existing scoring settings from portal_config
+async function loadExamScoringConfig() {
+  try {
+    const docSnap = await getDoc(doc(db, "settings", "portal_config"));
+    if (docSnap.exists()) {
+      const data = docSnap.data();
+      if (document.getElementById("config-marks-correct")) {
+        document.getElementById("config-marks-correct").value = data.marksPerCorrect || 1;
+      }
+      if (document.getElementById("config-negative-marking")) {
+        document.getElementById("config-negative-marking").value = data.negativeMarking !== undefined ? data.negativeMarking : 0;
+      }
+    }
+  } catch (e) {
+    console.error("Error loading config:", e);
+  }
+}
+
+// Save Exam Scoring & Negative Marking to Firebase
+window.saveExamScoringConfig = async () => {
+  const marksPerCorrect = Number(document.getElementById("config-marks-correct").value) || 1;
+  const negativeMarking = Number(document.getElementById("config-negative-marking").value) || 0;
+
+  try {
+    await setDoc(doc(db, "settings", "portal_config"), {
+      marksPerCorrect,
+      negativeMarking
+    }, { merge: true });
+
+    alert("✅ Exam Rules & Scoring Configuration saved successfully!");
+  } catch (e) {
+    console.error("Error saving rules:", e);
+    alert("❌ Error saving exam rules to database.");
+  }
+};
 
 window.addNewQuestionToBank = async () => {
   const targetClass = document.getElementById("q-class-select").value;
@@ -75,8 +112,8 @@ function startQuestionBankListener() {
       const q = d.data();
       const tr = document.createElement("tr");
       tr.innerHTML = `
-        <td><strong style="color:#c084fc;">Class ${q.targetClass}</strong></td>
-        <td>${q.subject}</td>
+        <td><strong style="color:#c084fc;">Class ${q.targetClass || '3-5'}</strong></td>
+        <td>${q.subject || 'Maths'}</td>
         <td><strong>${q.qText}</strong></td>
         <td>
           <small>A: ${q.optA} | B: ${q.optB}<br>C: ${q.optC} | D: ${q.optD}</small>
