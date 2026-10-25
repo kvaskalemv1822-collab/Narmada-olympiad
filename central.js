@@ -111,15 +111,15 @@ function startGrandWelcomeAnimation() {
   const welcomeScreen = document.getElementById("grand-welcome-screen");
   welcomeScreen?.classList.remove("hidden", "reveal-open");
 
-  let countdown = 5;
+  let countdown = 3;
   let progressWidth = 0;
 
   const countdownEl = document.getElementById("welcome-countdown");
   const progressEl = document.getElementById("welcome-progress");
 
   const progressInterval = setInterval(() => {
-    progressWidth += 2;
-    if (progressEl) progressEl.style.width = `${progressWidth}%`;
+    progressWidth += 3.33;
+    if (progressEl) progressEl.style.width = `${Math.min(progressWidth, 100)}%`;
   }, 100);
 
   const countdownInterval = setInterval(() => {
