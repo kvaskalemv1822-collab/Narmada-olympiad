@@ -174,22 +174,27 @@ input:focus, select:focus {
   text-align: center;
 }
 
+/* STRICT ZERO-MARGIN EDGE-TO-EDGE LANDSCAPE CERTIFICATE FIX */
 .cert-card {
   position: relative;
-  width: 100%;
-  max-width: 850px;
-  aspect-ratio: 2000 / 1414;
-  margin: 20px auto;
-  border-radius: 12px;
+  width: 1122px;
+  height: 794px;
+  max-width: 100%;
+  aspect-ratio: 1.4142;
+  margin: 0 auto;
+  background: #ffffff;
   overflow: hidden;
-  background: #000000;
+  border: none;
   box-shadow: 0 10px 30px rgba(0,0,0,0.35);
 }
 
 .cert-bg-img {
+  position: absolute;
+  top: 0;
+  left: 0;
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: fill; /* Edge-to-edge fill without any white gaps */
   display: block;
 }
 
@@ -208,22 +213,22 @@ input:focus, select:focus {
 
 .cert-student-name {
   font-family: 'Alex Brush', cursive;
-  font-size: min(8vw, 56px);
+  font-size: 52px;
   font-weight: 700;
   color: #C48067;
-  margin: 0 0 8px 0;
-}
-
-.cert-student-class {
-  font-size: clamp(14px, 2.3vw, 21px);
-  font-weight: 700;
-  color: #ffffff !important;
-  text-shadow: 0 2px 4px rgba(0,0,0,0.8);
   margin: 0 0 6px 0;
 }
 
+.cert-student-class {
+  font-size: 20px;
+  font-weight: 700;
+  color: #ffffff !important;
+  text-shadow: 0 2px 4px rgba(0,0,0,0.8);
+  margin: 0 0 5px 0;
+}
+
 .cert-school-name {
-  font-size: clamp(13px, 2.1vw, 19px);
+  font-size: 18px;
   font-weight: 600;
   color: #DAB963 !important;
   text-shadow: 0 2px 4px rgba(0,0,0,0.8);
