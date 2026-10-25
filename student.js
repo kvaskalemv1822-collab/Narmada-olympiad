@@ -1,5 +1,5 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-import { getFirestore, doc, getDoc, setDoc, collection, addDoc, getDocs, query, where } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+import { getFirestore, doc, getDoc, setDoc, collection, addDoc, getDocs, query, where, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyBVPLR8q1NpUNSpmsDdKcqPAo_z1vZOvnA",
@@ -15,60 +15,76 @@ const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
 let portalConfigData = {};
+let activeStudent = null;
+let examTimerInterval = null;
+let isOrganizerVerified = false;
+let verifiedOrgExamMode = "online";
+let schoolNameCache = {};
 
-document.addEventListener("DOMContentLoaded", async () => {
-  await fetchPortalConfig();
+document.addEventListener("DOMContentLoaded", () => {
+  initRealtimePortalSync();
   setupEventListeners();
 });
 
-// 1. Fetch Master Switches & Config from Firebase
-async function fetchPortalConfig() {
+function initRealtimePortalSync() {
   const statusMsg = document.getElementById("portal-status-msg");
-  try {
-    const docRef = doc(db, "settings", "portal_config");
-    const docSnap = await getDoc(docRef);
+  const btnReg = document.getElementById("nav-btn-reg");
+  const btnLogin = document.getElementById("nav-btn-login");
+  const btnResult = document.getElementById("nav-btn-result");
 
+  onSnapshot(doc(db, "settings", "portal_config"), (docSnap) => {
     if (docSnap.exists()) {
       portalConfigData = docSnap.data();
-      
-      // Update Fees and UPI dynamically from Central Panel config
-      const onlineFee = portalConfigData.onlineFee || 100;
-      const offlineFee = portalConfigData.offlineFee || 120;
-      
-      if (document.getElementById("display-reg-fee")) document.getElementById("display-reg-fee").textContent = offlineFee;
-      if (document.getElementById("display-reg-fee-online")) document.getElementById("display-reg-fee-online").textContent = onlineFee;
-      if (document.getElementById("display-upi-id")) document.getElementById("display-upi-id").textContent = portalConfigData.upiId || "narmada@upi";
 
-      // Check Registration Status Switch
-      if (!portalConfigData.isRegistrationOpen) {
+      const upiSpan = document.getElementById("display-upi-id");
+      if (upiSpan) upiSpan.textContent = portalConfigData.upiId || "narmada@upi";
+
+      const qrImg = document.getElementById("razorpay-qr-img");
+      if (qrImg && portalConfigData.qrImageUrl) {
+        qrImg.src = portalConfigData.qrImageUrl;
+      }
+
+      const isRegOpen = !!portalConfigData.isRegistrationOpen;
+      const isExamActive = !!portalConfigData.isExamActive;
+      const isResultAllowed = !!portalConfigData.isResultDeclared;
+
+      if (btnReg) btnReg.style.display = isRegOpen ? "block" : "none";
+      if (btnLogin) btnLogin.style.display = isExamActive ? "block" : "none";
+      if (btnResult) btnResult.style.display = isResultAllowed ? "block" : "none";
+
+      if (isRegOpen) {
         if (statusMsg) {
-          statusMsg.textContent = "🔴 Registration is currently closed by NVMS Admin.";
-          statusMsg.style.background = "rgba(239, 68, 68, 0.15)";
-          statusMsg.style.color = "#ef4444";
-        }
-      } else {
-        if (statusMsg) {
-          statusMsg.textContent = "🟢 NVMSO 2026 Portal is Live & Active.";
+          statusMsg.textContent = "🟢 NVMSO Registration is Live & Active.";
           statusMsg.style.background = "rgba(16, 185, 129, 0.15)";
           statusMsg.style.color = "#10b981";
         }
-        document.getElementById("registration-view").classList.remove("hidden");
+      } else if (isExamActive) {
+        if (statusMsg) {
+          statusMsg.textContent = "✍️ Online Exam Portal is Active.";
+          statusMsg.style.background = "rgba(2, 117, 216, 0.15)";
+          statusMsg.style.color = "#0275d8";
+        }
+      } else if (isResultAllowed) {
+        if (statusMsg) {
+          statusMsg.textContent = "🏆 Exam Results & Scorecards Declared.";
+          statusMsg.style.background = "rgba(255, 193, 7, 0.15)";
+          statusMsg.style.color = "#d97706";
+        }
+      } else {
+        if (statusMsg) {
+          statusMsg.textContent = "🔴 Portal is currently offline / locked by Central Admin.";
+          statusMsg.style.background = "rgba(239, 68, 68, 0.15)";
+          statusMsg.style.color = "#ef4444";
+        }
       }
-    } else {
-      if (statusMsg) statusMsg.textContent = "🟢 Portal Active (Default Mode)";
-      document.getElementById("registration-view").classList.remove("hidden");
     }
-  } catch (e) {
-    console.error("Config fetch error:", e);
-    if (statusMsg) statusMsg.textContent = "🟢 Portal Ready";
-    document.getElementById("registration-view").classList.remove("hidden");
-  }
+  });
 }
 
-// 2. Tab Switching Logic
 window.switchTab = (tabName) => {
   document.getElementById("registration-view").classList.add("hidden");
   document.getElementById("login-view").classList.add("hidden");
+  document.getElementById("student-confirm-view")?.classList.add("hidden");
   document.getElementById("exam-view").classList.add("hidden");
   document.getElementById("result-login-view").classList.add("hidden");
   document.getElementById("score-card-view").classList.add("hidden");
@@ -82,18 +98,29 @@ window.switchTab = (tabName) => {
       return;
     }
     document.getElementById("registration-view").classList.remove("hidden");
-    if(buttons[0]) buttons[0].classList.add("active-tab");
-  } else if (tabName === 'login') {
+    const btn = document.getElementById("nav-btn-reg");
+    if(btn) btn.classList.add("active-tab");
+  } 
+  else if (tabName === 'login') {
     if (!portalConfigData.isExamActive) {
-      alert("Online Exam Portal is not active yet. Please wait for admin clearance.");
+      alert("Online Exam Portal is not active yet.");
       return;
     }
     document.getElementById("login-view").classList.remove("hidden");
-    if(buttons[1]) buttons[1].classList.add("active-tab");
+    const btn = document.getElementById("nav-btn-login");
+    if(btn) btn.classList.add("active-tab");
+  }
+  else if (tabName === 'result') {
+    if (!portalConfigData.isResultDeclared) {
+      alert("Results have not been declared yet.");
+      return;
+    }
+    document.getElementById("result-login-view").classList.remove("hidden");
+    const btn = document.getElementById("nav-btn-result");
+    if(btn) btn.classList.add("active-tab");
   }
 };
 
-// 3. Dynamic UI Handlers
 window.handleClassChange = (val) => {
   const streamGroup = document.getElementById("stream-group");
   if (val === "11" || val === "12") {
@@ -106,39 +133,80 @@ window.handleClassChange = (val) => {
 };
 
 window.handlePaymentModeChange = (mode) => {
+  const onlineSection = document.getElementById("online-payment-section");
   const qrContainer = document.getElementById("razorpay-qr-container");
+  
   if (mode === "online") {
-    qrContainer.classList.remove("hidden");
+    onlineSection.classList.remove("hidden");
     document.getElementById("std-utr").required = true;
   } else {
+    onlineSection.classList.add("hidden");
     qrContainer.classList.add("hidden");
     document.getElementById("std-utr").required = false;
+    document.getElementById("std-utr").value = "";
   }
+};
+
+window.toggleQrCode = () => {
+  const qrContainer = document.getElementById("razorpay-qr-container");
+  qrContainer.classList.toggle("hidden");
 };
 
 window.fetchSchoolName = async (code) => {
   const display = document.getElementById("school-name-display");
+  const modeDisplay = document.getElementById("display-student-exam-mode");
+  isOrganizerVerified = false;
+  verifiedOrgExamMode = "online";
+
   if (!code || code.length < 3) {
     if (display) display.textContent = "";
+    if (modeDisplay) modeDisplay.textContent = "Enter Organizer Code First";
     return;
   }
+
   try {
     const q = query(collection(db, "organizers"), where("orgCode", "==", code.trim().toUpperCase()));
     const snapshot = await getDocs(q);
+
     if (!snapshot.empty) {
       const orgData = snapshot.docs[0].data();
+      schoolNameCache[orgData.orgCode || orgData.code] = orgData.schoolName || orgData.name;
+
+      if (!orgData.principalApproved) {
+        isOrganizerVerified = false;
+        if (display) {
+          display.textContent = `❌ Organizer Code exists, but Official Principal Permission is PENDING! Registration is Locked.`;
+          display.style.color = "#ef4444";
+        }
+        if (modeDisplay) modeDisplay.textContent = "Permission Pending (Locked)";
+        return;
+      }
+
+      isOrganizerVerified = true;
+      verifiedOrgExamMode = orgData.examMode || "online";
+      const applicableFee = verifiedOrgExamMode === "offline" ? (portalConfigData.offlineFee || 120) : (portalConfigData.onlineFee || 100);
+
       if (display) {
-        display.textContent = `✅ School Verified: ${orgData.schoolName || orgData.organizerName}`;
+        display.innerHTML = `✅ School Verified: ${orgData.schoolName || orgData.name}<br><span style="color:#fbbf24;">Exam Mode: ${verifiedOrgExamMode.toUpperCase()} | Applicable Fee: ₹${applicableFee}</span>`;
         display.style.color = "#10b981";
       }
-    } else {
-      if (display) {
-        display.textContent = `⚠️ Organizer code not found in registry (You can still proceed)`;
-        display.style.color = "#f59e0b";
+
+      if (modeDisplay) {
+        modeDisplay.textContent = verifiedOrgExamMode === "offline" ? `Offline Paper Mode (OMR) - Fee: ₹${applicableFee}` : `Online Exam Mode - Fee: ₹${applicableFee}`;
+        modeDisplay.style.color = verifiedOrgExamMode === "offline" ? "#d97706" : "#0284c7";
       }
+
+    } else {
+      isOrganizerVerified = false;
+      if (display) {
+        display.textContent = `❌ Invalid Organizer Code! Registration is locked without a valid code.`;
+        display.style.color = "#ef4444";
+      }
+      if (modeDisplay) modeDisplay.textContent = "Invalid Code";
     }
   } catch (e) {
     console.error(e);
+    isOrganizerVerified = false;
   }
 };
 
@@ -147,8 +215,20 @@ function setupEventListeners() {
   if (regForm) {
     regForm.addEventListener("submit", async (e) => {
       e.preventDefault();
-      
-      const orgCode = document.getElementById("org-code").value.trim();
+
+      if (!isOrganizerVerified) {
+        alert("⛔ Registration Blocked!\n\nPlease enter a valid School Organizer Code with official principal permission.");
+        document.getElementById("org-code").focus();
+        return;
+      }
+
+      const termsBox = document.getElementById("terms-checkbox");
+      if (!termsBox.checked) {
+        alert("You must agree to the terms and conditions by checking the box.");
+        return;
+      }
+
+      const orgCode = document.getElementById("org-code").value.trim().toUpperCase();
       const studentName = document.getElementById("std-name").value.trim();
       const motherName = document.getElementById("std-mother").value.trim();
       const fatherName = document.getElementById("std-father").value.trim();
@@ -163,28 +243,58 @@ function setupEventListeners() {
         return;
       }
 
-      const feePaid = paymentMode === "online" ? (portalConfigData.onlineFee || 100) : (portalConfigData.offlineFee || 120);
+      if (motherName.length < 2) {
+        alert("Please enter a valid mother's name.");
+        return;
+      }
 
       try {
+        // Same school code + same roll number check
+        const qDup = query(collection(db, "students"), where("orgCode", "==", orgCode), where("rollNumber", "==", rollNumber));
+        const dupSnap = await getDocs(qDup);
+        if (!dupSnap.empty) {
+          alert(`❌ Roll Number "${rollNumber}" is already registered under School Code "${orgCode}"! Please use a unique roll number.`);
+          document.getElementById("std-roll").focus();
+          return;
+        }
+
+        // Single-use UTR check for online payment
+        if (paymentMode === "online") {
+          if (!utrNumber || utrNumber.length < 6) {
+            alert("❌ Please enter a valid UPI UTR / Transaction Reference Number!");
+            document.getElementById("std-utr").focus();
+            return;
+          }
+
+          const qUtr = query(collection(db, "students"), where("utrNumber", "==", utrNumber));
+          const utrSnap = await getDocs(qUtr);
+          if (!utrSnap.empty) {
+            alert("❌ This UTR transaction number has already been used by another student! Each student must use a unique UTR.");
+            document.getElementById("std-utr").focus();
+            return;
+          }
+        }
+
+        const motherPrefix = motherName.trim().substring(0, 2).toUpperCase();
+        const generatedPassword = motherPrefix + rollNumber;
+        const feePaid = verifiedOrgExamMode === "offline" ? (portalConfigData.offlineFee || 120) : (portalConfigData.onlineFee || 100);
+
         await addDoc(collection(db, "students"), {
-          orgCode,
-          studentName,
-          motherName,
-          fatherName,
-          studentClass,
-          rollNumber,
-          contact,
-          paymentMode,
-          utrNumber,
-          feePaid,
+          orgCode, studentName, motherName, fatherName, studentClass,
+          rollNumber, contact, password: generatedPassword, paymentMode, utrNumber: utrNumber || null, feePaid,
+          examMode: verifiedOrgExamMode,
           cashApproved: paymentMode === "cash" ? false : true,
           verified: paymentMode === "online" ? true : false,
           blocked: false,
           createdAt: new Date().toISOString()
         });
 
-        alert("🎉 Registration Successful! Save your Roll Number and Password for exam login.");
+        alert(`🎉 Registration Successful!\n\nYour Login Password is: ${generatedPassword}\nExam Mode: ${verifiedOrgExamMode.toUpperCase()}\nFee Paid: ₹${feePaid}\n(Save this password along with your Roll Number).`);
         regForm.reset();
+        document.getElementById("online-payment-section").classList.add("hidden");
+        document.getElementById("school-name-display").textContent = "";
+        document.getElementById("display-student-exam-mode").textContent = "Enter Organizer Code First";
+        isOrganizerVerified = false;
       } catch (err) {
         console.error("Registration error:", err);
         alert("Error submitting registration. Please try again.");
@@ -192,37 +302,220 @@ function setupEventListeners() {
     });
   }
 
-  // Login Form for Exam
+  // LOGIN FORM -> SHOW DETAILS CONFIRMATION VIEW FIRST
   const loginForm = document.getElementById("login-form");
   if (loginForm) {
     loginForm.addEventListener("submit", async (e) => {
       e.preventDefault();
       const roll = document.getElementById("login-roll").value.trim();
-      const pass = document.getElementById("login-password").value.trim();
+      const pass = document.getElementById("login-password").value.trim().toUpperCase();
 
-      // Simple authentication check against registered students
       try {
         const q = query(collection(db, "students"), where("rollNumber", "==", roll));
         const snapshot = await getDocs(q);
 
         if (!snapshot.empty) {
-          const studentDoc = snapshot.docs[0].data();
-          if (studentDoc.blocked) {
-            alert("Your account has been blocked by admin. Contact school organizer.");
+          const studentDocRef = snapshot.docs[0];
+          const studentData = studentDocRef.data();
+          activeStudent = { id: studentDocRef.id, ...studentData };
+
+          if (studentData.blocked) {
+            alert("❌ Your account has been blocked by admin.");
             return;
           }
-          
-          // Switch to Exam View
+
+          if (studentData.password !== pass) {
+            alert("❌ Incorrect password! Format is Mother's first 2 capital letters + Roll Number (e.g., SU101).");
+            return;
+          }
+
+          const payMode = studentData.paymentMode || 'cash';
+          const isPaid = studentData.cashApproved || studentData.paymentConfirmed || payMode === "online";
+          if (!isPaid) {
+            alert("⛔ Exam Access Locked!\n\nYour cash payment is still PENDING approval by your School Organizer. Please contact your organizer to verify your cash fee.");
+            return;
+          }
+
+          if (studentData.examCompleted) {
+            alert("❌ You have already submitted this exam. You cannot take the exam twice!");
+            return;
+          }
+
+          let schoolNameText = studentData.orgCode;
+          try {
+            if (schoolNameCache[studentData.orgCode]) {
+              schoolNameText = schoolNameCache[studentData.orgCode];
+            } else {
+              const orgQ = query(collection(db, "organizers"), where("orgCode", "==", studentData.orgCode));
+              const orgSnap = await getDocs(orgQ);
+              if (!orgSnap.empty) {
+                const orgInfo = orgSnap.docs[0].data();
+                schoolNameText = orgInfo.schoolName || orgInfo.name;
+                schoolNameCache[studentData.orgCode] = schoolNameText;
+              }
+            }
+          } catch (err) {
+            console.error(err);
+          }
+
+          document.getElementById("conf-name").textContent = studentData.studentName;
+          document.getElementById("conf-roll").textContent = studentData.rollNumber;
+          document.getElementById("conf-class").textContent = `Class ${studentData.studentClass}`;
+          document.getElementById("conf-school").textContent = schoolNameText;
+          document.getElementById("conf-mother").textContent = studentData.motherName;
+          document.getElementById("conf-pay").textContent = `VERIFIED (${payMode.toUpperCase()})`;
+
           document.getElementById("login-view").classList.add("hidden");
-          document.getElementById("exam-view").classList.remove("hidden");
-          startExamTimer(portalConfigData.examDuration || 30);
-          loadExamQuestions(studentDoc.studentClass);
+          document.getElementById("student-confirm-view").classList.remove("hidden");
+
         } else {
-          alert("Roll number not found. Please register first.");
+          alert("❌ Roll number not found. Please register first.");
         }
       } catch (err) {
         console.error(err);
         alert("Login error. Check connection.");
+      }
+    });
+  }
+
+  // PROCEED FROM DETAILS CONFIRMATION TO EXAM
+  const proceedBtn = document.getElementById("proceed-to-exam-btn");
+  if (proceedBtn) {
+    proceedBtn.onclick = async () => {
+      document.getElementById("student-confirm-view").classList.add("hidden");
+      document.getElementById("exam-view").classList.remove("hidden");
+      
+      const duration = portalConfigData.examDuration || 30;
+      startExamTimer(duration);
+      loadExamQuestions(activeStudent.studentClass);
+    };
+  }
+
+  const examForm = document.getElementById("exam-form");
+  if (examForm) {
+    examForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      if (!activeStudent) return;
+
+      if (!confirm("Are you sure you want to submit your exam paper?")) return;
+
+      clearInterval(examTimerInterval);
+
+      try {
+        const qSnap = await getDocs(collection(db, "questions"));
+        let totalQuestions = 0;
+        let correctCount = 0;
+        let incorrectCount = 0;
+        let unattemptedCount = 0;
+
+        qSnap.forEach(docSnap => {
+          totalQuestions++;
+          const qData = docSnap.data();
+          const qId = docSnap.id;
+          const selectedOption = document.querySelector(`input[name="q_${qId}"]:checked`);
+
+          if (!selectedOption) {
+            unattemptedCount++;
+          } else if (selectedOption.value === qData.correctAnswer) {
+            correctCount++;
+          } else {
+            incorrectCount++;
+          }
+        });
+
+        const marksPerCorrect = Number(portalConfigData.marksPerCorrect) || 1;
+        const negativeMarking = Number(portalConfigData.negativeMarking) || 0;
+
+        const positiveScore = correctCount * marksPerCorrect;
+        const negativeScore = incorrectCount * negativeMarking;
+        const netScore = Math.max(0, positiveScore - negativeScore);
+        const maxPossibleMarks = totalQuestions * marksPerCorrect;
+        const percentage = maxPossibleMarks > 0 ? ((netScore / maxPossibleMarks) * 100).toFixed(2) : 0;
+
+        let schoolNameText = activeStudent.orgCode;
+        try {
+          const orgQ = query(collection(db, "organizers"), where("orgCode", "==", activeStudent.orgCode));
+          const orgSnap = await getDocs(orgQ);
+          if (!orgSnap.empty) {
+            const orgInfo = orgSnap.docs[0].data();
+            schoolNameText = orgInfo.schoolName || orgInfo.name;
+          }
+        } catch (e) { console.error(e); }
+
+        await setDoc(doc(db, "students", activeStudent.id), {
+          examCompleted: true,
+          score: netScore,
+          percentage: Number(percentage),
+          correctAnswers: correctCount,
+          incorrectAnswers: incorrectCount,
+          unattempted: unattemptedCount,
+          submittedAt: new Date().toISOString()
+        }, { merge: true });
+
+        document.getElementById("exam-view").classList.add("hidden");
+        document.getElementById("score-card-view").classList.remove("hidden");
+
+        if (document.getElementById("res-marks")) document.getElementById("res-marks").textContent = `${netScore} / ${maxPossibleMarks}`;
+        if (document.getElementById("res-percentage")) document.getElementById("res-percentage").textContent = `${percentage}%`;
+
+        if (document.getElementById("cert-student-name")) document.getElementById("cert-student-name").textContent = activeStudent.studentName;
+        if (document.getElementById("cert-student-class")) document.getElementById("cert-student-class").textContent = `Class: ${activeStudent.studentClass}`;
+        if (document.getElementById("cert-school-name")) document.getElementById("cert-school-name").textContent = schoolNameText;
+
+        alert("Exam submitted successfully! Your scorecard and certificate are ready.");
+      } catch (err) {
+        console.error(err);
+        alert("Error submitting exam results.");
+      }
+    });
+  }
+
+  const resultForm = document.getElementById("result-verify-form");
+  if (resultForm) {
+    resultForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const roll = document.getElementById("res-verify-roll").value.trim();
+      const pass = document.getElementById("res-verify-pass").value.trim().toUpperCase();
+
+      try {
+        const q = query(collection(db, "students"), where("rollNumber", "==", roll));
+        const snapshot = await getDocs(q);
+
+        if (!snapshot.empty) {
+          const studentData = snapshot.docs[0].data();
+          if (studentData.password !== pass) {
+            alert("Incorrect password!");
+            return;
+          }
+          if (!studentData.examCompleted) {
+            alert("Exam result not available yet or exam not attempted.");
+            return;
+          }
+
+          let schoolNameText = studentData.orgCode;
+          try {
+            const orgQ = query(collection(db, "organizers"), where("orgCode", "==", studentData.orgCode));
+            const orgSnap = await getDocs(orgQ);
+            if (!orgSnap.empty) {
+              const orgInfo = orgSnap.docs[0].data();
+              schoolNameText = orgInfo.schoolName || orgInfo.name;
+            }
+          } catch (e) { console.error(e); }
+
+          document.getElementById("result-login-view").classList.add("hidden");
+          document.getElementById("score-card-view").classList.remove("hidden");
+
+          if (document.getElementById("res-marks")) document.getElementById("res-marks").textContent = studentData.score || 0;
+          if (document.getElementById("res-percentage")) document.getElementById("res-percentage").textContent = `${studentData.percentage || 0}%`;
+
+          if (document.getElementById("cert-student-name")) document.getElementById("cert-student-name").textContent = studentData.studentName;
+          if (document.getElementById("cert-student-class")) document.getElementById("cert-student-class").textContent = `Class: ${studentData.studentClass}`;
+          if (document.getElementById("cert-school-name")) document.getElementById("cert-school-name").textContent = schoolNameText;
+        } else {
+          alert("Roll number not found.");
+        }
+      } catch (err) {
+        console.error(err);
       }
     });
   }
@@ -232,7 +525,7 @@ function startExamTimer(durationMinutes) {
   let timer = durationMinutes * 60;
   const display = document.getElementById("time-remaining");
   
-  const interval = setInterval(() => {
+  examTimerInterval = setInterval(() => {
     let minutes = parseInt(timer / 60, 10);
     let seconds = parseInt(timer % 60, 10);
 
@@ -242,9 +535,9 @@ function startExamTimer(durationMinutes) {
     if (display) display.textContent = minutes + ":" + seconds;
 
     if (--timer < 0) {
-      clearInterval(interval);
-      alert("Time is up! Your exam will be submitted automatically.");
-      document.getElementById("exam-form").submit();
+      clearInterval(examTimerInterval);
+      alert("Time is up! Auto-submitting exam.");
+      document.getElementById("exam-form").requestSubmit();
     }
   }, 1000);
 }
@@ -252,32 +545,36 @@ function startExamTimer(durationMinutes) {
 async function loadExamQuestions(studentClass) {
   const container = document.getElementById("question-container");
   if (!container) return;
-  container.innerHTML = "<p>Loading exam questions from question bank...</p>";
+  container.innerHTML = "<p style='color:#fff;'>Loading exam questions...</p>";
 
   try {
     const qSnap = await getDocs(collection(db, "questions"));
     container.innerHTML = "";
     
     let count = 0;
-    qSnap.forEach(doc => {
+    qSnap.forEach(docSnap => {
       count++;
-      const q = doc.data();
+      const q = docSnap.data();
       const div = document.createElement("div");
-      div.style.cssText = "background: rgba(15,23,42,0.6); padding: 15px; border-radius: 8px; margin-bottom: 15px; border: 1px solid #334155;";
+      div.style.cssText = "background: rgba(15,23,42,0.8); padding: 15px; border-radius: 8px; margin-bottom: 15px; border: 1px solid #334155;";
       div.innerHTML = `
         <p style="font-weight: bold; color: #38bdf8; margin-bottom: 10px;">Q${count}. ${q.qText}</p>
         <div style="display: flex; flex-direction: column; gap: 6px;">
-          <label><input type="radio" name="q_${doc.id}" value="A"> A) ${q.optA}</label>
-          <label><input type="radio" name="q_${doc.id}" value="B"> B) ${q.optB}</label>
-          <label><input type="radio" name="q_${doc.id}" value="C"> C) ${q.optC}</label>
-          <label><input type="radio" name="q_${doc.id}" value="D"> D) ${q.optD}</label>
+          <label style="color:#fff;"><input type="radio" name="q_${docSnap.id}" value="A"> A) ${q.optA}</label>
+          <label style="color:#fff;"><input type="radio" name="q_${docSnap.id}" value="B"> B) ${q.optB}</label>
+          <label style="color:#fff;"><input type="radio" name="q_${docSnap.id}" value="C"> C) ${q.optC}</label>
+          <label style="color:#fff;"><input type="radio" name="q_${docSnap.id}" value="D"> D) ${q.optD}</label>
         </div>
       `;
       container.appendChild(div);
     });
 
+    if (document.getElementById("exam-total-q")) document.getElementById("exam-total-q").textContent = count;
+    if (document.getElementById("exam-mark-per-q")) document.getElementById("exam-mark-per-q").textContent = portalConfigData.marksPerCorrect || 1;
+    if (document.getElementById("exam-neg-mark")) document.getElementById("exam-neg-mark").textContent = portalConfigData.negativeMarking || 0;
+
     if (count === 0) {
-      container.innerHTML = "<p style='color: #f87171;'>No questions found in database. Please ask admin to add questions via Question Manager Panel.</p>";
+      container.innerHTML = "<p style='color: #f87171;'>No questions found in question bank.</p>";
     }
   } catch (e) {
     console.error(e);
