@@ -112,7 +112,7 @@ window.switchTab = (tabName) => {
   }
   else if (tabName === 'result') {
     if (!portalConfigData.isResultDeclared) {
-      alert("Results have not been declared yet.");
+      alert("❌ Results have not been declared yet by Administration.");
       return;
     }
     document.getElementById("result-login-view").classList.remove("hidden");
@@ -233,6 +233,7 @@ function setupEventListeners() {
       const motherName = document.getElementById("std-mother").value.trim();
       const fatherName = document.getElementById("std-father").value.trim();
       const studentClass = document.getElementById("std-class").value;
+      const studentStream = (studentClass === "11" || studentClass === "12") ? document.getElementById("std-stream").value : "General";
       const rollNumber = document.getElementById("std-roll").value.trim();
       const contact = document.getElementById("std-contact").value.trim();
       const paymentMode = document.getElementById("payment-mode").value;
@@ -278,7 +279,7 @@ function setupEventListeners() {
         const feePaid = verifiedOrgExamMode === "offline" ? (portalConfigData.offlineFee || 120) : (portalConfigData.onlineFee || 100);
 
         await addDoc(collection(db, "students"), {
-          orgCode, studentName, motherName, fatherName, studentClass,
+          orgCode, studentName, motherName, fatherName, studentClass, studentStream,
           rollNumber, contact, password: generatedPassword, paymentMode, utrNumber: utrNumber || null, feePaid,
           examMode: verifiedOrgExamMode,
           cashApproved: paymentMode === "cash" ? false : true,
@@ -357,7 +358,7 @@ function setupEventListeners() {
 
           document.getElementById("conf-name").textContent = studentData.studentName;
           document.getElementById("conf-roll").textContent = studentData.rollNumber;
-          document.getElementById("conf-class").textContent = `Class ${studentData.studentClass}`;
+          document.getElementById("conf-class").textContent = `Class ${studentData.studentClass} ${studentData.studentStream && studentData.studentStream !== 'General' ? '(' + studentData.studentStream + ')' : ''}`;
           document.getElementById("conf-school").textContent = schoolNameText;
           document.getElementById("conf-mother").textContent = studentData.motherName;
           document.getElementById("conf-pay").textContent = `VERIFIED (${payMode.toUpperCase()})`;
@@ -383,7 +384,7 @@ function setupEventListeners() {
       
       const duration = portalConfigData.examDuration || 30;
       startExamTimer(duration);
-      loadExamQuestions(activeStudent.studentClass);
+      loadExamQuestions(activeStudent.studentClass, activeStudent.studentStream);
     };
   }
 
@@ -405,17 +406,35 @@ function setupEventListeners() {
         let unattemptedCount = 0;
 
         qSnap.forEach(docSnap => {
-          totalQuestions++;
           const qData = docSnap.data();
-          const qId = docSnap.id;
-          const selectedOption = document.querySelector(`input[name="q_${qId}"]:checked`);
+          const qTarget = qData.targetClass || "6-8";
+          const qSubj = qData.subject || "Maths";
 
-          if (!selectedOption) {
-            unattemptedCount++;
-          } else if (selectedOption.value === qData.correctOpt) { // <--- FIXED: using correctOpt instead of correctAnswer
-            correctCount++;
-          } else {
-            incorrectCount++;
+          let isMatch = false;
+          const sClass = Number(activeStudent.studentClass);
+          const sStream = activeStudent.studentStream || "General";
+
+          if (qTarget === "3-5" && sClass >= 3 && sClass <= 5) isMatch = true;
+          else if (qTarget === "6-8" && sClass >= 6 && sClass <= 8) isMatch = true;
+          else if (qTarget === "9-10" && sClass >= 9 && sClass <= 10) isMatch = true;
+          else if (qTarget === "9-12" && sClass >= 9 && sClass <= 12) isMatch = true;
+          else if (qTarget === "11-12" && sClass >= 11 && sClass <= 12) {
+            if (sStream === "Maths" && qSubj === "Maths") isMatch = true;
+            if (sStream === "Science" && qSubj === "Science") isMatch = true;
+          }
+
+          if (isMatch) {
+            totalQuestions++;
+            const qId = docSnap.id;
+            const selectedOption = document.querySelector(`input[name="q_${qId}"]:checked`);
+
+            if (!selectedOption) {
+              unattemptedCount++;
+            } else if (selectedOption.value === qData.correctOpt) {
+              correctCount++;
+            } else {
+              incorrectCount++;
+            }
           }
         });
 
@@ -428,16 +447,6 @@ function setupEventListeners() {
         const maxPossibleMarks = totalQuestions * marksPerCorrect;
         const percentage = maxPossibleMarks > 0 ? ((netScore / maxPossibleMarks) * 100).toFixed(2) : 0;
 
-        let schoolNameText = activeStudent.orgCode;
-        try {
-          const orgQ = query(collection(db, "organizers"), where("orgCode", "==", activeStudent.orgCode));
-          const orgSnap = await getDocs(orgQ);
-          if (!orgSnap.empty) {
-            const orgInfo = orgSnap.docs[0].data();
-            schoolNameText = orgInfo.schoolName || orgInfo.name;
-          }
-        } catch (e) { console.error(e); }
-
         await setDoc(doc(db, "students", activeStudent.id), {
           examCompleted: true,
           score: netScore,
@@ -449,16 +458,12 @@ function setupEventListeners() {
         }, { merge: true });
 
         document.getElementById("exam-view").classList.add("hidden");
-        document.getElementById("score-card-view").classList.remove("hidden");
+        document.getElementById("login-view").classList.remove("hidden");
 
-        if (document.getElementById("res-marks")) document.getElementById("res-marks").textContent = `${netScore} / ${maxPossibleMarks}`;
-        if (document.getElementById("res-percentage")) document.getElementById("res-percentage").textContent = `${percentage}%`;
-
-        if (document.getElementById("cert-student-name")) document.getElementById("cert-student-name").textContent = activeStudent.studentName;
-        if (document.getElementById("cert-student-class")) document.getElementById("cert-student-class").textContent = `Class: ${activeStudent.studentClass}`;
-        if (document.getElementById("cert-school-name")) document.getElementById("cert-school-name").textContent = schoolNameText;
-
-        alert("Exam submitted successfully! Your scorecard and certificate are ready.");
+        alert("✅ Exam Submitted Successfully!\n\nYour answers have been recorded safely in the database.\n\nScorecard and Certificate will be available for download once results are officially declared by the Central Administration.");
+        
+        examForm.reset();
+        activeStudent = null;
       } catch (err) {
         console.error(err);
         alert("Error submitting exam results.");
@@ -470,6 +475,12 @@ function setupEventListeners() {
   if (resultForm) {
     resultForm.addEventListener("submit", async (e) => {
       e.preventDefault();
+
+      if (!portalConfigData.isResultDeclared) {
+        alert("❌ Results have not been declared yet by Administration.");
+        return;
+      }
+
       const roll = document.getElementById("res-verify-roll").value.trim();
       const pass = document.getElementById("res-verify-pass").value.trim().toUpperCase();
 
@@ -505,7 +516,7 @@ function setupEventListeners() {
           if (document.getElementById("res-percentage")) document.getElementById("res-percentage").textContent = `${studentData.percentage || 0}%`;
 
           if (document.getElementById("cert-student-name")) document.getElementById("cert-student-name").textContent = studentData.studentName;
-          if (document.getElementById("cert-student-class")) document.getElementById("cert-student-class").textContent = `Class: ${studentData.studentClass}`;
+          if (document.getElementById("cert-student-class")) document.getElementById("cert-student-class").textContent = `Class: ${studentData.studentClass} ${studentData.studentStream && studentData.studentStream !== 'General' ? '(' + studentData.studentStream + ')' : ''}`;
           if (document.getElementById("cert-school-name")) document.getElementById("cert-school-name").textContent = schoolNameText;
         } else {
           alert("Roll number not found.");
@@ -538,7 +549,7 @@ function startExamTimer(durationMinutes) {
   }, 1000);
 }
 
-async function loadExamQuestions(studentClass) {
+async function loadExamQuestions(studentClass, studentStream) {
   const container = document.getElementById("question-container");
   if (!container) return;
   container.innerHTML = "<p style='color:#fff;'>Loading exam questions...</p>";
@@ -548,21 +559,45 @@ async function loadExamQuestions(studentClass) {
     container.innerHTML = "";
     
     let count = 0;
+    const sClass = Number(studentClass);
+    const sStream = studentStream || "General";
+
+    if (qSnap.empty) {
+      container.innerHTML = "<p style='color: #f87171;'>⚠️ No questions found in the database. Please ask Central Admin to add questions in Question Bank Manager.</p>";
+      return;
+    }
+
     qSnap.forEach(docSnap => {
-      count++;
       const q = docSnap.data();
-      const div = document.createElement("div");
-      div.style.cssText = "background: rgba(15,23,42,0.8); padding: 15px; border-radius: 8px; margin-bottom: 15px; border: 1px solid #334155;";
-      div.innerHTML = `
-        <p style="font-weight: bold; color: #38bdf8; margin-bottom: 10px;">Q${count}. ${q.qText}</p>
-        <div style="display: flex; flex-direction: column; gap: 6px;">
-          <label style="color:#fff;"><input type="radio" name="q_${docSnap.id}" value="A"> A) ${q.optA}</label>
-          <label style="color:#fff;"><input type="radio" name="q_${docSnap.id}" value="B"> B) ${q.optB}</label>
-          <label style="color:#fff;"><input type="radio" name="q_${docSnap.id}" value="C"> C) ${q.optC}</label>
-          <label style="color:#fff;"><input type="radio" name="q_${docSnap.id}" value="D"> D) ${q.optD}</label>
-        </div>
-      `;
-      container.appendChild(div);
+      const qTarget = q.targetClass || "6-8";
+      const qSubj = q.subject || "Maths";
+
+      let includeQuestion = false;
+
+      if (qTarget === "3-5" && sClass >= 3 && sClass <= 5) includeQuestion = true;
+      else if (qTarget === "6-8" && sClass >= 6 && sClass <= 8) includeQuestion = true;
+      else if (qTarget === "9-10" && sClass >= 9 && sClass <= 10) includeQuestion = true;
+      else if (qTarget === "9-12" && sClass >= 9 && sClass <= 12) includeQuestion = true;
+      else if (qTarget === "11-12" && sClass >= 11 && sClass <= 12) {
+        if (sStream === "Maths" && qSubj === "Maths") includeQuestion = true;
+        if (sStream === "Science" && qSubj === "Science") includeQuestion = true;
+      }
+
+      if (includeQuestion) {
+        count++;
+        const div = document.createElement("div");
+        div.style.cssText = "background: rgba(15,23,42,0.8); padding: 15px; border-radius: 8px; margin-bottom: 15px; border: 1px solid #334155;";
+        div.innerHTML = `
+          <p style="font-weight: bold; color: #38bdf8; margin-bottom: 10px;">Q${count}. ${q.qText || ''}</p>
+          <div style="display: flex; flex-direction: column; gap: 6px;">
+            <label style="color:#fff;"><input type="radio" name="q_${docSnap.id}" value="A"> A) ${q.optA || ''}</label>
+            <label style="color:#fff;"><input type="radio" name="q_${docSnap.id}" value="B"> B) ${q.optB || ''}</label>
+            <label style="color:#fff;"><input type="radio" name="q_${docSnap.id}" value="C"> C) ${q.optC || ''}</label>
+            <label style="color:#fff;"><input type="radio" name="q_${docSnap.id}" value="D"> D) ${q.optD || ''}</label>
+          </div>
+        `;
+        container.appendChild(div);
+      }
     });
 
     if (document.getElementById("exam-total-q")) document.getElementById("exam-total-q").textContent = count;
@@ -570,15 +605,15 @@ async function loadExamQuestions(studentClass) {
     if (document.getElementById("exam-neg-mark")) document.getElementById("exam-neg-mark").textContent = portalConfigData.negativeMarking || 0;
 
     if (count === 0) {
-      container.innerHTML = "<p style='color: #f87171;'>No questions found in question bank.</p>";
+      container.innerHTML = `<p style='color: #f87171;'>⚠️ No matching questions found for Class ${sClass} (${sStream}) in the database. Please check Question Bank Manager.</p>`;
     }
   } catch (e) {
-    console.error(e);
-    container.innerHTML = "<p style='color: #f87171;'>Error loading questions.</p>";
+    console.error("Error loading questions:", e);
+    container.innerHTML = "<p style='color: #f87171;'>❌ Error loading questions from database. Please check internet connection or Firebase permissions.</p>";
   }
 }
 
-// Full-fitted Landscape PDF Certificate Download with 0 Margin
+// Strict Edge-to-Edge Full Landscape PDF Download
 window.downloadHighQualityPDF = () => {
   const element = document.getElementById("certificate");
   if (!element) return;
@@ -586,7 +621,7 @@ window.downloadHighQualityPDF = () => {
     margin: 0,
     filename: 'NVMSO_Certificate.pdf',
     image: { type: 'jpeg', quality: 0.98 },
-    html2canvas: { scale: 2, useCORS: true, letterRendering: true },
+    html2canvas: { scale: 3, useCORS: true, letterRendering: true, scrollX: 0, scrollY: 0 },
     jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' }
   };
   html2pdf().from(element).set(opt).save();
