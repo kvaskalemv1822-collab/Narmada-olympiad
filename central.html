@@ -6,7 +6,7 @@
   <meta http-equiv="X-Content-Type-Options" content="nosniff">
   <meta http-equiv="X-Frame-Options" content="DENY">
   <title>NVMSO - Central Command Panel 2026</title>
-  <link rel="stylesheet" href="central.css?v=2">
+  <link rel="stylesheet" href="central.css?v=3">
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
 </head>
 <body oncontextmenu="return false;">
@@ -95,15 +95,15 @@
       <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap:12px;">
         <div>
           <label style="font-size:12px;">Medals & Memento Cost (₹):</label>
-          <input type="number" id="exp-medals-cost" value="0" placeholder="0" oninput="calculateOverallProfit()">
+          <input type="number" id="exp-medals-cost" value="0" placeholder="0" oninput="computeOverallLedgerAndProfit()">
         </div>
         <div>
           <label style="font-size:12px;">Certificates Printing Cost (₹):</label>
-          <input type="number" id="exp-cert-cost" value="0" placeholder="0" oninput="calculateOverallProfit()">
+          <input type="number" id="exp-cert-cost" value="0" placeholder="0" oninput="computeOverallLedgerAndProfit()">
         </div>
         <div>
           <label style="font-size:12px;">Other / Banner Expenses (₹):</label>
-          <input type="number" id="exp-other-cost" value="0" placeholder="0" oninput="calculateOverallProfit()">
+          <input type="number" id="exp-other-cost" value="0" placeholder="0" oninput="computeOverallLedgerAndProfit()">
         </div>
       </div>
       <button onclick="saveManualExpenses()" class="btn-primary" style="margin-top:12px; padding:8px 16px; font-size:13px; background:#10b981; width:auto;">Save Expense Ledger</button>
@@ -162,7 +162,7 @@
     <button onclick="saveGlobalConfig()" class="btn-primary" style="margin-top:15px; width:auto;">Save Master Switches & Settings</button>
   </div>
 
-  <!-- QUESTION MANAGER BUTTON (Updated to question.html) -->
+  <!-- QUESTION MANAGER BUTTON -->
   <div class="card-box" style="margin-bottom:20px; border: 2px solid #10b981; background: linear-gradient(135deg, #064e3b 0%, #111827 100%); text-align: center;">
     <h3 style="color:#34d399; font-size: 20px; margin-bottom: 8px;">✍️ NVMSO Question Papers & Paper Engine Manager</h3>
     <p style="font-size:13px; color:#a7f3d0; margin-bottom:18px;">Click below to launch your customized external Question Manager Panel.</p>
@@ -170,6 +170,31 @@
     <a href="question.html" class="btn-3d-question">
       🚀 OPEN QUESTION PAPERS MANAGER PANEL
     </a>
+  </div>
+
+  <!-- OFFLINE STUDENTS MANUAL MARKS ENTRY SECTION -->
+  <div class="card-box" style="margin-bottom: 20px; border: 1px solid #d97706;">
+    <h3 style="color: #fbbf24; text-align: left;">📝 Offline Students Manual Marks Entry (OMR / Paper Mode)</h3>
+    <p style="font-size: 12px; color: #94a3b8; margin-bottom: 12px;">Jo school offline exam karwa rahe hain, unke students ka score aur total marks yahan manually update karein taaki unke ranks aur certificates generate ho sakein.</p>
+    
+    <div style="overflow-x:auto;">
+      <table id="admin-offline-marks-table">
+        <thead>
+          <tr>
+            <th>Roll No</th>
+            <th>Student Name</th>
+            <th>School / Org</th>
+            <th>Class</th>
+            <th>Mode</th>
+            <th>Enter Marks Obtained / Total</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td colspan="7" style="text-align:center; color:#94a3b8;">Loading offline students...</td></tr>
+        </tbody>
+      </table>
+    </div>
   </div>
 
   <div class="card-box" style="margin-bottom:20px; border: 1px solid #f97316;">
