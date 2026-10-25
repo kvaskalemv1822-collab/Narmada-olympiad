@@ -249,7 +249,6 @@ function setupEventListeners() {
       }
 
       try {
-        // Same school code + same roll number check
         const qDup = query(collection(db, "students"), where("orgCode", "==", orgCode), where("rollNumber", "==", rollNumber));
         const dupSnap = await getDocs(qDup);
         if (!dupSnap.empty) {
@@ -258,7 +257,6 @@ function setupEventListeners() {
           return;
         }
 
-        // Single-use UTR check for online payment
         if (paymentMode === "online") {
           if (!utrNumber || utrNumber.length < 6) {
             alert("❌ Please enter a valid UPI UTR / Transaction Reference Number!");
@@ -302,7 +300,6 @@ function setupEventListeners() {
     });
   }
 
-  // LOGIN FORM -> SHOW DETAILS CONFIRMATION VIEW FIRST
   const loginForm = document.getElementById("login-form");
   if (loginForm) {
     loginForm.addEventListener("submit", async (e) => {
@@ -378,7 +375,6 @@ function setupEventListeners() {
     });
   }
 
-  // PROCEED FROM DETAILS CONFIRMATION TO EXAM
   const proceedBtn = document.getElementById("proceed-to-exam-btn");
   if (proceedBtn) {
     proceedBtn.onclick = async () => {
@@ -416,7 +412,7 @@ function setupEventListeners() {
 
           if (!selectedOption) {
             unattemptedCount++;
-          } else if (selectedOption.value === qData.correctAnswer) {
+          } else if (selectedOption.value === qData.correctOpt) { // <--- FIXED: using correctOpt instead of correctAnswer
             correctCount++;
           } else {
             incorrectCount++;
@@ -582,6 +578,7 @@ async function loadExamQuestions(studentClass) {
   }
 }
 
+// Full-fitted Landscape PDF Certificate Download with 0 Margin
 window.downloadHighQualityPDF = () => {
   const element = document.getElementById("certificate");
   if (!element) return;
@@ -589,7 +586,7 @@ window.downloadHighQualityPDF = () => {
     margin: 0,
     filename: 'NVMSO_Certificate.pdf',
     image: { type: 'jpeg', quality: 0.98 },
-    html2canvas: { scale: 2, useCORS: true },
+    html2canvas: { scale: 2, useCORS: true, letterRendering: true },
     jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' }
   };
   html2pdf().from(element).set(opt).save();
