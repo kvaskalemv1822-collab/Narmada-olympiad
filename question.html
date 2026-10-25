@@ -6,29 +6,10 @@
   <title>NVMSO - Question Bank Manager</title>
   <link rel="stylesheet" href="central.css?v=2">
 </head>
-<body>
+<body style="background: #0b0f19; padding: 15px;">
 
-<!-- 3-SECOND GRAND WELCOME ANIMATION SCREEN -->
-<div id="grand-welcome-screen" class="welcome-overlay">
-  <div class="welcome-curtain-top"></div>
-  <div class="welcome-curtain-bottom"></div>
-  
-  <div class="welcome-box">
-    <div class="pulse-ring">⏳</div>
-    <h1 class="welcome-title">WELCOME NVMS CHIEF</h1>
-    <p class="welcome-sub">Initializing NVMSO Question Bank Manager...</p>
-    
-    <div class="loader-bar-bg">
-      <div id="welcome-progress" class="loader-bar-fill"></div>
-    </div>
-    <p style="color:#fbbf24; font-size:14px; font-weight:700; margin-top:12px; position:relative; z-index:10;">
-      Opening Question Panel in <span id="welcome-countdown">3</span> Seconds...
-    </p>
-  </div>
-</div>
-
-<!-- MAIN QUESTION MANAGER CONTAINER -->
-<div id="question-main-container" class="container hidden">
+<!-- MAIN QUESTION MANAGER CONTAINER (Direct Open) -->
+<div id="question-main-container" class="container" style="display: block !important;">
   <h1>📚 Exam Question Bank Manager</h1>
   <div class="director-title" style="margin-bottom: 20px;">
     <a href="central.html" style="color: #38bdf8; text-decoration: none; font-weight: bold;">⬅ Back to Central Command Panel</a>
@@ -106,6 +87,6 @@
   </div>
 </div>
 
-<script type="module" src="questions.js"></script>
+<script type="module" src="question.js"></script>
 </body>
 </html>
