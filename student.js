@@ -90,11 +90,7 @@ window.openDirectUpiApp = function() {
 
   let upiUrl = `upi://pay?pa=${encodeURIComponent(merchantUpiID)}&pn=${encodeURIComponent(payeeName)}&am=${encodeURIComponent(applicableFee)}&cu=INR`;
 
-  if (/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) {
-    window.location.href = upiUrl;
-  } else {
-    alert("Direct UPI app payment works best on mobile devices. Please scan the QR code using your phone.");
-  }
+window.location.href = upiUrl;
 };
 
 window.switchTab = (tabName) => {
