@@ -15,8 +15,29 @@
     <a href="central.html" style="color: #38bdf8; text-decoration: none; font-weight: bold;">⬅ Back to Central Command Panel</a>
   </div>
 
+  <!-- EXAM SCORING & NEGATIVE MARKING SETTINGS PANEL -->
+  <div class="control-box" style="border: 1px solid #38bdf8; background: rgba(15, 23, 42, 0.85); padding: 20px; border-radius: 12px; margin-bottom: 25px;">
+    <h3 style="color:#38bdf8; margin-bottom: 15px;">⚙️ Exam Rules & Scoring Configuration</h3>
+    <div class="grid-2" style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+      <div>
+        <label style="color: #cbd5e1; font-weight: 600; font-size: 13px; margin-bottom: 6px; display: block;">Marks Per Correct Answer:</label>
+        <input type="number" id="config-marks-correct" value="1" min="1" max="10" style="width: 100%; padding: 10px; border-radius: 8px; background: #020617; color: #fff; border: 1px solid #475569;">
+      </div>
+      <div>
+        <label style="color: #cbd5e1; font-weight: 600; font-size: 13px; margin-bottom: 6px; display: block;">Negative Marking (per wrong answer):</label>
+        <select id="config-negative-marking" style="width: 100%; padding: 10px; border-radius: 8px; background: #020617; color: #fff; border: 1px solid #475569;">
+          <option value="0">0 (No Negative Marking)</option>
+          <option value="0.25">0.25 Marks</option>
+          <option value="0.5">0.50 Marks</option>
+          <option value="1">1 Mark</option>
+        </select>
+      </div>
+    </div>
+    <button type="button" onclick="saveExamScoringConfig()" style="margin-top: 15px; padding: 10px 18px; font-weight: bold; border-radius: 8px; border: none; cursor: pointer; background: #0284c7; color: #fff;">💾 Save Exam Rules</button>
+  </div>
+
   <div class="control-box" style="border: 1px solid #c084fc; background: rgba(15, 23, 42, 0.85); padding: 20px; border-radius: 12px;">
-    <h3 style="color:#c084fc; margin-bottom: 15px;">➕ Add New Exam Question</h3>
+    <h3 style="color:#c084fc; margin-bottom: 15px;">✍️ Add New Exam Question</h3>
     
     <div class="setting-card" style="border: 1px dashed #c084fc; padding: 15px; border-radius: 10px;">
       <div class="grid-2" style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
@@ -40,7 +61,7 @@
 
       <div style="margin-top: 15px;">
         <label style="color: #cbd5e1; font-weight: 600; font-size: 13px; margin-bottom: 6px; display: block;">Question Statement (Hindi/English):</label>
-        <textarea id="q-text" rows="2" placeholder="e.g. मध्य प्रदेश की राजधानी क्या है? / What is the capital of MP?" style="width:100%; padding:10px; border-radius:8px; background:#020617; color:#fff; border:1px solid rgba(56,189,248,0.3); outline: none;"></textarea>
+        <textarea id="q-text" rows="2" placeholder="e.g. What is the capital of MP?" style="width:100%; padding:10px; border-radius:8px; background:#020617; color:#fff; border:1px solid rgba(56,189,248,0.3); outline: none;"></textarea>
       </div>
 
       <div class="grid-2" style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 15px;">
@@ -63,7 +84,7 @@
         </select>
       </div>
 
-      <button type="button" onclick="addNewQuestionToBank()" style="margin-top:20px; padding: 12px 20px; font-weight: bold; border-radius: 8px; border: none; cursor: pointer; background: linear-gradient(135deg, #7c3aed 0%, #c084fc 100%); color: #fff;">💾 Save Question to Database</button>
+      <button type="button" onclick="addNewQuestionToBank()" style="margin-top:20px; padding: 12px 20px; font-weight: bold; border-radius: 8px; border: none; cursor: pointer; background: linear-gradient(135deg, #7c3aed 0%, #c084fc 100%); color: #fff;">➕ Save Question to Database</button>
     </div>
 
     <h4 style="color:#f8fafc; margin-top:30px; margin-bottom: 10px;">Questions in Database (<span id="total-questions-count">0</span>)</h4>
