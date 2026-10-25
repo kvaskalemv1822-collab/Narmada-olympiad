@@ -3,257 +3,269 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>NVMSO - Organizer Control Panel</title>
-  <link rel="stylesheet" href="organizer.css">
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+  <title>NVMSO - School Organizer Portal 2026</title>
+  <link rel="stylesheet" href="organizer.css?v=5">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
 </head>
-<body>
+<body oncontextmenu="return false;">
 
 <div class="container">
-  <h1>Organizer Dashboard</h1>
-  <div class="org-subtitle">Narmada Valley Maths & Science Olympiad 2026</div>
+  <h1>Narmada Valley Maths & Science Olympiad (NVMSO)</h1>
+  <div class="org-subtitle">Official School Organizer Dashboard | Directed by V.K Olympiad</div>
 
+  <!-- Broadcast Notice Banner -->
   <div id="admin-notice-banner" class="notice-marquee-box hidden">
-    📢 <span id="notice-text">Notice: Welcome to NVMSO Organizer Portal 2026.</span>
+    📢 <span id="notice-text">Loading notice...</span>
   </div>
 
-  <!-- REGISTRATION SECTION -->
-  <div id="org-reg-box" class="card-box hidden">
-    <h2>Organizer Registration</h2>
-    <form id="org-reg-form">
-      <div class="form-group">
-        <label>Organizer Name:</label>
-        <input type="text" id="new-org-name" required placeholder="Enter Full Name">
-      </div>
-      <div class="form-group">
-        <label>School Name:</label>
-        <input type="text" id="new-org-school" required placeholder="Enter School Name">
-      </div>
-      <div class="form-group">
-        <label>Contact Number:</label>
-        <input type="tel" id="new-org-contact" required maxlength="10" pattern="[0-9]*" inputmode="numeric" placeholder="10 Digit Mobile Number">
-      </div>
-      <div class="form-group">
-        <label>Create Password:</label>
-        <input type="password" id="new-org-pass" required placeholder="Create Password">
-      </div>
-      <div class="form-group">
-        <label>Referral Code (Optional):</label>
-        <input type="text" id="new-org-ref" placeholder="Enter Referral Code if any">
-      </div>
-      <button type="submit" class="btn-primary">Register & Generate Code</button>
-    </form>
-    <div class="auth-footer-links">
-      <span>Already registered? <a href="javascript:void(0)" onclick="switchOrgTab('login')">Login Here</a></span>
-    </div>
-  </div>
+  <!-- ==================== ORGANIZER AUTH BOX (LOGIN / REGISTRATION / FORGOT PIN) ==================== -->
+  <div id="org-auth-section">
 
-  <!-- RESET SECTION -->
-  <div id="org-forgot-box" class="card-box hidden">
-    <h2>Reset Code / Password</h2>
-    <form id="org-reset-form">
-      <div class="form-group">
-        <label>Registered Contact Number:</label>
-        <input type="tel" id="reset-org-contact" required maxlength="10" pattern="[0-9]*" inputmode="numeric" placeholder="Enter 10 digit mobile number">
-      </div>
-      <div class="form-group">
-        <label>New Password:</label>
-        <input type="password" id="reset-org-pass" required placeholder="Enter New Password">
-      </div>
-      <button type="button" id="btn-reset-exec" class="btn-warning">Recover Code & Reset Password</button>
-    </form>
-    <div class="auth-footer-links">
-      <a href="javascript:void(0)" onclick="switchOrgTab('login')">← Back to Login</a>
-    </div>
-  </div>
-
-  <!-- LOGIN SECTION -->
-  <div id="org-login-box" class="card-box">
-    <h2>Organizer Security Login</h2>
-    <form id="org-login-form" onsubmit="event.preventDefault(); verifyOrgLogin();">
-      <div class="form-group">
-        <label>Organizer Unique Code:</label>
-        <input type="text" id="org-code-input" placeholder="e.g. ORG1024" required>
+    <!-- LOGIN VIEW -->
+    <div id="org-login-box" class="card-box">
+      <h3>🔑 Organizer Secure Login</h3>
+      <div class="form-group" style="margin-top:15px;">
+        <label>Organizer Code:</label>
+        <input type="text" id="org-code-input" placeholder="e.g. ORG1024" style="text-transform: uppercase;" required>
       </div>
       <div class="form-group">
         <label>Password:</label>
-        <input type="password" id="org-pass-input" placeholder="Enter Password" required>
+        <input type="password" id="org-pass-input" placeholder="Enter password" required>
       </div>
-      <button type="submit" class="btn-primary">Login Dashboard</button>
-    </form>
-    
-    <div class="auth-footer-links">
-      <a href="javascript:void(0)" onclick="switchOrgTab('forgot')">Forgot Code / Reset Password?</a>
-      <span>New Organizer? <a href="javascript:void(0)" onclick="switchOrgTab('reg')">Register Here</a></span>
+      <button type="button" onclick="verifyOrgLogin()" class="btn-primary" style="margin-top:5px;">Login to Dashboard</button>
+      
+      <div class="auth-footer-links">
+        <a onclick="switchOrgTab('reg')">New Organizer? Register School Here</a>
+        <a onclick="switchOrgTab('forgot')" style="color: #fbbf24;">Forgot Password / Recover via PIN</a>
+      </div>
     </div>
+
+    <!-- REGISTRATION VIEW -->
+    <div id="org-reg-box" class="card-box hidden">
+      <h3>🏫 School Organizer Registration</h3>
+      <form id="org-reg-form">
+        <div class="form-group" style="margin-top:15px;">
+          <label>Organizer / Coordinator Name:</label>
+          <input type="text" id="new-org-name" placeholder="Enter full name" required>
+        </div>
+        <div class="form-group">
+          <label>School Name & Address:</label>
+          <input type="text" id="new-org-school" placeholder="Enter school name" required>
+        </div>
+        <div class="form-group">
+          <label>10-Digit Mobile Number (Login ID):</label>
+          <input type="text" id="new-org-contact" inputmode="numeric" pattern="[0-9]*" maxlength="10" placeholder="Enter mobile number" required>
+        </div>
+        <div class="form-group">
+          <label>Create Login Password:</label>
+          <input type="password" id="new-org-pass" placeholder="Create secure password" required>
+        </div>
+        <div class="form-group">
+          <label>4-Digit Secret PIN (Mandatory for Recovery):</label>
+          <input type="text" id="new-org-pin" inputmode="numeric" pattern="[0-9]*" maxlength="4" placeholder="e.g. 4826" required>
+        </div>
+        <div class="form-group">
+          <label>Referral Code (Optional):</label>
+          <input type="text" id="new-org-ref" placeholder="Enter referral code if any" style="text-transform: uppercase;">
+        </div>
+        <button type="submit" class="btn-primary" style="margin-top:5px;">Register Organizer Account</button>
+      </form>
+      <div class="auth-footer-links">
+        <a onclick="switchOrgTab('login')">Already registered? Click here to Login</a>
+      </div>
+    </div>
+
+    <!-- FORGOT PASSWORD / PIN RECOVERY VIEW -->
+    <div id="org-forgot-box" class="card-box hidden">
+      <h3>🔐 Password Recovery (Via Secret PIN)</h3>
+      <p style="font-size:12px; color:#94a3b8; margin-bottom:15px; text-align:center;">Enter your registered mobile number and your 4-digit Secret PIN to reset your password.</p>
+      <div class="form-group">
+        <label>Registered Mobile Number:</label>
+        <input type="text" id="reset-org-contact" inputmode="numeric" pattern="[0-9]*" maxlength="10" placeholder="Enter mobile number" required>
+      </div>
+      <div class="form-group">
+        <label>4-Digit Secret PIN:</label>
+        <input type="text" id="reset-org-pin" inputmode="numeric" pattern="[0-9]*" maxlength="4" placeholder="Enter 4-digit PIN" required>
+      </div>
+      <div class="form-group">
+        <label>New Password:</label>
+        <input type="password" id="reset-org-pass" placeholder="Enter new password" required>
+      </div>
+      <button type="button" onclick="executePinReset()" class="btn-warning" style="margin-top:5px;">Verify PIN & Reset Password</button>
+      <div class="auth-footer-links">
+        <a onclick="switchOrgTab('login')">Back to Login</a>
+      </div>
+    </div>
+
   </div>
 
-  <!-- MAIN ORGANIZER DASHBOARD -->
+  <!-- ==================== ORGANIZER MAIN DASHBOARD VIEW ==================== -->
   <div id="org-view" class="hidden">
-    
-    <!-- PRINCIPAL PERMISSION NOC CHECKBOX -->
-    <div class="permission-card" id="principal-perm-box">
-      <div style="display: flex; align-items: center; gap: 12px;">
-        <input type="checkbox" id="principal-perm-checkbox" onchange="togglePrincipalPermission(this.checked)" style="width: 22px; height: 22px; cursor: pointer;">
-        <div>
-          <label for="principal-perm-checkbox" style="font-size: 14px; font-weight: 700; color: #fef08a; cursor: pointer; margin: 0;">
-            📜 I hereby declare & confirm that I have official permission / NOC from the School Principal to register students for NVMSO 2026.
-          </label>
-          <small style="color: #cbd5e1; display: block; margin-top: 3px;">
-            Status: <strong id="perm-status-text" style="color: #f87171;">OFFICIAL PERMISSION PENDING (Student Registration Locked)</strong>
-          </small>
-        </div>
-      </div>
-    </div>
 
+    <!-- Header Info Box -->
     <div class="header-info">
-      <h3>Welcome, <span id="display-org-name"></span>! Code: <span id="display-org-code" style="color:#fbbf24;"></span></h3>
-      <p>School: <span id="display-org-school"></span></p>
+      <h2 style="color:#38bdf8; margin-bottom:4px;" id="display-org-name">Organizer Name</h2>
+      <div style="font-size:14px; color:#cbd5e1;">School: <span id="display-org-school" style="color:#fbbf24; font-weight:700;">School Name</span></div>
+      <div style="font-size:13px; color:#94a3b8; margin-top:2px;">Organizer Code: <code style="color:#38bdf8; font-weight:bold;" id="display-org-code">ORG0000</code></div>
     </div>
 
-    <!-- SCHEDULE & MODE BOX -->
+    <!-- MANDATORY PRINCIPAL PERMISSION CARD -->
+    <div class="permission-card">
+      <h3 style="color: #f59e0b; margin-bottom: 8px; text-align: left;">📜 Official Principal Permission & School Authorization</h3>
+      <p style="font-size: 13px; color: #cbd5e1; margin-bottom: 12px; line-height: 1.4;">
+        By checking this box, you formally confirm that your school principal/management has authorized participation in NVMSO 2026. <strong>Note: Until you check this permission, your Organizer Code will remain locked and students cannot register using your code.</strong>
+      </p>
+      <label style="cursor: pointer; display: flex; align-items: center; gap: 10px; font-size: 14px; color: #fff; font-weight: bold;">
+        <input type="checkbox" id="principal-perm-checkbox" onchange="togglePrincipalPermission(this.checked)" style="width: 20px; height: 20px; cursor: pointer;">
+        I confirm Principal Permission & Official School Approval
+      </label>
+      <div id="perm-status-text" style="font-size: 12px; font-weight: bold; margin-top: 8px;"></div>
+    </div>
+
+    <!-- Exam Mode & Fee Details Box -->
     <div class="mode-box">
-      <h3 style="color:#38bdf8; margin-bottom: 12px; font-size: 16px; border-bottom: 1px solid rgba(56, 189, 248, 0.2); padding-bottom: 6px;">🗓️ Official Exam Schedule & Mode</h3>
-      
+      <h3 style="color:#38bdf8; text-align:left; margin-bottom:12px; font-size:16px;">⚙️ Olympiad Exam Mode & Schedule</h3>
       <div class="grid-2-custom">
-        <div>Exam Mode: <strong id="display-exam-mode" style="color:#facc15; text-transform:uppercase;">ONLINE</strong></div>
-        <div>Applicable Fee: <strong>₹<span id="current-applicable-fee">100</span> / std</strong></div>
-        <div>Start Window: <strong id="display-exam-start" style="color:#4ade80;">Not Scheduled</strong></div>
-        <div>Close Window: <strong id="display-exam-close" style="color:#f87171;">Not Scheduled</strong></div>
-        <div>Duration: <strong id="display-exam-duration">30</strong> Minutes</div>
-        <div>Status: <span style="color:#4ade80; font-weight:bold;">ACTIVE</span></div>
+        <div><strong>Exam Conduct Mode:</strong> <span id="display-exam-mode" style="color:#fbbf24; text-transform:uppercase;">ONLINE</span></div>
+        <div><strong>Applicable Fee / Student:</strong> ₹<span id="current-applicable-fee" style="color:#4ade80; font-weight:bold;">100</span></div>
+        <div><strong>Exam Duration:</strong> <span id="display-exam-duration">30</span> Minutes</div>
+        <div><strong>Exam Window Start:</strong> <span id="display-exam-start" style="color:#38bdf8;">Loading...</span></div>
+        <div><strong>Exam Window Close:</strong> <span id="display-exam-close" style="color:#f87171;">Loading...</span></div>
       </div>
 
-      <div style="margin-top: 15px; border-top: 1px solid rgba(255, 255, 255, 0.1); padding-top: 10px;">
-        <label>Change Conduct Mode:</label>
-        <select id="org-exam-mode-select" onchange="updateExamMode(this.value)" style="margin-top: 5px;">
-          <option value="online">Online Mode (20% Direct Commission)</option>
-          <option value="offline">Offline Paper Mode (Flat ₹20/student)</option>
+      <div style="margin-top: 15px; border-top: 1px solid #334155; padding-top: 12px;">
+        <label>Select Exam Conduct Mode for your School:</label>
+        <select id="org-exam-mode-select" onchange="updateExamMode(this.value)">
+          <option value="online">Online Mode (Portal Evaluated)</option>
+          <option value="offline">Offline Paper / OMR Mode (Manual Central Admin Marks Entry)</option>
         </select>
       </div>
     </div>
 
-    <div style="background: rgba(56, 189, 248, 0.1); border: 1px solid #38bdf8; color: #e0f2fe; padding: 12px 15px; border-radius: 8px; margin-bottom: 20px; font-size: 13px; line-height: 1.5;">
-      ℹ️ <strong>Payout Timeline Notice:</strong> Approved commissions and balance payouts are credited into your bank account/UPI ID within <strong>48 hours to 10 working days</strong> after account verification.
-    </div>
-
-    <!-- STATS PANEL -->
+    <!-- Financial Summary Stats -->
     <div class="stats-panel">
       <div class="stat-card">
+        <div style="font-size:12px; color:#94a3b8;">Total Cash Collected</div>
         <div class="stat-num" id="stat-cash-coll">₹0</div>
-        <div>Cash Collection</div>
       </div>
       <div class="stat-card">
+        <div style="font-size:12px; color:#94a3b8;">Total Online Collected</div>
         <div class="stat-num" id="stat-online-coll">₹0</div>
-        <div>Online Collection</div>
       </div>
       <div class="stat-card">
-        <div class="stat-num" id="stat-direct-comm">₹0</div>
-        <div>Direct Commission</div>
+        <div style="font-size:12px; color:#94a3b8;">Direct Commission Earned</div>
+        <div class="stat-num" id="stat-direct-comm" style="color:#4ade80;">₹0</div>
       </div>
       <div class="stat-card">
-        <div class="stat-num" id="stat-ref-comm" style="color:#4ade80;">₹0</div>
-        <div>Referral Comm (5%)</div>
+        <div style="font-size:12px; color:#94a3b8;">Referral Commission Earned</div>
+        <div class="stat-num" id="stat-ref-comm" style="color:#38bdf8;">₹0</div>
       </div>
     </div>
 
-    <!-- SETTLEMENT CALCULATION BOX -->
+    <!-- Settlement Box -->
     <div class="settlement-box">
-      <h3>Financial Settlement Calculation</h3>
-      <p id="settlement-text" style="font-size:15px; font-weight:bold; margin-top:5px; color:#38bdf8;">Calculating status...</p>
-      <small style="color:#94a3b8; display:block; margin-top:6px;">⏱️ Settlement payouts are processed within 48 Hours to 10 Days.</small>
+      <h3 style="color:#3b82f6; margin-bottom:6px; font-size:16px;">💳 Financial Settlement & UTR Submission</h3>
+      <p id="settlement-text" style="font-size:13px; margin-bottom:12px; font-weight:600;">Calculating balance...</p>
+      
+      <div id="settlement-pay-container" class="hidden">
+        <!-- Button to toggle QR Code visibility -->
+        <button type="button" onclick="toggleSettlementQr()" class="btn-primary" style="background: #0284c7; margin-bottom: 12px;">
+          📱 Click to Pay via QR / UPI App
+        </button>
+
+        <!-- Hidden QR Code Box -->
+        <div id="admin-qr-box" class="hidden" style="background: #0f172a; border: 2px dashed #38bdf8; padding: 15px; border-radius: 8px; text-align: center; margin-bottom: 15px;">
+          <p style="font-weight: bold; color: #38bdf8; margin-bottom: 5px;">Scan QR Code or Pay via UPI App</p>
+          <p style="margin-bottom: 8px; font-size: 14px; color: #fff;"><strong>UPI ID:</strong> <span id="admin-settle-upi" style="color: #fbbf24; font-weight: bold;">Loading...</span></p>
+          <img id="admin-settle-qr" src="Qrcode.jpg" alt="Payment QR Code" style="max-width: 180px; border-radius: 8px; display: block; margin: 0 auto;">
+        </div>
+
+        <form id="settlement-pay-form">
+          <div class="form-group" style="text-align: left;">
+            <label>Enter UTR / Transaction Reference No:</label>
+            <input type="text" id="settlement-utr" placeholder="Enter UTR Number" required>
+          </div>
+          <button type="submit" class="btn-primary" style="background: #10b981;">Submit Settlement UTR</button>
+        </form>
+      </div>
     </div>
 
-    <!-- SETTLEMENT PAY BOX -->
-    <div id="settlement-pay-container" class="card-box hidden" style="max-width:100%; margin:15px 0; border: 1px solid #3b82f6;">
-      <h3 style="color:#38bdf8; font-size:16px; text-align:left;">💳 Pay Excess Cash to NVMSO Admin</h3>
-      <p style="font-size:13px; color:#94a3b8; margin-bottom:12px;">Scan Admin QR Code or click to pay directly via UPI App, then submit the UTR number below:</p>
+    <!-- Payout Claim Request Form -->
+    <div class="card-box" style="max-width: 100%; margin-bottom: 20px;">
+      <h3 style="color:#10b981; text-align:left; font-size:16px; margin-bottom:10px;">🏦 Claim Commission Payout (Direct to Bank / UPI)</h3>
+      <p style="font-size:12px; color:#94a3b8; margin-bottom:12px;">You can claim your commission payout once your net cash payable balance is ₹0.</p>
       
-      <div style="text-align:center; background:#020617; padding:15px; border-radius:8px; margin-bottom:15px; border:1px solid #334155;">
-        <p style="font-size:13px; margin-bottom:5px;">Admin UPI ID: <strong id="admin-settle-upi" style="color:#fbbf24;">Loading...</strong></p>
-        <img id="admin-settle-qr" src="Qrcode.jpg" alt="Admin QR Code" style="max-width:160px; border-radius:8px; margin:8px 0;">
-        <div>
-          <a id="admin-upi-btn" href="#" style="display:inline-block; background:#10b981; color:#fff; padding:8px 16px; border-radius:6px; font-size:13px; font-weight:bold; text-decoration:none;">📱 Pay via GPay / PhonePe / Paytm</a>
+      <form id="payout-form">
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:12px;">
+          <div class="form-group" style="margin-bottom:0;">
+            <label>Enter UPI ID or PhonePe/GPay Number:</label>
+            <input type="text" id="payout-upi" placeholder="e.g. 98260XXXXX@paytm" required>
+          </div>
+          <div class="form-group" style="margin-bottom:0;">
+            <label>QR Code Image Link (Optional):</label>
+            <input type="text" id="payout-qr-url" placeholder="Leave blank if using UPI">
+          </div>
         </div>
-      </div>
-
-      <form id="settlement-pay-form">
-        <div class="form-group" style="margin-bottom:10px;">
-          <input type="text" id="settlement-utr" placeholder="Enter UPI / Bank Transaction UTR Number" required style="padding:10px;">
-        </div>
-        <button type="submit" class="btn-primary" style="padding:10px;">Submit Transaction UTR Proof</button>
+        <button type="submit" class="btn-primary" style="margin-top:12px; background:#059669; width:auto; padding:10px 20px;">Submit Payout Claim Request</button>
       </form>
     </div>
 
-    <!-- REFERRAL TRACKING -->
-    <div class="card-box" style="max-width:100%; margin:20px 0; border: 1px solid #4ade80;">
-      <h3 style="color:#4ade80; text-align:left;">🔗 My Referral Tracking & 5% Commission List</h3>
-      <p style="font-size:13px; color:#94a3b8; margin-bottom:10px;">Sub-organizers registered using your referral code:</p>
-      <div style="overflow-x:auto;">
-        <table id="org-referral-tracking-table" style="width:100%; border-collapse:collapse;">
-          <thead>
-            <tr style="background:#1e293b; color:#38bdf8; text-align:left;">
-              <th style="padding:8px;">Sub-Organizer Name / Code</th>
-              <th style="padding:8px;">Type</th>
-              <th style="padding:8px;">Date Joined</th>
-              <th style="padding:8px;">Commission (5%)</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr><td colspan="4" style="text-align:center; padding:10px; color:#94a3b8;">No referral records found yet.</td></tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
-
-    <!-- STUDENT LIST TABLE -->
-    <h3>School Students Registration & Result Ledger</h3>
-    <div style="overflow-x:auto;">
-      <table id="org-all-students-table">
+    <!-- Sub-Organizers & Referral Tracking Table -->
+    <h3 style="color:#38bdf8; text-align:left; font-size:16px; margin-bottom:10px;">👥 Sub-Organizers & 5% Referral Commission Tracking</h3>
+    <div style="overflow-x:auto; margin-bottom:25px;">
+      <table id="org-referral-tracking-table">
         <thead>
           <tr>
-            <th>Roll No.</th>
-            <th>Student Name</th>
-            <th>Class</th>
-            <th>Mode</th>
-            <th>Payment Status</th>
-            <th>Result & Score (%)</th>
-            <th>Award / Honors</th>
-            <th>Action</th>
+            <th>Sub-Organizer Name / School</th>
+            <th>Role</th>
+            <th>Joined Date</th>
+            <th>Referral Commission Earned (5%)</th>
           </tr>
         </thead>
-        <tbody></tbody>
+        <tbody>
+          <tr><td colspan="4" style="text-align:center; color:#94a3b8;">Loading referrals...</td></tr>
+        </tbody>
       </table>
     </div>
 
-    <!-- PAYOUT CLAIM REQUEST FORM -->
-    <div class="card-box" style="max-width:100%; margin:20px 0;">
-      <h3>Request Commission Payout / Settlement from NVMSO</h3>
-      <p style="font-size:12px; color:#fbbf24; margin-bottom:12px;">⚡ Payout Claims will be verified and credited within 48 Hours to 10 Working Days.</p>
-      <form id="payout-form">
-        <div class="form-group">
-          <label>Your UPI ID or Phone Pay / GPay Number:</label>
-          <input type="text" id="payout-upi" placeholder="e.g. 9876543210@paytm or upi@bank" required>
-        </div>
-        <div class="form-group">
-          <label>QR Code Image Link (Optional):</label>
-          <input type="text" id="payout-qr-url" placeholder="Paste image link of QR">
-        </div>
-        <button type="submit" class="btn-primary">Send Claim Request to NVMSO</button>
-      </form>
+    <!-- Registered Students Table -->
+    <h3 style="color:#fbbf24; text-align:left; font-size:18px; margin-bottom:10px;">📋 Registered Students Under Your School Code</h3>
+    <div style="overflow-x:auto; margin-bottom:25px;">
+      <table id="org-all-students-table">
+        <thead>
+          <tr>
+            <th>Roll No</th>
+            <th>Student Name</th>
+            <th>Class</th>
+            <th>Payment Mode</th>
+            <th>Cash Status</th>
+            <th>Score & Percentage</th>
+            <th>Award / Certificate</th>
+            <th>Organizer Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td colspan="8" style="text-align:center; color:#94a3b8;">Loading students...</td></tr>
+        </tbody>
+      </table>
     </div>
 
-    <!-- SUPPORT QUERY -->
-    <div class="card-box" style="max-width:100%; margin:20px 0; border: 1px solid #0275d8;">
-      <h3>Help & Support Helpline</h3>
-      <textarea id="support-msg" placeholder="Write your problem or query here for NVMSO Team..." style="width:100%; height:75px; padding:10px; border-radius:6px; background:#0f172a; color:white; border:1px solid #334155; margin-top:8px;"></textarea>
-      <button type="button" onclick="sendHelpQuery()" class="btn-primary" style="background:#0275d8; margin-top:8px;">Send Query to NVMSO</button>
+    <!-- Help & Support Query Box -->
+    <div class="card-box" style="max-width: 100%; margin-bottom: 20px;">
+      <h3 style="color:#f59e0b; text-align:left; font-size:16px; margin-bottom:10px;">💬 Contact NVMSO Support & Help Desk</h3>
+      <div style="display:flex; gap:10px; flex-wrap:wrap;">
+        <input type="text" id="support-msg" placeholder="Type your query or issue here..." style="flex:1; min-width:220px;">
+        <button type="button" onclick="sendHelpQuery()" class="btn-primary" style="width:auto; padding:0 20px; background:#d97706;">Send Query to Admin</button>
+      </div>
     </div>
 
-    <button type="button" id="btn-org-exit" onclick="exitOrganizerAccount()" class="btn-exit">EXIT / SWITCH ORGANIZER ACCOUNT</button>
+    <!-- Logout Button -->
+    <button onclick="exitOrganizerAccount()" class="btn-exit">🔴 Logout / Switch Organizer Account</button>
+
   </div>
+
 </div>
 
-<script type="module" src="organizer.js"></script>
+<script type="module" src="organizer.js?v=5"></script>
 </body>
 </html>
