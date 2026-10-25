@@ -98,14 +98,15 @@ h1 {
   gap: 8px;
 }
 
-/* Welcome Animation Styles */
+/* Welcome Animation Styles & Permanent Overlap Fix */
 .welcome-overlay {
   position: fixed;
-  top: 0; left: 0; width: 100%; height: 100%;
+  top: 0; left: 0; width: 100vw; height: 100vh;
   background: #0b0f19;
   display: flex; justify-content: center; align-items: center;
   z-index: 10000; padding: 20px; color: #fff; text-align: center;
   overflow: hidden;
+  transition: opacity 0.4s ease, visibility 0.4s ease;
 }
 
 .welcome-curtain-top, .welcome-curtain-bottom {
@@ -203,19 +204,14 @@ h1 {
   top: 6px;
 }
 
-/* Required Hidden and Reveal Classes for Timer / Panel Transition */
+/* 100% Guaranteed Overlap Fixes */
 .hidden { display: none !important; }
 
-.reveal-open {
-  opacity: 0;
-  transition: opacity 0.8s ease;
-}
-
-/* Fix to completely hide welcome overlay after timer without breaking central panel */
 .welcome-overlay.hidden {
   display: none !important;
   visibility: hidden !important;
   opacity: 0 !important;
+  z-index: -9999 !important;
   pointer-events: none !important;
 }
 
@@ -235,7 +231,7 @@ label {
   font-size: 13px;
 }
 
-input, select { 
+input, select, textarea { 
   width: 100%; 
   padding: 10px 12px; 
   border: 1px solid #4b5563; 
@@ -246,7 +242,7 @@ input, select {
   outline: none;
 }
 
-input:focus { border-color: #38bdf8; }
+input:focus, select:focus, textarea:focus { border-color: #38bdf8; }
 
 button { 
   padding: 10px 16px; 
