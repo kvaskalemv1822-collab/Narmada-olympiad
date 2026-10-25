@@ -23,13 +23,12 @@ function startGrandWelcomeAnimation() {
   const welcomeScreen = document.getElementById("grand-welcome-screen");
   welcomeScreen?.classList.remove("hidden", "reveal-open");
 
-  let countdown = 3; // 3 सेकंड का टाइमर
+  let countdown = 3;
   let progressWidth = 0;
 
   const countdownEl = document.getElementById("welcome-countdown");
   const progressEl = document.getElementById("welcome-progress");
 
-  // 3 सेकंड के हिसाब से प्रोग्रेस बार की स्पीड सेट की गई है (~3.33% प्रति 100ms)
   const progressInterval = setInterval(() => {
     progressWidth += 3.33;
     if (progressEl) progressEl.style.width = `${Math.min(progressWidth, 100)}%`;
