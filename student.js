@@ -122,6 +122,13 @@ function renderDynamicUPIQR() {
 }
 
 window.openDirectUpiApp = function() {
+  // Check if school organizer is verified
+  if (typeof isOrganizerVerified === 'undefined' || !isOrganizerVerified) {
+    alert("⛔ Please enter a valid School Organizer Code above to unlock payment options.");
+    document.getElementById("org-code")?.focus();
+    return;
+  }
+
   try {
     let fee = 100;
     if (typeof portalConfigData !== 'undefined') {
