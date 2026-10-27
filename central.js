@@ -237,8 +237,8 @@ window.filterByAcademicYear = (year) => {
 
 function renderAllTablesAndLedgers() {
   let totalRevenue = 0;
-  let totalDirectCommission = 0;
-  let totalReferralCommission = 0;
+  let totalDirectCommissionGlobal = 0;
+  let totalReferralCommissionGlobal = 0;
 
   const utrTbody = document.querySelector("#admin-utr-table tbody");
   const allStuTbody = document.querySelector("#admin-all-students-table tbody");
@@ -296,7 +296,7 @@ function renderAllTablesAndLedgers() {
     }
   });
 
-  // 2. Process Organizers with Combined Format & 15% Direct / 5% Referral Split Colors
+  // 2. Process Organizers with Individual Direct (15%) & Referral (5%) Columns
   allOrganizers.forEach(org => {
     const orgCode = org.code || org.orgCode;
     const schoolName = org.schoolName || org.name || "Unknown School";
@@ -319,8 +319,18 @@ function renderAllTablesAndLedgers() {
     } else {
       directComm = (cashColl + onlineColl) * 0.15; 
     }
+    totalDirectCommissionGlobal += directComm;
 
-    totalDirectCommission += directComm;
+    // Calculate Referral Commission (5%) earned by this organizer from their sub-organizers
+    let organizerReferralComm = 0;
+    const subOrgs = allOrganizers.filter(sub => sub.refCode === orgCode);
+    subOrgs.forEach(sub => {
+      const subStudents = filteredStudents.filter(s => s.orgCode === (sub.code || sub.orgCode) && (s.cashApproved || s.paymentConfirmed || (s.paymentMode || s.payMode) === "online"));
+      let subTotalColl = 0;
+      subStudents.forEach(st => subTotalColl += Number(st.feePaid || st.fee) || 100);
+      organizerReferralComm += subTotalColl * 0.05;
+    });
+    totalReferralCommissionGlobal += organizerReferralComm;
 
     let netPayable = cashColl - directComm;
     if (netPayable < 0) netPayable = 0;
@@ -353,7 +363,8 @@ function renderAllTablesAndLedgers() {
         <td><span style="color:${org.principalApproved ? '#4ade80' : '#f87171'}; font-weight:bold;">${org.principalApproved ? 'APPROVED 🟢' : 'PENDING 🔴'}</span></td>
         <td>₹${cashColl} (${totalConfirmedCount} St.)</td>
         <td>₹${onlineColl}</td>
-        <td><span style="color:#4ade80; font-weight:bold;">₹${directComm.toFixed(2)} (15%)</span></td>
+        <td><span style="color:#4ade80; font-weight:bold;">₹${directComm.toFixed(2)}</span></td>
+        <td><span style="color:#38bdf8; font-weight:bold;">₹${organizerReferralComm.toFixed(2)}</span></td>
         <td><strong style="color:${currentDues > 0 ? '#f87171' : '#10b981'};">₹${currentDues.toFixed(2)}</strong></td>
         <td>${utrStatusHtml}</td>
         <td>
@@ -366,32 +377,19 @@ function renderAllTablesAndLedgers() {
     }
   });
 
-  // 3. Referral Commission (5%) with Distinct Sky Blue Color
-  allOrganizers.forEach(org => {
-    const orgCode = org.code || org.orgCode;
-    const subOrgs = allOrganizers.filter(sub => sub.refCode === orgCode);
-    subOrgs.forEach(sub => {
-      const subStudents = filteredStudents.filter(s => s.orgCode === (sub.code || sub.orgCode) && (s.cashApproved || s.paymentConfirmed || (s.paymentMode || s.payMode) === "online"));
-      let subTotalColl = 0;
-      subStudents.forEach(st => subTotalColl += Number(st.feePaid || st.fee) || 100);
-      totalReferralCommission += subTotalColl * 0.05;
-    });
-  });
-
-  let totalCombinedCommission = totalDirectCommission + totalReferralCommission;
+  let totalCombinedCommissionGlobal = totalDirectCommissionGlobal + totalReferralCommissionGlobal;
 
   if (document.getElementById("stat-total-revenue")) document.getElementById("stat-total-revenue").textContent = `₹${totalRevenue}`;
   
-  // Update UI Elements with Color Coding for Direct vs Referral Commissions
   const statCommEl = document.getElementById("stat-total-commission");
   if (statCommEl) {
     statCommEl.innerHTML = `
-      <span style="color:#4ade80;" title="15% Direct Commission">₹${totalDirectCommission.toFixed(2)} (15% Direct)</span><br>
-      <span style="color:#38bdf8;" title="5% Referral Commission">₹${totalReferralCommission.toFixed(2)} (5% Referral)</span>
+      <span style="color:#4ade80;">₹${totalDirectCommissionGlobal.toFixed(2)} (Direct)</span> | 
+      <span style="color:#38bdf8;">₹${totalReferralCommissionGlobal.toFixed(2)} (Referral)</span>
     `;
   }
   
-  computeOverallLedgerAndProfit(totalRevenue, totalCombinedCommission);
+  computeOverallLedgerAndProfit(totalRevenue, totalCombinedCommissionGlobal);
 }
 
 // Render Offline Students for Manual Marks Entry
