@@ -79,8 +79,17 @@ function initRealtimePortalSync() {
   });
 }
 
-// Dynamic QR Generator Function (Pulls data automatically from panel/config)
+// Secure Dynamic QR Generator Function (Gated by Organizer Verification)
 function renderDynamicUPIQR() {
+  const qrBox = document.getElementById("dynamic-qr-container");
+  if (!qrBox) return;
+
+  // Jab tak school organizer verify nahi hota, QR code aur fees hide rahenge
+  if (typeof isOrganizerVerified === 'undefined' || !isOrganizerVerified) {
+    qrBox.innerHTML = "<p style='color: #94a3b8; font-size: 13px; text-align: center;'>🔒 Please enter a valid School Organizer Code above to unlock the payment QR code & fees.</p>";
+    return;
+  }
+
   let fee = 100;
   if (typeof portalConfigData !== 'undefined') {
     let isOff = typeof verifiedOrgExamMode !== 'undefined' && verifiedOrgExamMode === "offline";
@@ -100,14 +109,18 @@ function renderDynamicUPIQR() {
                "&am=" + encodeURIComponent(fee) +
                "&cu=INR";
 
-  const qrBox = document.getElementById("dynamic-qr-container");
-  if (qrBox) {
-    qrBox.innerHTML = ""; // Clear old QR code
-    if (typeof QRCode !== "undefined") {
-      new QRCode(qrBox, {
-        text: upiUrl,
-        width: 180,
-        height: 180
+  qrBox.innerHTML = ""; // Clear old QR code
+  if (typeof QRCode !== "undefined") {
+    new QRCode(qrBox, {
+      text: upiUrl,
+      width: 180,
+      height: 180
+    });
+  } else {
+    qrBox.innerHTML = "<p style='color:red;'>QR Library not loaded.</p>";
+  }
+}
+
       });
     } else {
       qrBox.innerHTML = "<p style='color:red;'>QR Library not loaded.</p>";
