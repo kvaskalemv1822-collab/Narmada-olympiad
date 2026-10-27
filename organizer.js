@@ -17,24 +17,15 @@ const db = getFirestore(app);
 let currentOrgCode = localStorage.getItem("nvms_org_code") || "";
 let portalConfigData = {};
 
-// 1. Organizer Login with 6-Digit Strict PIN Validation
+// 1. Organizer Login & Verification (Fixed & Bulletproof)
 window.verifyOrganizerLogin = async () => {
-  const codeInput = document.getElementById("org-login-code").value.trim();
-  const passInput = document.getElementById("org-login-pass").value.trim();
+  const codeInput = document.getElementById("org-login-code") ? document.getElementById("org-login-code").value.trim() : "";
+  const passInput = document.getElementById("org-login-pass") ? document.getElementById("org-login-pass").value.trim() : "";
   const alertBox = document.getElementById("org-login-alert");
 
   if (!codeInput || !passInput) {
     if (alertBox) {
       alertBox.textContent = "Please enter both Organization Code and Password!";
-      alertBox.style.display = "block";
-    }
-    return;
-  }
-
-  // Strict 6-Digit PIN validation check
-  if (passInput.length !== 6 || isNaN(passInput)) {
-    if (alertBox) {
-      alertBox.textContent = "⚠️ Security Error: PIN / Password strictly 6 digits ka hona chahiye!";
       alertBox.style.display = "block";
     }
     return;
@@ -46,17 +37,22 @@ window.verifyOrganizerLogin = async () => {
 
     if (orgSnap.exists()) {
       const data = orgSnap.data();
+      // Supports both 'password' and 'pass' fields to prevent login failure
       const orgPass = data.password || data.pass || "123456";
 
       if (passInput === orgPass) {
         localStorage.setItem("nvms_org_code", codeInput);
         currentOrgCode = codeInput;
-        document.getElementById("org-login-screen").classList.add("hidden");
-        document.getElementById("org-main-container").classList.remove("hidden");
+        
+        const loginScreen = document.getElementById("org-login-screen");
+        const mainContainer = document.getElementById("org-main-container");
+        if (loginScreen) loginScreen.classList.add("hidden");
+        if (mainContainer) mainContainer.classList.remove("hidden");
+        
         initializeOrganizerPanel();
       } else {
         if (alertBox) {
-          alertBox.textContent = "Incorrect 6-Digit PIN!";
+          alertBox.textContent = "Incorrect Password!";
           alertBox.style.display = "block";
         }
       }
@@ -174,7 +170,6 @@ function renderOrganizerDashboardMetrics(orgData, studentsList) {
   let totalCollectedAmount = cashCollection + onlineCollection;
   let organizerCommission = orgData.examMode === "offline" ? (totalCount * 15) : (totalCollectedAmount * 0.15);
   
-  // Net Dues to NVMSO
   let netPayableToNvms = cashCollection - organizerCommission;
   if (netPayableToNvms < 0) netPayableToNvms = 0;
 
@@ -186,7 +181,7 @@ function renderOrganizerDashboardMetrics(orgData, studentsList) {
   if (document.getElementById("org-my-commission")) document.getElementById("org-my-commission").textContent = `₹${organizerCommission.toFixed(2)} (15%)`;
   if (document.getElementById("org-net-payable")) document.getElementById("org-net-payable").textContent = `₹${finalDues.toFixed(2)}`;
 
-  // Render Auto-Filled UPI Payment Button with exact dues
+  // Auto-Filled UPI Payment Button for NVMSO Dues
   const payContainer = document.getElementById("organizer-pay-container");
   if (payContainer) {
     if (finalDues > 0) {
@@ -210,7 +205,7 @@ function renderOrganizerDashboardMetrics(orgData, studentsList) {
 }
 
 window.notifyAdminPaymentDone = async (amount) => {
-  if (confirm("Confirm sending payment notification to Central Admin?")) {
+  if (confirm("Confirm notification to Central Admin that payment has been made?")) {
     try {
       await addDoc(collection(db, "settlement_payments"), {
         orgCode: currentOrgCode,
