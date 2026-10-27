@@ -237,7 +237,8 @@ window.filterByAcademicYear = (year) => {
 
 function renderAllTablesAndLedgers() {
   let totalRevenue = 0;
-  let totalCommissionPayable = 0;
+  let totalDirectCommission = 0;
+  let totalReferralCommission = 0;
 
   const utrTbody = document.querySelector("#admin-utr-table tbody");
   const allStuTbody = document.querySelector("#admin-all-students-table tbody");
@@ -295,7 +296,7 @@ function renderAllTablesAndLedgers() {
     }
   });
 
-  // 2. Process Organizers with Combined "ORGCODE - MODE" Format & 20% Commission Rule
+  // 2. Process Organizers with Combined Format & 15% Direct / 5% Referral Split Colors
   allOrganizers.forEach(org => {
     const orgCode = org.code || org.orgCode;
     const schoolName = org.schoolName || org.name || "Unknown School";
@@ -314,12 +315,12 @@ function renderAllTablesAndLedgers() {
 
     let directComm = 0;
     if (org.examMode === "offline") {
-      directComm = totalConfirmedCount * 20; 
+      directComm = totalConfirmedCount * 15; 
     } else {
-      directComm = (cashColl + onlineColl) * 0.20; 
+      directComm = (cashColl + onlineColl) * 0.15; 
     }
 
-    totalCommissionPayable += directComm;
+    totalDirectCommission += directComm;
 
     let netPayable = cashColl - directComm;
     if (netPayable < 0) netPayable = 0;
@@ -338,7 +339,6 @@ function renderAllTablesAndLedgers() {
       `<span style="color:#4ade80; font-size:10px; display:block;">🟢 Eligible (Physical Awards)</span>` : 
       `<span style="color:#f59e0b; font-size:10px; display:block;">⚠️ Low Strength (<25): E-Cert Only</span>`;
 
-    const matchedSettle = allSettlementPayments.find(p => p.orgCode === orgCode);
     let utrStatusHtml = org.manualSettled ? `<span style="color:#4ade80; font-weight:bold;">✅ Settled (Paid)</span>` : (currentDues > 0 ? `<span style="color:#f87171; font-weight:bold;">₹${currentDues.toFixed(2)} Due</span>` : `<span style="color:#10b981;">Fully Cleared</span>`);
 
     if (orgLedgerTbody) {
@@ -353,7 +353,7 @@ function renderAllTablesAndLedgers() {
         <td><span style="color:${org.principalApproved ? '#4ade80' : '#f87171'}; font-weight:bold;">${org.principalApproved ? 'APPROVED 🟢' : 'PENDING 🔴'}</span></td>
         <td>₹${cashColl} (${totalConfirmedCount} St.)</td>
         <td>₹${onlineColl}</td>
-        <td>₹${directComm.toFixed(2)} (20%)</td>
+        <td><span style="color:#4ade80; font-weight:bold;">₹${directComm.toFixed(2)} (15%)</span></td>
         <td><strong style="color:${currentDues > 0 ? '#f87171' : '#10b981'};">₹${currentDues.toFixed(2)}</strong></td>
         <td>${utrStatusHtml}</td>
         <td>
@@ -366,7 +366,7 @@ function renderAllTablesAndLedgers() {
     }
   });
 
-  // Referral Commission (5%)
+  // 3. Referral Commission (5%) with Distinct Sky Blue Color
   allOrganizers.forEach(org => {
     const orgCode = org.code || org.orgCode;
     const subOrgs = allOrganizers.filter(sub => sub.refCode === orgCode);
@@ -374,14 +374,24 @@ function renderAllTablesAndLedgers() {
       const subStudents = filteredStudents.filter(s => s.orgCode === (sub.code || sub.orgCode) && (s.cashApproved || s.paymentConfirmed || (s.paymentMode || s.payMode) === "online"));
       let subTotalColl = 0;
       subStudents.forEach(st => subTotalColl += Number(st.feePaid || st.fee) || 100);
-      totalCommissionPayable += subTotalColl * 0.05;
+      totalReferralCommission += subTotalColl * 0.05;
     });
   });
 
+  let totalCombinedCommission = totalDirectCommission + totalReferralCommission;
+
   if (document.getElementById("stat-total-revenue")) document.getElementById("stat-total-revenue").textContent = `₹${totalRevenue}`;
-  if (document.getElementById("stat-total-commission")) document.getElementById("stat-total-commission").textContent = `₹${totalCommissionPayable.toFixed(2)}`;
   
-  computeOverallLedgerAndProfit(totalRevenue, totalCommissionPayable);
+  // Update UI Elements with Color Coding for Direct vs Referral Commissions
+  const statCommEl = document.getElementById("stat-total-commission");
+  if (statCommEl) {
+    statCommEl.innerHTML = `
+      <span style="color:#4ade80;" title="15% Direct Commission">₹${totalDirectCommission.toFixed(2)} (15% Direct)</span><br>
+      <span style="color:#38bdf8;" title="5% Referral Commission">₹${totalReferralCommission.toFixed(2)} (5% Referral)</span>
+    `;
+  }
+  
+  computeOverallLedgerAndProfit(totalRevenue, totalCombinedCommission);
 }
 
 // Render Offline Students for Manual Marks Entry
