@@ -17,7 +17,7 @@ const db = getFirestore(app);
 let currentOrgCode = localStorage.getItem("nvms_org_code") || "";
 let portalConfigData = {};
 
-// 1. Organizer Login / Verification
+// 1. Organizer Login with 6-Digit Strict PIN Validation
 window.verifyOrganizerLogin = async () => {
   const codeInput = document.getElementById("org-login-code").value.trim();
   const passInput = document.getElementById("org-login-pass").value.trim();
@@ -26,6 +26,15 @@ window.verifyOrganizerLogin = async () => {
   if (!codeInput || !passInput) {
     if (alertBox) {
       alertBox.textContent = "Please enter both Organization Code and Password!";
+      alertBox.style.display = "block";
+    }
+    return;
+  }
+
+  // Strict 6-Digit PIN validation check
+  if (passInput.length !== 6 || isNaN(passInput)) {
+    if (alertBox) {
+      alertBox.textContent = "⚠️ Security Error: PIN / Password strictly 6 digits ka hona chahiye!";
       alertBox.style.display = "block";
     }
     return;
@@ -47,7 +56,7 @@ window.verifyOrganizerLogin = async () => {
         initializeOrganizerPanel();
       } else {
         if (alertBox) {
-          alertBox.textContent = "Incorrect Password!";
+          alertBox.textContent = "Incorrect 6-Digit PIN!";
           alertBox.style.display = "block";
         }
       }
@@ -98,7 +107,6 @@ function loadPortalConfigAndData() {
 function loadOrganizerDetailsAndStudents() {
   if (!currentOrgCode) return;
 
-  // Listen to Organizer Data
   onSnapshot(doc(db, "organizers", currentOrgCode), (orgSnap) => {
     if (!orgSnap.exists()) return;
     const orgData = orgSnap.data();
@@ -116,7 +124,6 @@ function loadOrganizerDetailsAndStudents() {
       `;
     }
 
-    // Listen to Students Registered under this Organizer
     onSnapshot(collection(db, "students"), (stuSnap) => {
       let orgStudents = [];
       stuSnap.forEach(d => {
@@ -163,24 +170,23 @@ function renderOrganizerDashboardMetrics(orgData, studentsList) {
     }
   });
 
-  // 15% Direct Commission Calculation for Organizer
+  // 15% Direct Commission Calculation
   let totalCollectedAmount = cashCollection + onlineCollection;
   let organizerCommission = orgData.examMode === "offline" ? (totalCount * 15) : (totalCollectedAmount * 0.15);
   
-  // Net Dues to NVMSO (Cash collected minus 15% organizer commission)
+  // Net Dues to NVMSO
   let netPayableToNvms = cashCollection - organizerCommission;
   if (netPayableToNvms < 0) netPayableToNvms = 0;
 
   let lastSettled = orgData.lastSettledCash || 0;
   let finalDues = orgData.manualSettled ? Math.max(0, netPayableToNvms - lastSettled) : netPayableToNvms;
 
-  // Render Stats on Dashboard
   if (document.getElementById("org-total-students")) document.getElementById("org-total-students").textContent = totalCount;
   if (document.getElementById("org-total-collection")) document.getElementById("org-total-collection").textContent = `₹${totalCollectedAmount}`;
   if (document.getElementById("org-my-commission")) document.getElementById("org-my-commission").textContent = `₹${organizerCommission.toFixed(2)} (15%)`;
   if (document.getElementById("org-net-payable")) document.getElementById("org-net-payable").textContent = `₹${finalDues.toFixed(2)}`;
 
-  // Render Auto-Filled UPI Payment Button for NVMSO Dues
+  // Render Auto-Filled UPI Payment Button with exact dues
   const payContainer = document.getElementById("organizer-pay-container");
   if (payContainer) {
     if (finalDues > 0) {
@@ -204,7 +210,7 @@ function renderOrganizerDashboardMetrics(orgData, studentsList) {
 }
 
 window.notifyAdminPaymentDone = async (amount) => {
-  if (confirm("Notify Central Admin that you have paid the dues?")) {
+  if (confirm("Confirm sending payment notification to Central Admin?")) {
     try {
       await addDoc(collection(db, "settlement_payments"), {
         orgCode: currentOrgCode,
