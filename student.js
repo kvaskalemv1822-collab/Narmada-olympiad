@@ -81,17 +81,33 @@ function initRealtimePortalSync() {
   });
 }
 
-// ⚡ Direct UPI App Intent Trigger Function
 window.openDirectUpiApp = function() {
-  // Check applicable fee based on verified organizer mode
-  let applicableFee = verifiedOrgExamMode === "offline" ? (portalConfigData.offlineFee || 120) : (portalConfigData.onlineFee || 100);
-  let merchantUpiID = portalConfigData.upiId || "narmada@upi";
-  let payeeName = "NVMSO Exam Fee";
+  try {
+    let fee = 100;
+    if (typeof portalConfigData !== 'undefined') {
+      let isOff = typeof verifiedOrgExamMode !== 'undefined' && verifiedOrgExamMode === "offline";
+      fee = isOff ? (portalConfigData.offlineFee || 120) : (portalConfigData.onlineFee || 100);
+    }
+    
+    let upi = "narmada@upi";
+    if (typeof portalConfigData !== 'undefined' && portalConfigData.upiId) {
+      upi = portalConfigData.upiId;
+    }
+    
+    let name = "NVMSO Exam Fee";
+    let note = "NVMSO Registration Fee";
+    let url = "upi://pay?pa=" + encodeURIComponent(upi);
+    url += "&pn=" + encodeURIComponent(name);
+    url += "&tn=" + encodeURIComponent(note);
+    url += "&am=" + encodeURIComponent(fee) + "&cu=INR";
 
-  let upiUrl = `upi://pay?pa=${encodeURIComponent(merchantUpiID)}&pn=${encodeURIComponent(payeeName)}&am=${encodeURIComponent(applicableFee)}&cu=INR`;
-
-window.location.href = upiUrl;
+    window.location.href = url;
+  } catch (err) {
+    alert("Please scan the QR code using your phone.");
+  }
 };
+
+
 
 window.switchTab = (tabName) => {
   document.getElementById("registration-view").classList.add("hidden");
