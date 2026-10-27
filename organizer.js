@@ -1,5 +1,5 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-import { getFirestore, doc, getDoc, setDoc, updateDoc, collection, onSnapshot, addDoc, query, where, getDocs } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+import { getFirestore, doc, setDoc, getDoc, collection, getDocs, query, where, onSnapshot, addDoc, updateDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyBVPLR8q1NpUNSpmsDdKcqPAo_z1vZOvnA",
@@ -14,208 +14,553 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-let currentOrgCode = localStorage.getItem("nvms_org_code") || "";
-let portalConfigData = {};
+let currentOrg = null;
+let portalConfig = {};
+let orgStudents = [];
+let studentResults = {};
+let referralOrgs = [];
+let netCashPayableToNVMSO = 0;
 
-// 1. Organizer Login & Verification (Fixed & Bulletproof)
-window.verifyOrganizerLogin = async () => {
-  const codeInput = document.getElementById("org-login-code") ? document.getElementById("org-login-code").value.trim() : "";
-  const passInput = document.getElementById("org-login-pass") ? document.getElementById("org-login-pass").value.trim() : "";
-  const alertBox = document.getElementById("org-login-alert");
+function enforceNumericOnly(inputElement) {
+  if (!inputElement) return;
+  inputElement.addEventListener("input", (e) => {
+    e.target.value = e.target.value.replace(/[^0-9]/g, "");
+  });
+}
 
-  if (!codeInput || !passInput) {
-    if (alertBox) {
-      alertBox.textContent = "Please enter both Organization Code and Password!";
-      alertBox.style.display = "block";
+document.addEventListener("DOMContentLoaded", () => {
+  enforceNumericOnly(document.getElementById("new-org-contact"));
+  enforceNumericOnly(document.getElementById("new-org-pin"));
+  enforceNumericOnly(document.getElementById("reset-org-contact"));
+  enforceNumericOnly(document.getElementById("reset-org-pin"));
+});
+
+onSnapshot(doc(db, "settings", "portal_config"), (docSnap) => {
+  if (docSnap.exists()) {
+    portalConfig = docSnap.data();
+
+    const noticeBanner = document.getElementById("admin-notice-banner");
+    const noticeText = document.getElementById("notice-text");
+    if (portalConfig.broadcastNotice && noticeBanner && noticeText) {
+      noticeText.textContent = portalConfig.broadcastNotice;
+      noticeBanner.classList.remove("hidden");
+    } else if (noticeBanner) {
+      noticeBanner.classList.add("hidden");
     }
-    return;
-  }
 
-  try {
-    const orgRef = doc(db, "organizers", codeInput);
-    const orgSnap = await getDoc(orgRef);
+    const adminUpi = portalConfig.upiId || "narmada@upi";
+    const upiEl = document.getElementById("admin-settle-upi");
+    if (upiEl) upiEl.textContent = adminUpi;
 
-    if (orgSnap.exists()) {
-      const data = orgSnap.data();
-      // Supports both 'password' and 'pass' fields to prevent login failure
-      const orgPass = data.password || data.pass || "123456";
-
-      if (passInput === orgPass) {
-        localStorage.setItem("nvms_org_code", codeInput);
-        currentOrgCode = codeInput;
-        
-        const loginScreen = document.getElementById("org-login-screen");
-        const mainContainer = document.getElementById("org-main-container");
-        if (loginScreen) loginScreen.classList.add("hidden");
-        if (mainContainer) mainContainer.classList.remove("hidden");
-        
-        initializeOrganizerPanel();
-      } else {
-        if (alertBox) {
-          alertBox.textContent = "Incorrect Password!";
-          alertBox.style.display = "block";
-        }
-      }
-    } else {
-      if (alertBox) {
-        alertBox.textContent = "Organizer Code not found!";
-        alertBox.style.display = "block";
-      }
+    const qrImg = document.getElementById("admin-settle-qr");
+    if (qrImg) {
+      qrImg.src = portalConfig.qrImageUrl || "Qrcode.jpg";
     }
-  } catch (err) {
-    console.error(err);
-    if (alertBox) {
-      alertBox.textContent = "Login error. Check internet connection.";
-      alertBox.style.display = "block";
+
+    if (currentOrg) {
+      updateScheduleAndFeeUI();
+      recalculateFinancials();
     }
-  }
-};
-
-window.logoutOrganizer = () => {
-  localStorage.removeItem("nvms_org_code");
-  location.reload();
-};
-
-// Auto login check on load
-window.addEventListener("DOMContentLoaded", () => {
-  if (currentOrgCode) {
-    const loginScreen = document.getElementById("org-login-screen");
-    const mainContainer = document.getElementById("org-main-container");
-    if (loginScreen) loginScreen.classList.add("hidden");
-    if (mainContainer) mainContainer.classList.remove("hidden");
-    initializeOrganizerPanel();
   }
 });
 
-function initializeOrganizerPanel() {
-  loadPortalConfigAndData();
-}
+// Toggle Admin QR Code visibility on Pay click
+window.toggleSettlementQr = () => {
+  const qrBox = document.getElementById("admin-qr-box");
+  if (qrBox) {
+    qrBox.classList.toggle("hidden");
+  }
+};
 
-function loadPortalConfigAndData() {
-  onSnapshot(doc(db, "settings", "portal_config"), (docSnap) => {
-    if (docSnap.exists()) {
-      portalConfigData = docSnap.data();
-    }
-    loadOrganizerDetailsAndStudents();
-  });
-}
+window.switchOrgTab = (tab) => {
+  document.getElementById("org-reg-box")?.classList.add("hidden");
+  document.getElementById("org-login-box")?.classList.add("hidden");
+  document.getElementById("org-forgot-box")?.classList.add("hidden");
 
-function loadOrganizerDetailsAndStudents() {
-  if (!currentOrgCode) return;
+  if (tab === 'reg') document.getElementById("org-reg-box")?.classList.remove("hidden");
+  else if (tab === 'forgot') document.getElementById("org-forgot-box")?.classList.remove("hidden");
+  else document.getElementById("org-login-box")?.classList.remove("hidden");
+};
 
-  onSnapshot(doc(db, "organizers", currentOrgCode), (orgSnap) => {
-    if (!orgSnap.exists()) return;
-    const orgData = orgSnap.data();
-    const schoolName = orgData.schoolName || orgData.name || "School";
-    const examMode = (orgData.examMode || "online").toUpperCase();
+document.getElementById("org-reg-form")?.addEventListener("submit", async (e) => {
+  e.preventDefault();
 
-    // Render ORGCODE - OFFLINE / ONLINE format in Header
-    const headerEl = document.getElementById("org-profile-header");
-    if (headerEl) {
-      headerEl.innerHTML = `
-        <h2 style="color: #f8fafc; font-size: 20px; font-weight: bold;">
-          ${currentOrgCode} - <span style="color: ${examMode === 'OFFLINE' ? '#fbbf24' : '#38bdf8'};">${examMode}</span>
-        </h2>
-        <p style="color: #94a3b8; font-size: 14px; margin-top: 4px;">${schoolName} | Coordinator: ${orgData.name}</p>
-      `;
-    }
+  const name = document.getElementById("new-org-name").value.trim();
+  const schoolName = document.getElementById("new-org-school").value.trim();
+  const contact = document.getElementById("new-org-contact").value.trim().replace(/[^0-9]/g, '');
+  const password = document.getElementById("new-org-pass").value.trim();
+  const pin = document.getElementById("new-org-pin").value.trim();
+  const refCode = document.getElementById("new-org-ref").value.trim().toUpperCase();
 
-    onSnapshot(collection(db, "students"), (stuSnap) => {
-      let orgStudents = [];
-      stuSnap.forEach(d => {
-        const sData = d.data();
-        if (sData.orgCode === currentOrgCode) {
-          orgStudents.push({ id: d.id, ...sData });
-        }
-      });
+  if (contact.length !== 10) { alert("Enter a valid 10-digit mobile number!"); return; }
+  if (pin.length !== 4) { alert("Secret PIN must be exactly 4 digits!"); return; }
 
-      renderOrganizerDashboardMetrics(orgData, orgStudents);
+  try {
+    const q = query(collection(db, "organizers"), where("contact", "==", contact));
+    const snap = await getDocs(q);
+    if (!snap.empty) { alert("❌ Contact number is already registered!"); return; }
+
+    const generatedCode = `ORG${Math.floor(1000 + Math.random() * 9000)}`;
+
+    await setDoc(doc(db, "organizers", generatedCode), {
+      orgCode: generatedCode, code: generatedCode, name, schoolName, contact, password, pin,
+      refCode: refCode || null, examMode: "online", academicYear: "2026-27", principalApproved: false, manualSettled: false, registeredAt: new Date().toISOString()
     });
-  });
+
+    alert(`🎉 Registration Successful!\n\nYour Organizer Code: ${generatedCode}\nSecret PIN: ${pin}\n(Keep your PIN safe for recovery).`);
+    document.getElementById("org-code-input").value = generatedCode;
+    document.getElementById("org-pass-input").value = password;
+    switchOrgTab('login');
+  } catch (err) { 
+    console.error(err);
+    alert("Error registering organizer account."); 
+  }
+});
+
+window.executePinReset = async () => {
+  const contact = document.getElementById("reset-org-contact").value.trim().replace(/[^0-9]/g, '');
+  const enteredPin = document.getElementById("reset-org-pin").value.trim();
+  const newPass = document.getElementById("reset-org-pass").value.trim();
+
+  if (contact.length !== 10) { alert("Enter a valid 10-digit mobile number!"); return; }
+  if (enteredPin.length !== 4) { alert("Enter your valid 4-digit Secret PIN!"); return; }
+  if (!newPass) { alert("Enter your new password!"); return; }
+
+  try {
+    const q = query(collection(db, "organizers"), where("contact", "==", contact));
+    const snap = await getDocs(q);
+
+    if (snap.empty) {
+      alert("❌ Mobile number not found in database!");
+      return;
+    }
+
+    let matchedDocId = null;
+    snap.forEach(d => {
+      const data = d.data();
+      if (data.pin === enteredPin) {
+        matchedDocId = d.id;
+      }
+    });
+
+    if (!matchedDocId) {
+      alert("❌ Incorrect Secret PIN! Verification failed.");
+      return;
+    }
+
+    await updateDoc(doc(db, "organizers", matchedDocId), { password: newPass });
+
+    alert(`✅ Verification Successful!\n\nYour Organizer Code is: ${matchedDocId}\nPassword has been reset successfully.`);
+    document.getElementById("org-code-input").value = matchedDocId;
+    document.getElementById("org-pass-input").value = newPass;
+    switchOrgTab('login');
+
+  } catch (err) {
+    console.error(err);
+    alert("Error resetting password.");
+  }
+};
+
+window.verifyOrgLogin = async () => {
+  const code = document.getElementById("org-code-input").value.trim().toUpperCase();
+  const password = document.getElementById("org-pass-input").value.trim();
+
+  try {
+    const orgDoc = await getDoc(doc(db, "organizers", code));
+    if (orgDoc.exists() && orgDoc.data().password === password) {
+      currentOrg = orgDoc.data();
+      loadDashboardView();
+    } else {
+      alert("❌ Invalid Code or Password!");
+    }
+  } catch (err) { alert("Error logging in."); }
+};
+
+function loadDashboardView() {
+  document.getElementById("org-auth-section")?.classList.add("hidden");
+  document.getElementById("org-view")?.classList.remove("hidden");
+
+  const orgCodeKey = currentOrg.code || currentOrg.orgCode;
+  const examMode = (currentOrg.examMode || "online").toUpperCase();
+
+  // Updated Header Display (ORGCODE - OFFLINE / ONLINE)
+  if (document.getElementById("display-org-code")) {
+    document.getElementById("display-org-code").innerHTML = `${orgCodeKey} - <span style="color:${examMode === 'OFFLINE' ? '#fbbf24' : '#38bdf8'}; font-weight:bold;">${examMode}</span>`;
+  }
+  if (document.getElementById("display-org-name")) document.getElementById("display-org-name").textContent = currentOrg.name;
+  if (document.getElementById("display-org-school")) document.getElementById("display-org-school").textContent = currentOrg.schoolName;
+
+  updatePermissionUI(currentOrg.principalApproved);
+  updateScheduleAndFeeUI();
+  startRealtimeStudentsListener();
+  startResultsListener();
+  startReferralTrackingListener();
+  listenToAdminManualSettlement();
 }
 
-function renderOrganizerDashboardMetrics(orgData, studentsList) {
-  let totalCount = studentsList.length;
-  let cashCollection = 0;
-  let onlineCollection = 0;
+window.togglePrincipalPermission = async (isChecked) => {
+  if (!currentOrg) return;
 
-  const tbody = document.querySelector("#org-students-table tbody");
-  if (tbody) tbody.innerHTML = "";
+  try {
+    const orgCodeKey = currentOrg.code || currentOrg.orgCode;
+    await updateDoc(doc(db, "organizers", orgCodeKey), {
+      principalApproved: isChecked,
+      approvedAt: isChecked ? new Date().toISOString() : null
+    });
 
-  studentsList.forEach((s, index) => {
-    const payMode = s.paymentMode || s.payMode || "cash";
-    const fee = Number(s.feePaid || s.fee) || 100;
-    const isPaid = s.cashApproved || s.paymentConfirmed || payMode === "online";
+    currentOrg.principalApproved = isChecked;
+    updatePermissionUI(isChecked);
 
-    if (isPaid) {
-      if (payMode === "cash") cashCollection += fee;
-      else onlineCollection += fee;
-    }
-
-    if (tbody) {
-      const tr = document.createElement("tr");
-      tr.innerHTML = `
-        <td>${index + 1}</td>
-        <td><strong>${s.rollNumber || s.roll || 'N/A'}</strong></td>
-        <td>${s.studentName || s.name}</td>
-        <td>Class ${s.studentClass || s.stdClass}</td>
-        <td><span style="color:${payMode === 'online' ? '#38bdf8' : '#fbbf24'}; font-weight:bold;">${payMode.toUpperCase()}</span></td>
-        <td><span style="color:${isPaid ? '#4ade80' : '#facc15'}; font-weight:bold;">${isPaid ? 'PAID' : 'PENDING'}</span></td>
-      `;
-      tbody.appendChild(tr);
-    }
-  });
-
-  // 15% Direct Commission Calculation
-  let totalCollectedAmount = cashCollection + onlineCollection;
-  let organizerCommission = orgData.examMode === "offline" ? (totalCount * 15) : (totalCollectedAmount * 0.15);
-  
-  let netPayableToNvms = cashCollection - organizerCommission;
-  if (netPayableToNvms < 0) netPayableToNvms = 0;
-
-  let lastSettled = orgData.lastSettledCash || 0;
-  let finalDues = orgData.manualSettled ? Math.max(0, netPayableToNvms - lastSettled) : netPayableToNvms;
-
-  if (document.getElementById("org-total-students")) document.getElementById("org-total-students").textContent = totalCount;
-  if (document.getElementById("org-total-collection")) document.getElementById("org-total-collection").textContent = `₹${totalCollectedAmount}`;
-  if (document.getElementById("org-my-commission")) document.getElementById("org-my-commission").textContent = `₹${organizerCommission.toFixed(2)} (15%)`;
-  if (document.getElementById("org-net-payable")) document.getElementById("org-net-payable").textContent = `₹${finalDues.toFixed(2)}`;
-
-  // Auto-Filled UPI Payment Button for NVMSO Dues
-  const payContainer = document.getElementById("organizer-pay-container");
-  if (payContainer) {
-    if (finalDues > 0) {
-      let upiId = portalConfigData.upiId || "narmada@upi";
-      let payeeName = "Narmada Valley Olympiad";
-      let upiIntentUrl = `upi://pay?pa=${upiId}&pn=${encodeURIComponent(payeeName)}&am=${finalDues}&cu=INR`;
-
-      payContainer.innerHTML = `
-        <div style="background: rgba(16, 185, 129, 0.1); padding: 20px; border-radius: 10px; border: 1px solid #10b981; text-align: center;">
-          <p style="color: #34d399; font-weight: bold; margin-bottom: 10px;">Pending Dues to NVMSO: ₹${finalDues.toFixed(2)}</p>
-          <a href="${upiIntentUrl}" class="btn-primary" style="display: inline-block; background: #10b981; color: white; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-weight: bold;">
-            Pay ₹${finalDues.toFixed(2)} Now (Auto-Filled UPI)
-          </a>
-          <button onclick="notifyAdminPaymentDone('${finalDues}')" style="display:block; margin: 10px auto 0 auto; background:#0284c7; color:#fff; border:none; padding:8px 16px; border-radius:4px; cursor:pointer; font-size:12px;">Notify Admin (I Have Paid)</button>
-        </div>
-      `;
+    if (isChecked) {
+      alert("✅ Official Permission Confirmed! Your Organizer Code is now ACTIVE for Student Registrations.");
     } else {
-      payContainer.innerHTML = `<div style="color: #4ade80; font-weight: bold; padding: 15px; text-align: center;">✅ All dues fully settled with NVMSO!</div>`;
+      alert("⚠️ Organizer Code Locked! Student registrations will be blocked until permission is checked.");
+    }
+  } catch (err) { alert("Error updating permission status."); }
+};
+
+function updatePermissionUI(isApproved) {
+  const checkbox = document.getElementById("principal-perm-checkbox");
+  const statusText = document.getElementById("perm-status-text");
+
+  if (checkbox) checkbox.checked = !!isApproved;
+  if (statusText) {
+    if (isApproved) {
+      statusText.textContent = "OFFICIAL PERMISSION CONFIRMED (Student Registration ACTIVE 🚀)";
+      statusText.style.color = "#4ade80";
+    } else {
+      statusText.textContent = "OFFICIAL PERMISSION PENDING (Student Registration Locked 🔒)";
+      statusText.style.color = "#f87171";
     }
   }
 }
 
-window.notifyAdminPaymentDone = async (amount) => {
-  if (confirm("Confirm notification to Central Admin that payment has been made?")) {
-    try {
-      await addDoc(collection(db, "settlement_payments"), {
-        orgCode: currentOrgCode,
-        amountPaid: Number(amount),
-        timestamp: new Date().toISOString(),
-        status: "Pending Verification"
-      });
-      alert("✅ Notification sent to Central Admin successfully!");
-    } catch (e) {
-      alert("Error sending notification.");
+function listenToAdminManualSettlement() {
+  const orgCodeKey = currentOrg.code || currentOrg.orgCode;
+  onSnapshot(doc(db, "organizers", orgCodeKey), (docSnap) => {
+    if (docSnap.exists()) {
+      currentOrg = docSnap.data();
+      updateScheduleAndFeeUI();
+      recalculateFinancials();
     }
+  });
+}
+
+function updateScheduleAndFeeUI() {
+  const mode = currentOrg.examMode || "online";
+  const fee = mode === "offline" ? (portalConfig.offlineFee || 120) : (portalConfig.onlineFee || 100);
+
+  const modeEl = document.getElementById("display-exam-mode");
+  if (modeEl) modeEl.textContent = mode.toUpperCase();
+
+  const feeEl = document.getElementById("current-applicable-fee");
+  if (feeEl) feeEl.textContent = fee;
+
+  const durEl = document.getElementById("display-exam-duration");
+  if (durEl) durEl.textContent = portalConfig.examDuration || 30;
+
+  const modeSelect = document.getElementById("org-exam-mode-select");
+  if (modeSelect) modeSelect.value = mode;
+
+  const startEl = document.getElementById("display-exam-start");
+  if (startEl) startEl.textContent = portalConfig.examStartTime ? new Date(portalConfig.examStartTime).toLocaleString() : "Not Scheduled Yet";
+
+  const closeEl = document.getElementById("display-exam-close");
+  if (closeEl) closeEl.textContent = portalConfig.examEndTime ? new Date(portalConfig.examEndTime).toLocaleString() : "Not Scheduled Yet";
+}
+
+window.updateExamMode = async (newMode) => {
+  const orgCodeKey = currentOrg.code || currentOrg.orgCode;
+  currentOrg.examMode = newMode;
+  try {
+    await updateDoc(doc(db, "organizers", orgCodeKey), { examMode: newMode });
+    loadDashboardView();
+    recalculateFinancials();
+    alert(`✅ Exam Conduct Mode updated to: ${newMode.toUpperCase()}\n\nStudents registering with your code will now see this mode.`);
+  } catch (err) {
+    console.error(err);
+    alert("Error updating Exam Mode.");
+  }
+};
+
+function startRealtimeStudentsListener() {
+  const orgCodeKey = currentOrg.code || currentOrg.orgCode;
+  const stdQuery = query(collection(db, "students"), where("orgCode", "==", orgCodeKey));
+  onSnapshot(stdQuery, (snapshot) => {
+    orgStudents = [];
+    snapshot.forEach(d => orgStudents.push({ id: d.id, ...d.data() }));
+    renderStudentsTable();
+    recalculateFinancials();
+  });
+}
+
+function startResultsListener() {
+  onSnapshot(collection(db, "students"), (snapshot) => {
+    studentResults = {};
+    snapshot.forEach(d => {
+      const data = d.data();
+      if (data.examCompleted) {
+        studentResults[data.rollNumber] = data;
+      }
+    });
+    renderStudentsTable();
+  });
+}
+
+function renderStudentsTable() {
+  const tbody = document.querySelector("#org-all-students-table tbody");
+  if (!tbody) return;
+  tbody.innerHTML = "";
+
+  if (orgStudents.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="8" style="text-align:center; padding:15px; color:#94a3b8;">No registered students found.</td></tr>`;
+    return;
+  }
+
+  let classWiseGroup = {};
+  orgStudents.forEach(s => {
+    const stdClass = parseInt(s.studentClass || s.stdClass);
+    const category = (stdClass >= 3 && stdClass <= 6) ? "cat_3_6" : "cat_7_12";
+    if (!classWiseGroup[category]) classWiseGroup[category] = [];
+    
+    const res = studentResults[s.rollNumber || s.roll];
+    const score = res ? (res.percentage || res.score || 0) : 0;
+    classWiseGroup[category].push({ ...s, score, res });
+  });
+
+  let rankMap = {};
+  Object.keys(classWiseGroup).forEach(cat => {
+    classWiseGroup[cat].sort((a, b) => b.score - a.score);
+    classWiseGroup[cat].forEach((st, idx) => {
+      rankMap[st.rollNumber || st.roll] = idx + 1;
+    });
+  });
+
+  orgStudents.forEach((s) => {
+    const tr = document.createElement("tr");
+    const roll = s.rollNumber || s.roll;
+    const name = s.studentName || s.name;
+    const stdClass = s.studentClass || s.stdClass;
+    const payMode = s.paymentMode || s.payMode || 'cash';
+    const isPaid = s.cashApproved || s.paymentConfirmed || payMode === "online";
+    const res = studentResults[roll];
+    const rank = rankMap[roll] || 0;
+
+    let awardBadge = "⏳ Pending Exam";
+    if (portalConfig.isResultDeclared && res) {
+      if (rank === 1) awardBadge = "🥇 Gold Medal + Memento";
+      else if (rank === 2) awardBadge = "🥈 Silver Medal + Memento";
+      else if (rank === 3) awardBadge = "🥉 Bronze Medal + Memento";
+      else if (rank >= 4 && rank <= 6) awardBadge = "📜 Printed Cert + Memento";
+      else awardBadge = "💻 Digital E-Certificate";
+    }
+
+    tr.innerHTML = `
+      <td><strong>${roll}</strong></td>
+      <td>${name}</td>
+      <td>Class ${stdClass}${s.stream ? ` (${s.stream})` : ''}</td>
+      <td><span style="text-transform:uppercase;">${payMode}</span></td>
+      <td><span style="color:${isPaid ? '#4ade80' : '#facc15'}; font-weight:bold;">${isPaid ? 'CONFIRMED' : 'PENDING CASH'}</span></td>
+      <td>${portalConfig.isResultDeclared && res ? `<strong style="color:#fbbf24;">${res.score || 0} (${res.percentage || 0}%)</strong>` : `<span style="color:#94a3b8;">Hidden until result</span>`}</td>
+      <td><span style="color:#38bdf8; font-weight:bold;">${awardBadge}</span></td>
+      <td>
+        ${!isPaid && payMode === 'cash' ? 
+          `<button onclick="confirmCashPayment('${s.id}')" class="btn-primary" style="padding:6px 10px; font-size:12px; background:#10b981;">Approve Cash</button>` : 
+          `<span style="color:#38bdf8;">Verified</span>`}
+      </td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+window.confirmCashPayment = async (studentDocId) => {
+  if (confirm("Confirm Cash receipt for this student?")) {
+    await updateDoc(doc(db, "students", studentDocId), { cashApproved: true, paymentConfirmed: true });
+    alert("✅ Cash Payment Approved!");
+  }
+};
+
+function recalculateFinancials() {
+  let cashColl = 0;
+  let onlineColl = 0;
+
+  orgStudents.forEach(s => {
+    const fee = Number(s.feePaid || s.fee) || (currentOrg.examMode === "offline" ? (portalConfig.offlineFee || 120) : (portalConfig.onlineFee || 100));
+    const payMode = s.paymentMode || s.payMode;
+    const isApproved = s.cashApproved || s.paymentConfirmed;
+
+    if (payMode === "cash" && isApproved) cashColl += fee;
+    else if (payMode === "online") onlineColl += fee;
+  });
+
+  const totalConfirmedStudents = orgStudents.filter(s => (s.cashApproved || s.paymentConfirmed || (s.paymentMode || s.payMode) === "online")).length;
+  
+  // 15% Direct Commission Calculation
+  let directComm = 0;
+  if (currentOrg.examMode === "offline") {
+    directComm = totalConfirmedStudents * 15;
+  } else {
+    directComm = (cashColl + onlineColl) * 0.15;
+  }
+
+  let refComm = 0;
+  referralOrgs.forEach(sub => refComm += (sub.totalColl || 0) * 0.05);
+
+  document.getElementById("stat-cash-coll").textContent = `₹${cashColl}`;
+  document.getElementById("stat-online-coll").textContent = `₹${onlineColl}`;
+  document.getElementById("stat-direct-comm").textContent = `₹${directComm.toFixed(2)}`;
+  document.getElementById("stat-ref-comm").textContent = `₹${refComm.toFixed(2)}`;
+
+  netCashPayableToNVMSO = cashColl - directComm;
+  if (netCashPayableToNVMSO < 0) netCashPayableToNVMSO = 0;
+
+  const settText = document.getElementById("settlement-text");
+  const settPayContainer = document.getElementById("settlement-pay-container");
+
+  if (currentOrg.manualSettled || netCashPayableToNVMSO === 0) {
+    if (settText) {
+      settText.textContent = `✅ Cash Cleared & Settled Successfully! (Net Payable Balance: ₹0)`;
+      settText.style.color = "#4ade80";
+    }
+    netCashPayableToNVMSO = 0;
+    if (settPayContainer) settPayContainer.innerHTML = "";
+    return;
+  }
+
+  if (settText) {
+    if (netCashPayableToNVMSO > 0) {
+      settText.textContent = `⚠️ Excess Cash Pending. Net Amount Payable to NVMSO Admin: ₹${netCashPayableToNVMSO.toFixed(2)}`;
+      settText.style.color = "#f87171";
+
+      // Dynamic Auto-Filled UPI Button Render
+      if (settPayContainer) {
+        let upiId = portalConfig.upiId || "narmada@upi";
+        let payeeName = "Narmada Valley Olympiad";
+        let upiIntentUrl = `upi://pay?pa=${upiId}&pn=${encodeURIComponent(payeeName)}&am=${netCashPayableToNVMSO.toFixed(2)}&cu=INR`;
+
+        settPayContainer.classList.remove("hidden");
+        settPayContainer.innerHTML = `
+          <div style="background: rgba(16, 185, 129, 0.1); padding: 15px; border-radius: 8px; border: 1px solid #10b981; margin-top: 15px; text-align: center;">
+            <p style="color: #34d399; font-weight: bold; margin-bottom: 10px; font-size:14px;">
+              Payable Dues to NVMSO: ₹${netCashPayableToNVMSO.toFixed(2)}
+            </p>
+            <a href="${upiIntentUrl}" class="btn-primary" style="display: inline-block; background: #10b981; color: white; padding: 10px 20px; border-radius: 6px; text-decoration: none; font-weight: bold; font-size:14px;">
+              Pay ₹${netCashPayableToNVMSO.toFixed(2)} Now (Auto-Filled UPI)
+            </a>
+          </div>
+        `;
+      }
+    } else {
+      settText.textContent = `✅ Commission Adjusted! No Excess Cash Pending (Payable Balance: ₹0)`;
+      settText.style.color = "#4ade80";
+      if (settPayContainer) {
+        settPayContainer.classList.add("hidden");
+        settPayContainer.innerHTML = "";
+      }
+    }
+  }
+}
+
+function startReferralTrackingListener() {
+  const orgCodeKey = currentOrg.code || currentOrg.orgCode;
+  const refQuery = query(collection(db, "organizers"), where("refCode", "==", orgCodeKey));
+  onSnapshot(refQuery, async (snapshot) => {
+    referralOrgs = [];
+    const tbody = document.querySelector("#org-referral-tracking-table tbody");
+    if (tbody) tbody.innerHTML = "";
+
+    if (snapshot.empty) {
+      if (tbody) tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; padding:10px; color:#94a3b8;">No referral records found yet.</td></tr>`;
+      recalculateFinancials();
+      return;
+    }
+
+    snapshot.forEach(d => {
+      const sub = d.data();
+      referralOrgs.push({ code: d.id, name: sub.name, schoolName: sub.schoolName, joinedAt: sub.registeredAt, totalColl: 0 });
+    });
+
+    for (let sub of referralOrgs) {
+      const subStds = await getDocs(query(collection(db, "students"), where("orgCode", "==", sub.code)));
+      let subTotal = 0;
+      subStds.forEach(sd => {
+        const data = sd.data();
+        const payMode = data.paymentMode || data.payMode;
+        if (data.cashApproved || data.paymentConfirmed || payMode === "online") {
+          subTotal += Number(data.feePaid || data.fee) || 100;
+        }
+      });
+      sub.totalColl = subTotal;
+
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td style="padding:8px;"><strong>${sub.name}</strong><br><small style="color:#38bdf8;">${sub.schoolName} (${sub.code})</small></td>
+        <td style="padding:8px;">Sub-Organizer</td>
+        <td style="padding:8px;"><small>${sub.joinedAt ? new Date(sub.joinedAt).toLocaleDateString() : 'N/A'}</small></td>
+        <td style="padding:8px; color:#4ade80; font-weight:bold;">₹${(subTotal * 0.05).toFixed(2)} (Paid by NVMSO)</td>
+      `;
+      tbody?.appendChild(tr);
+    }
+    recalculateFinancials();
+  });
+}
+
+document.getElementById("settlement-pay-form")?.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const utr = document.getElementById("settlement-utr").value.trim();
+  const orgCodeKey = currentOrg.code || currentOrg.orgCode;
+
+  if (!utr || utr.length < 6) { alert("Enter a valid UTR Number!"); return; }
+
+  await setDoc(doc(db, "settlement_payments", orgCodeKey), {
+    orgCode: orgCodeKey, orgName: currentOrg.name, schoolName: currentOrg.schoolName,
+    utrNumber: utr, amount: netCashPayableToNVMSO, submittedAt: new Date().toISOString(), status: "PENDING"
+  });
+
+  alert("✅ Cash Settlement UTR Proof Submitted Successfully!\n\nAdmin will verify the UTR and settle your account within 48 hours to 10 days.");
+  document.getElementById("settlement-utr").value = "";
+});
+
+document.getElementById("payout-form")?.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const orgCodeKey = currentOrg.code || currentOrg.orgCode;
+
+  if (netCashPayableToNVMSO > 0) {
+    alert(`⛔ Payout Blocked!\n\nYou have ₹${netCashPayableToNVMSO.toFixed(2)} un-cleared cash payable to NVMSO.`);
+    return;
+  }
+
+  const upi = document.getElementById("payout-upi").value.trim();
+  const qrUrl = document.getElementById("payout-qr-url").value.trim();
+
+  if (!upi) { alert("Enter your UPI ID or Payment Number!"); return; }
+
+  await setDoc(doc(db, "payout_requests", orgCodeKey), {
+    orgCode: orgCodeKey, orgName: currentOrg.name, schoolName: currentOrg.schoolName,
+    upi, qrUrl: qrUrl || null, requestedAt: new Date().toISOString(), status: "PENDING"
+  });
+
+  alert("✅ Payout Claim Submitted Successfully!\n\nTimeline: NVMSO will credit your payout within 48 Hours to 10 Working Days.");
+});
+
+window.sendHelpQuery = async () => {
+  const message = document.getElementById("support-msg")?.value.trim();
+  const orgCodeKey = currentOrg.code || currentOrg.orgCode;
+
+  if (!message) { alert("Enter your query message!"); return; }
+
+  await addDoc(collection(db, "support_queries"), {
+    orgCode: orgCodeKey, orgName: currentOrg.name, schoolName: currentOrg.schoolName,
+    message, status: "PENDING", timestamp: new Date().toISOString()
+  });
+
+  alert("✅ Query sent to NVMSO support team!");
+  document.getElementById("support-msg").value = "";
+};
+
+window.exitOrganizerAccount = () => {
+  if (confirm("Exit / Switch organizer account?")) {
+    currentOrg = null;
+    window.location.href = window.location.pathname;
   }
 };
