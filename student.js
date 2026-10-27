@@ -39,10 +39,8 @@ function initRealtimePortalSync() {
       const upiSpan = document.getElementById("display-upi-id");
       if (upiSpan) upiSpan.textContent = portalConfigData.upiId || "narmada@upi";
 
-      const qrImg = document.getElementById("razorpay-qr-img");
-      if (qrImg && portalConfigData.qrImageUrl) {
-        qrImg.src = portalConfigData.qrImageUrl;
-      }
+      // Dynamic QR Code Refresh on Config Change
+      renderDynamicUPIQR();
 
       const isRegOpen = !!portalConfigData.isRegistrationOpen;
       const isExamActive = !!portalConfigData.isExamActive;
@@ -81,6 +79,42 @@ function initRealtimePortalSync() {
   });
 }
 
+// Dynamic QR Generator Function (Pulls data automatically from panel/config)
+function renderDynamicUPIQR() {
+  let fee = 100;
+  if (typeof portalConfigData !== 'undefined') {
+    let isOff = typeof verifiedOrgExamMode !== 'undefined' && verifiedOrgExamMode === "offline";
+    fee = isOff ? (portalConfigData.offlineFee || 120) : (portalConfigData.onlineFee || 100);
+  }
+  
+  let upi = "narmada@upi";
+  if (typeof portalConfigData !== 'undefined' && portalConfigData.upiId) {
+    upi = portalConfigData.upiId;
+  }
+  
+  let name = "NVMSO Exam Fee";
+  let note = "NVMSO Registration Fee";
+  let upiUrl = "upi://pay?pa=" + encodeURIComponent(upi) +
+               "&pn=" + encodeURIComponent(name) +
+               "&tn=" + encodeURIComponent(note) +
+               "&am=" + encodeURIComponent(fee) +
+               "&cu=INR";
+
+  const qrBox = document.getElementById("dynamic-qr-container");
+  if (qrBox) {
+    qrBox.innerHTML = ""; // Clear old QR code
+    if (typeof QRCode !== "undefined") {
+      new QRCode(qrBox, {
+        text: upiUrl,
+        width: 180,
+        height: 180
+      });
+    } else {
+      qrBox.innerHTML = "<p style='color:red;'>QR Library not loaded.</p>";
+    }
+  }
+}
+
 window.openDirectUpiApp = function() {
   try {
     let fee = 100;
@@ -106,8 +140,6 @@ window.openDirectUpiApp = function() {
     alert("Please scan the QR code using your phone.");
   }
 };
-
-
 
 window.switchTab = (tabName) => {
   document.getElementById("registration-view").classList.add("hidden");
@@ -162,22 +194,28 @@ window.handleClassChange = (val) => {
 
 window.handlePaymentModeChange = (mode) => {
   const onlineSection = document.getElementById("online-payment-section");
-  const qrContainer = document.getElementById("razorpay-qr-container");
+  const qrContainer = document.getElementById("dynamic-qr-container");
   
   if (mode === "online") {
     onlineSection.classList.remove("hidden");
     document.getElementById("std-utr").required = true;
+    renderDynamicUPIQR(); // Generate QR when online payment is selected
   } else {
     onlineSection.classList.add("hidden");
-    qrContainer.classList.add("hidden");
+    if(qrContainer) qrContainer.classList.add("hidden");
     document.getElementById("std-utr").required = false;
     document.getElementById("std-utr").value = "";
   }
 };
 
 window.toggleQrCode = () => {
-  const qrContainer = document.getElementById("razorpay-qr-container");
-  qrContainer.classList.toggle("hidden");
+  const qrContainer = document.getElementById("dynamic-qr-container");
+  if (qrContainer) {
+    qrContainer.classList.toggle("hidden");
+    if (!qrContainer.classList.contains("hidden")) {
+      renderDynamicUPIQR(); // Refresh QR code when shown
+    }
+  }
 };
 
 window.fetchSchoolName = async (code) => {
@@ -189,6 +227,7 @@ window.fetchSchoolName = async (code) => {
   if (!code || code.length < 3) {
     if (display) display.textContent = "";
     if (modeDisplay) modeDisplay.textContent = "Enter Organizer Code First";
+    renderDynamicUPIQR();
     return;
   }
 
@@ -224,6 +263,9 @@ window.fetchSchoolName = async (code) => {
         modeDisplay.style.color = verifiedOrgExamMode === "offline" ? "#d97706" : "#0284c7";
       }
 
+      // Update QR Code with the correct exam mode fee instantly
+      renderDynamicUPIQR();
+
     } else {
       isOrganizerVerified = false;
       if (display) {
@@ -231,6 +273,7 @@ window.fetchSchoolName = async (code) => {
         display.style.color = "#ef4444";
       }
       if (modeDisplay) modeDisplay.textContent = "Invalid Code";
+      renderDynamicUPIQR();
     }
   } catch (e) {
     console.error(e);
@@ -322,6 +365,7 @@ function setupEventListeners() {
         document.getElementById("school-name-display").textContent = "";
         document.getElementById("display-student-exam-mode").textContent = "Enter Organizer Code First";
         isOrganizerVerified = false;
+        renderDynamicUPIQR();
       } catch (err) {
         console.error("Registration error:", err);
         alert("Error submitting registration. Please try again.");
