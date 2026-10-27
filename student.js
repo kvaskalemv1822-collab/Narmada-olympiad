@@ -121,13 +121,6 @@ function renderDynamicUPIQR() {
   }
 }
 
-      });
-    } else {
-      qrBox.innerHTML = "<p style='color:red;'>QR Library not loaded.</p>";
-    }
-  }
-}
-
 window.openDirectUpiApp = function() {
   try {
     let fee = 100;
