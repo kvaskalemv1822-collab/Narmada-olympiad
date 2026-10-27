@@ -1,5 +1,5 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-import { getFirestore, doc, getDoc, setDoc, updateDoc, collection, onSnapshot, deleteDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+import { getFirestore, doc, getDoc, setDoc, updateDoc, collection, onSnapshot, deleteDoc, query, where, getDocs } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyBVPLR8q1NpUNSpmsDdKcqPAo_z1vZOvnA",
@@ -20,6 +20,7 @@ let allPayouts = [];
 let allSupports = [];
 let allSettlementPayments = [];
 let portalConfigData = {};
+let currentYearSession = "2026";
 
 // 1. Password Verification & Grand Welcome Trigger
 window.verifyAdminPassword = async () => {
@@ -29,7 +30,7 @@ window.verifyAdminPassword = async () => {
   try {
     const docRef = doc(db, "settings", "portal_config");
     const docSnap = await getDoc(docRef);
-    let masterPass = "narmada2026"; // Default secure password
+    let masterPass = "narmada2026";
 
     if (docSnap.exists() && docSnap.data().adminPassword) {
       masterPass = docSnap.data().adminPassword;
@@ -211,7 +212,11 @@ function loadOrganizersAndStudentsData() {
 
     onSnapshot(collection(db, "students"), (stuSnap) => {
       allStudents = [];
-      stuSnap.forEach(d => allStudents.push({ id: d.id, ...d.data() }));
+      stuSnap.forEach(d => {
+        const sData = d.data();
+        const sYear = sData.academicYear || "2026";
+        allStudents.push({ id: d.id, academicYear: sYear, ...sData });
+      });
 
       onSnapshot(collection(db, "settlement_payments"), (settleSnap) => {
         allSettlementPayments = [];
@@ -223,6 +228,12 @@ function loadOrganizersAndStudentsData() {
     });
   });
 }
+
+window.filterByAcademicYear = (year) => {
+  currentYearSession = year;
+  renderAllTablesAndLedgers();
+  renderOfflineStudentsTable();
+};
 
 function renderAllTablesAndLedgers() {
   let totalRevenue = 0;
@@ -236,8 +247,10 @@ function renderAllTablesAndLedgers() {
   if (allStuTbody) allStuTbody.innerHTML = "";
   if (orgLedgerTbody) orgLedgerTbody.innerHTML = "";
 
+  const filteredStudents = allStudents.filter(s => s.academicYear === currentYearSession);
+
   // 1. Process Students & Revenue
-  allStudents.forEach(s => {
+  filteredStudents.forEach(s => {
     const payMode = s.paymentMode || s.payMode;
     const isPaid = s.cashApproved || s.paymentConfirmed || payMode === "online";
     const feePaid = Number(s.feePaid || s.fee) || 100;
@@ -246,7 +259,6 @@ function renderAllTablesAndLedgers() {
       totalRevenue += feePaid;
     }
 
-    // Populate UTR Table
     if (utrTbody && (s.utrNumber || payMode === "online")) {
       const tr = document.createElement("tr");
       tr.innerHTML = `
@@ -261,7 +273,6 @@ function renderAllTablesAndLedgers() {
       utrTbody.appendChild(tr);
     }
 
-    // Populate Student Management Table (Cash Approval controlled solely by Organizer Dashboard)
     if (allStuTbody) {
       const tr = document.createElement("tr");
       const isBlocked = !!s.blocked;
@@ -269,7 +280,7 @@ function renderAllTablesAndLedgers() {
         <td>${s.rollNumber || s.roll || 'N/A'}</td>
         <td>${s.studentName || s.name || 'N/A'}</td>
         <td>${s.orgCode || 'N/A'}</td>
-        <td>Class ${s.studentClass || s.stdClass || 'N/A'}</td>
+        <td>Class ${s.studentClass || s.stdClass || 'N/A'} (<span style="color:#38bdf8;">${s.academicYear}</span>)</td>
         <td>
           <span style="color:${isPaid ? '#4ade80' : '#facc15'}; font-weight:bold;">${isPaid ? 'CONFIRMED' : 'PENDING CASH (Org)'}</span>
         </td>
@@ -284,10 +295,13 @@ function renderAllTablesAndLedgers() {
     }
   });
 
-  // 2. Process Organizers & Commissions (15% Direct, 5% Referral, ₹15 Offline)
+  // 2. Process Organizers with Combined "ORGCODE - MODE" Format & 20% Commission Rule
   allOrganizers.forEach(org => {
     const orgCode = org.code || org.orgCode;
-    const orgStudentsList = allStudents.filter(s => s.orgCode === orgCode && (s.cashApproved || s.paymentConfirmed || (s.paymentMode || s.payMode) === "online"));
+    const schoolName = org.schoolName || org.name || "Unknown School";
+    const examMode = (org.examMode || "online").toUpperCase();
+    
+    const orgStudentsList = filteredStudents.filter(s => s.orgCode === orgCode && (s.cashApproved || s.paymentConfirmed || (s.paymentMode || s.payMode) === "online"));
     const totalConfirmedCount = orgStudentsList.length;
 
     let cashColl = 0;
@@ -300,9 +314,9 @@ function renderAllTablesAndLedgers() {
 
     let directComm = 0;
     if (org.examMode === "offline") {
-      directComm = totalConfirmedCount * 15; // Offline Mode: Flat ₹15 per student
+      directComm = totalConfirmedCount * 20; 
     } else {
-      directComm = (cashColl + onlineColl) * 0.15; // Online Mode: 15% Direct Commission
+      directComm = (cashColl + onlineColl) * 0.20; 
     }
 
     totalCommissionPayable += directComm;
@@ -310,39 +324,57 @@ function renderAllTablesAndLedgers() {
     let netPayable = cashColl - directComm;
     if (netPayable < 0) netPayable = 0;
 
+    let lastSettledCash = org.lastSettledCash || 0;
+    let currentDues = netPayable;
+    if (org.manualSettled) {
+      currentDues = Math.max(0, netPayable - lastSettledCash);
+      if (currentDues > 0) {
+        org.manualSettled = false;
+      }
+    }
+
+    const isEligibleForPhysicalAwards = totalConfirmedCount >= 25;
+    const thresholdBadge = isEligibleForPhysicalAwards ? 
+      `<span style="color:#4ade80; font-size:10px; display:block;">🟢 Eligible (Physical Awards)</span>` : 
+      `<span style="color:#f59e0b; font-size:10px; display:block;">⚠️ Low Strength (<25): E-Cert Only</span>`;
+
     const matchedSettle = allSettlementPayments.find(p => p.orgCode === orgCode);
-    let utrStatusHtml = org.manualSettled ? `<span style="color:#4ade80; font-weight:bold;">✅ Settled (Paid)</span>` : (matchedSettle ? `<code style="color:#fbbf24;">UTR: ${matchedSettle.utrNumber} (PENDING)</code>` : `<span style="color:#f87171;">Cash Pending</span>`);
+    let utrStatusHtml = org.manualSettled ? `<span style="color:#4ade80; font-weight:bold;">✅ Settled (Paid)</span>` : (currentDues > 0 ? `<span style="color:#f87171; font-weight:bold;">₹${currentDues.toFixed(2)} Due</span>` : `<span style="color:#10b981;">Fully Cleared</span>`);
 
     if (orgLedgerTbody) {
       const tr = document.createElement("tr");
       tr.innerHTML = `
-        <td><strong>${orgCode}</strong><br><small style="color:#94a3b8;">${org.schoolName}</small></td>
+        <td>
+          <strong>${orgCode} - <span style="color: ${examMode === 'OFFLINE' ? '#fbbf24' : '#38bdf8'};">${examMode}</span></strong><br>
+          <small style="color:#94a3b8;">${schoolName}</small>
+          ${thresholdBadge}
+        </td>
         <td>${org.name}</td>
         <td><span style="color:${org.principalApproved ? '#4ade80' : '#f87171'}; font-weight:bold;">${org.principalApproved ? 'APPROVED 🟢' : 'PENDING 🔴'}</span></td>
-        <td>₹${cashColl}</td>
+        <td>₹${cashColl} (${totalConfirmedCount} St.)</td>
         <td>₹${onlineColl}</td>
-        <td>₹${directComm.toFixed(2)}</td>
-        <td><strong style="color:#f87171;">₹${netPayable.toFixed(2)}</strong></td>
+        <td>₹${directComm.toFixed(2)} (20%)</td>
+        <td><strong style="color:${currentDues > 0 ? '#f87171' : '#10b981'};">₹${currentDues.toFixed(2)}</strong></td>
         <td>${utrStatusHtml}</td>
         <td>
-          ${!org.manualSettled ? 
-            `<button onclick="markOrgSettled('${orgCode}')" class="btn-primary" style="padding:6px 12px; font-size:12px; background:#10b981;">Mark Settled</button>` : 
-            `<span style="color:#38bdf8;">Closed</span>`}
+          ${!org.manualSettled && currentDues > 0 ? 
+            `<button onclick="markOrgSettled('${orgCode}', ${netPayable})" class="btn-primary" style="padding:6px 12px; font-size:12px; background:#10b981; width:auto;">Mark Paid</button>` : 
+            `<button onclick="resetOrgSettlement('${orgCode}')" class="btn-secondary" style="padding:6px 12px; font-size:12px; background:#334155; color:#fff; width:auto;">Reset</button>`}
         </td>
       `;
       orgLedgerTbody.appendChild(tr);
     }
   });
 
-  // 3. Add 5% Referral Commissions to Total Commission Payable
+  // Referral Commission (5%)
   allOrganizers.forEach(org => {
     const orgCode = org.code || org.orgCode;
     const subOrgs = allOrganizers.filter(sub => sub.refCode === orgCode);
     subOrgs.forEach(sub => {
-      const subStudents = allStudents.filter(s => s.orgCode === (sub.code || sub.orgCode) && (s.cashApproved || s.paymentConfirmed || (s.paymentMode || s.payMode) === "online"));
+      const subStudents = filteredStudents.filter(s => s.orgCode === (sub.code || sub.orgCode) && (s.cashApproved || s.paymentConfirmed || (s.paymentMode || s.payMode) === "online"));
       let subTotalColl = 0;
       subStudents.forEach(st => subTotalColl += Number(st.feePaid || st.fee) || 100);
-      totalCommissionPayable += subTotalColl * 0.05; // 5% Referral Commission
+      totalCommissionPayable += subTotalColl * 0.05;
     });
   });
 
@@ -359,12 +391,13 @@ function renderOfflineStudentsTable() {
   tbody.innerHTML = "";
 
   const offlineStudents = allStudents.filter(s => {
+    if (s.academicYear !== currentYearSession) return false;
     const org = allOrganizers.find(o => (o.code || o.orgCode) === s.orgCode);
     return org && org.examMode === "offline";
   });
 
   if (offlineStudents.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; color:#94a3b8;">No offline exam students found.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; color:#94a3b8;">No offline exam students found for year ${currentYearSession}.</td></tr>`;
     return;
   }
 
@@ -389,9 +422,8 @@ function renderOfflineStudentsTable() {
     `;
     tbody.appendChild(tr);
   });
-}
+};
 
-// Save Manual Marks for Offline Student & Auto-Calculate Percentage
 window.saveOfflineStudentMarks = async (studentId) => {
   const marksInput = document.getElementById(`marks_${studentId}`).value;
   const totalInput = document.getElementById(`total_${studentId}`).value;
@@ -448,7 +480,7 @@ function renderPayoutRequestsTable() {
       <td>Commission Payout Request</td>
       <td><code style="color:#38bdf8;">${p.upi}</code></td>
       <td>
-        <button onclick="resolvePayout('${p.id}')" class="btn-primary" style="padding:6px 12px; font-size:12px; background:#10b981;">Mark Paid</button>
+        <button onclick="resolvePayout('${p.id}')" class="btn-primary" style="padding:6px 12px; font-size:12px; background:#10b981; width:auto;">Mark Paid</button>
       </td>
     `;
     tbody.appendChild(tr);
@@ -488,7 +520,7 @@ function renderSupportTable() {
       <td style="white-space:normal; max-width:250px;">${sup.message}</td>
       <td><small>${new Date(sup.timestamp).toLocaleString()}</small></td>
       <td>
-        <button onclick="resolveSupport('${sup.id}')" class="btn-primary" style="padding:6px 12px; font-size:12px; background:#0284c7;">Resolve</button>
+        <button onclick="resolveSupport('${sup.id}')" class="btn-primary" style="padding:6px 12px; font-size:12px; background:#0284c7; width:auto;">Resolve</button>
       </td>
     `;
     tbody.appendChild(tr);
@@ -500,14 +532,27 @@ window.resolveSupport = async (supId) => {
   alert("✅ Support query resolved and removed.");
 };
 
-window.markOrgSettled = async (orgCode) => {
+window.markOrgSettled = async (orgCode, currentNetPayable) => {
   if (confirm(`Confirm manual settlement and clear cash balance for organizer ${orgCode}?`)) {
-    await updateDoc(doc(db, "organizers", orgCode), { manualSettled: true });
+    await updateDoc(doc(db, "organizers", orgCode), { 
+      manualSettled: true,
+      lastSettledCash: currentNetPayable,
+      settledAt: new Date().toISOString()
+    });
     alert("✅ Organizer cash balance marked as Settled!");
   }
 };
 
-// Re-Exam / Reset Student Exam Attempt
+window.resetOrgSettlement = async (orgCode) => {
+  if (confirm(`Reset settlement status for organizer ${orgCode}?`)) {
+    await updateDoc(doc(db, "organizers", orgCode), { 
+      manualSettled: false,
+      lastSettledCash: 0
+    });
+    alert("✅ Settlement reset successfully.");
+  }
+};
+
 window.resetStudentExam = async (studentId) => {
   if (confirm("Reset exam attempt for this student? This will allow them to retake the online exam.")) {
     await updateDoc(doc(db, "students", studentId), {
@@ -557,7 +602,7 @@ window.loadRankingList = (category) => {
   tbody.innerHTML = "";
 
   const filtered = allStudents.filter(s => {
-    if (!s.examCompleted) return false;
+    if (s.academicYear !== currentYearSession || !s.examCompleted) return false;
     const stdClass = parseInt(s.studentClass || s.stdClass);
     if (category === 'cat_3_6') return stdClass >= 3 && stdClass <= 6;
     if (category === 'cat_7_12') return stdClass >= 7 && stdClass <= 12;
@@ -568,7 +613,7 @@ window.loadRankingList = (category) => {
   const topSix = filtered.slice(0, 6);
 
   if (topSix.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; color:#94a3b8;">No evaluated exam results found for this category.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; color:#94a3b8;">No evaluated exam results found for this year category.</td></tr>`;
     return;
   }
 
