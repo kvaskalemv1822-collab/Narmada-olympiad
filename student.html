@@ -7,6 +7,7 @@
   <link rel="stylesheet" href="student.css?v=7">
   <link href="https://fonts.googleapis.com/css2?family=Alex+Brush&family=Plus+Jakarta+Sans:wght@400;600;700&display=swap" rel="stylesheet">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 </head>
 <body oncontextmenu="return false;">
 
@@ -113,11 +114,8 @@
           📱 View / Hide QR Code (Alternative)
         </button>
 
-        <div id="razorpay-qr-container" class="qr-box hidden" style="margin-top: 10px;">
-          <p style="font-weight: bold; color: #0275d8; margin-bottom: 5px;">Scan QR Code or Pay via UPI App</p>
-          <p style="margin-bottom: 8px; font-size: 14px;"><strong>UPI ID:</strong> <span id="display-upi-id" style="color: #1e3c72; font-weight: bold;">Loading...</span></p>
-          <img id="razorpay-qr-img" src="Qrcode.jpg" alt="Payment QR Code" class="qr-img">
-        </div>
+        <div id="dynamic-qr-container" class="flex justify-center my-4" style="margin-top: 10px; text-align: center;"></div>
+
 
         <div class="form-group" style="margin-top: 15px; text-align: left;">
           <label>Enter Single-Use UTR / Transaction Reference No:</label>
