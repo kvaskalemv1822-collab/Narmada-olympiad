@@ -4,8 +4,7 @@
  * Protected by Secure Multi-Tab Cloud Validation Pipeline
  */
 
-const SERVER_URL = "http://127.0.0.1:5000"; // Live hone par Render URL se badal dein
-
+const SERVER_URL = "https://nvmso-backend.onrender.com";
 window.verifyAdminPassword = async () => {
   const passInput = document.getElementById("admin-pass-input").value.trim();
   const alertBox = document.getElementById("login-security-alert");
