@@ -1,3 +1,6 @@
+/* ==========================================================================
+   1. GLOBAL STYLES & RESET (Plus Jakarta Sans & Alex Brush Setup)
+   ========================================================================== */
 * { 
   box-sizing: border-box; 
   font-family: 'Plus Jakarta Sans', sans-serif; 
@@ -10,8 +13,12 @@ body {
   color: #333; 
   padding: 15px; 
   min-height: 100vh;
+  -webkit-tap-highlight-color: transparent;
 }
 
+/* ==========================================================================
+   2. CONTAINERS & LAYOUT HEADERS
+   ========================================================================== */
 .container { 
   max-width: 850px; 
   margin: 0 auto; 
@@ -43,8 +50,12 @@ h1 {
   font-weight: bold; 
   margin-bottom: 20px; 
   font-size: 15px;
+  background: rgba(0, 0, 0, 0.03);
 }
 
+/* ==========================================================================
+   3. NAVIGATION TAB BAR SYSTEM
+   ========================================================================== */
 .tab-nav { 
   display: flex; 
   justify-content: center; 
@@ -63,14 +74,19 @@ h1 {
   font-weight: bold;
   font-size: 14px;
   transition: all 0.3s ease;
+  text-align: center;
 }
 
 .tab-btn.active-tab { 
   background: #1e3c72; 
 }
 
+/* ==========================================================================
+   4. FORM GROUPS, INPUTS, AND GRID RESPONSIVENESS
+   ========================================================================== */
 .form-group { 
   margin-bottom: 15px; 
+  text-align: left;
 }
 
 label { 
@@ -81,16 +97,18 @@ label {
   font-size: 13px;
 }
 
-input, select { 
+input, select, textarea { 
   width: 100%; 
   padding: 12px; 
   border: 1px solid #ccc; 
   border-radius: 6px; 
   font-size: 15px; 
   outline: none;
+  background-color: #ffffff;
+  transition: border-color 0.2s ease;
 }
 
-input:focus, select:focus {
+input:focus, select:focus, textarea:focus {
   border-color: #1e3c72;
 }
 
@@ -98,12 +116,6 @@ input:focus, select:focus {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 15px;
-}
-
-@media (max-width: 600px) {
-  .grid-2 { grid-template-columns: 1fr; }
-  .container { padding: 15px; }
-  h1 { font-size: 20px; }
 }
 
 .btn-submit { 
@@ -118,13 +130,19 @@ input:focus, select:focus {
   margin-top: 10px; 
   font-size: 16px;
   text-transform: uppercase;
+  transition: background 0.2s ease;
 }
 
 .btn-submit:hover {
   background: #162c54;
 }
 
-.hidden { display: none !important; }
+/* ==========================================================================
+   5. HELPER CLASSES & UI BADGES
+   ========================================================================== */
+.hidden { 
+  display: none !important; 
+}
 
 .highlight-text { 
   display: block; 
@@ -138,7 +156,10 @@ input:focus, select:focus {
   text-align: center; 
   border-left: 6px solid #d4af37; 
 }
-.highlight-text:empty { display: none; }
+
+.highlight-text:empty { 
+  display: none !important; 
+}
 
 .qr-box { 
   text-align: center; 
@@ -147,11 +168,6 @@ input:focus, select:focus {
   border-radius: 8px; 
   background: #f8f9fa; 
   margin: 10px 0; 
-}
-.qr-img { 
-  max-width: 180px; 
-  margin: 10px 0; 
-  border-radius: 8px; 
 }
 
 .timer-box { 
@@ -174,7 +190,14 @@ input:focus, select:focus {
   text-align: center;
 }
 
-/* STRICT ZERO-MARGIN EDGE-TO-EDGE LANDSCAPE CERTIFICATE FIX */
+.card-box {
+  margin: 20px auto;
+  border-radius: 8px;
+}
+
+/* ==========================================================================
+   6. STRICT ZERO-MARGIN EDGE-TO-EDGE LANDSCAPE CERTIFICATE LAYOUT FIX
+   ========================================================================== */
 .cert-card {
   position: relative;
   width: 1122px;
@@ -233,4 +256,23 @@ input:focus, select:focus {
   color: #DAB963 !important;
   text-shadow: 0 2px 4px rgba(0,0,0,0.8);
   margin: 0;
+}
+
+/* ==========================================================================
+   7. MEDIA QUERIES FOR MOBILE SMARTPHONES
+   ========================================================================== */
+@media (max-width: 600px) {
+  .grid-2 { 
+    grid-template-columns: 1fr; 
+  }
+  .container { 
+    padding: 15px; 
+  }
+  h1 { 
+    font-size: 20px; 
+  }
+  .tab-btn {
+    padding: 10px 6px;
+    font-size: 12px;
+  }
 }
