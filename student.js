@@ -4,9 +4,7 @@
  * Designed to wire securely with Python Flask Backend
  */
 
-// Replace this address with your live Render app URL once hosted (e.g., https://onrender.com)
- https://nvmso-backend.onrender.com
-
+const SERVER_URL = "https://nvmso-backend.onrender.com";
 let activeUpiString = "";
 let isOrganizerVerified = false;
 let verifiedOrgExamMode = "online";
