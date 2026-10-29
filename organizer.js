@@ -4,7 +4,7 @@
  * Wired to Unified Central Python Backend Engine
  */
 
-const SERVER_URL = "http://127.0.0.1:5000"; // Live hone par Render URL se badal dein
+const SERVER_URL = "https://nvmso-backend.onrender.com";
 let currentOrg = null;
 let portalConfig = {};
 
