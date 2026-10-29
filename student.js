@@ -5,7 +5,7 @@
  */
 
 // Replace this address with your live Render app URL once hosted (e.g., https://onrender.com)
-const SERVER_URL = "http://127.0.0.1:5000"; 
+ https://nvmso-backend.onrender.com
 
 let activeUpiString = "";
 let isOrganizerVerified = false;
