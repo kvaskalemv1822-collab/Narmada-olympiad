@@ -1,4 +1,5 @@
 import os
+import json
 import random
 from flask import Flask, request, jsonify
 from flask_cors import CORS
@@ -6,30 +7,37 @@ import firebase_admin
 from firebase_admin import credentials, firestore
 
 app = Flask(__name__)
-# CORS connectivity taaki aapki alag-alag frontend websites securely data bhej sakein
+# CORS कनेक्टिविटी ताकि आपकी गिटहब की फ्रंटएंड साइट्स सुरक्षित रूप से कनेक्ट हो सकें
 CORS(app, resources={r"/api/*": {"origins": "*"}})
 
-# ----------------==========================================
-# 🔑 FIREBASE SERVICE ACCOUNT SETUP
-# ----------------==========================================
-# Firebase Console -> Project Settings -> Service Accounts -> Generate New Private Key
-# Ek .json file download hogi. Use is folder mein rakhein aur naam badal kar 'firebase-admin-key.json' kar dein.
-cred = credentials.Certificate("firebase-admin-key.json")
-firebase_admin.initialize_app(cred)
-db = firestore.client()
+# ==========================================================
+# 🛡️ 100% SECURE FIREBASE INITIALIZATION FROM ENV VARIABLE
+# ==========================================================
+try:
+    if not firebase_admin._apps:
+        # यह कोड फ़ाइल नहीं ढूंढेगा, सीधे Render के Environment Variable से डेटा पढ़ेगा
+        firebase_key_json = os.environ.get('FIREBASE_CONFIG_JSON')
+        if not firebase_key_json:
+            raise ValueError("CRITICAL: FIREBASE_CONFIG_JSON variable is missing in Render Settings!")
+            
+        cred_dict = json.loads(firebase_key_json)
+        cred = credentials.Certificate(cred_dict)
+        firebase_admin.initialize_app(cred)
+        print("✅ Firebase Admin SDK initialized safely from Environment Locker!")
+    db = firestore.client()
+except Exception as e:
+    print(f"❌ Initialization Error Details: {str(e)}")
 
 # ==========================================================
-# ⚙️ MULTI-MODULE API ENDPOINTS
+# 🟢 1. GLOBAL SETTINGS & NOTICES SYSTEM
 # ==========================================================
-
-# --- [1. GLOBAL SETTINGS & NOTICES] ---
 @app.route('/api/portal/config', methods=['GET'])
 def get_global_config():
     try:
         config_doc = db.collection('settings').document('portal_config').get()
         if config_doc.exists:
             config = config_doc.to_dict()
-            # 🛡️ SECURITY TRICK: Client window par admin master password leak nahi hona chahiye
+            # 🛡️ SECURITY: क्लाइंट स्क्रीन पर एडमिन का मास्टर पासवर्ड लीक नहीं होना चाहिए
             if "adminPassword" in config:
                 del config["adminPassword"]
             return jsonify({"status": "success", "config": config}), 200
@@ -37,7 +45,9 @@ def get_global_config():
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
-# --- [2. STUDENT PORTAL OPERATIONS] ---
+# ==========================================================
+# 🟢 2. STUDENT PORTAL OPERATIONS
+# ==========================================================
 @app.route('/api/student/verify-school', methods=['POST'])
 def verify_school_code():
     try:
@@ -47,6 +57,7 @@ def verify_school_code():
         org_doc = db.collection('organizers').document(org_code).get()
         if org_doc.exists:
             org_data = org_doc.to_dict()
+            # गेंटिंग लॉजिक: अगर प्रिंसिपल की अनुमति टिक नहीं है, तो बच्चे रुक जाएंगे
             if not org_data.get('principalApproved', False):
                 return jsonify({"status": "locked", "message": "School Code is temporarily locked. Principal approval pending!"}), 200
             
@@ -69,6 +80,7 @@ def secure_registration():
         if not org_code or not roll_num or not data.get('studentName'):
             return jsonify({"status": "error", "message": "Blank entries not allowed!"}), 400
 
+        # डुप्लीकेट रोकने के लिए स्कूल कोड + रोल नंबर का कॉम्बिनेशन
         student_id = f"{org_code}_{roll_num}"
         student_ref = db.collection('students').document(student_id)
         
@@ -86,25 +98,27 @@ def secure_registration():
             "contactNumber": data.get('contactNumber'),
             "paymentMode": data.get('paymentMode'),
             "utrNumber": data.get('utrNumber', ''),
-            "paymentStatus": "Pending",  # Approved only via Organizer / Admin backend
+            "paymentStatus": "Pending",  # सिर्फ एडमिन या ऑर्गनाइज़र ही अप्रूव कर सकेंगे
             "examStatus": "Not Started",
             "score": 0,
             "createdAt": firestore.SERVER_TIMESTAMP
         })
 
-        # 📈 AUTOMATIC REFERRAL & COMMISSION NETWORK MULTIPLIER
+        # 📈 ऑटोमैटिक रेफ़रल और कमीशन ट्रैकर नेटवर्क (सुरक्षित बैकएंड लॉजिक)
         org_ref = db.collection('organizers').document(org_code)
         if org_ref.get().exists:
             org_ref.update({
                 "totalRegistrations": firestore.Increment(1),
-                "pendingCommission": firestore.Increment(20)  # ₹20 incentive tracking per registration
+                "pendingCommission": firestore.Increment(20)  # ₹20 प्रति छात्र कमीशन ट्रैकिंग
             })
 
         return jsonify({"status": "success", "message": "Registration Data Captured Safely!"}), 200
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
-# --- [3. ORGANIZER DASHBOARD OPERATIONS] ---
+# ==========================================================
+# 🟢 3. ORGANIZER DASHBOARD OPERATIONS
+# ==========================================================
 @app.route('/api/organizer/register', methods=['POST'])
 def organizer_signup():
     try:
@@ -120,6 +134,7 @@ def organizer_signup():
         if len(existing) > 0:
             return jsonify({"status": "error", "message": "This Mobile Number is already registered!"}), 400
 
+        # रैंडम शॉर्ट कोड जनरेटर (जैसे: ORG4826)
         generated_code = f"ORG{random.randint(1000, 9999)}"
         
         db.collection('organizers').document(generated_code).set({
@@ -160,7 +175,9 @@ def organizer_login():
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
-# --- [4. CENTRAL COMMAND OPERATIONS] ---
+# ==========================================================
+# 🟢 4. CENTRAL COMMAND ADMIN OPERATIONS
+# ==========================================================
 @app.route('/api/admin/authenticate', methods=['POST'])
 def admin_master_auth():
     try:
@@ -168,7 +185,7 @@ def admin_master_auth():
         entered_password = data.get('password', '').strip()
 
         config_doc = db.collection('settings').document('portal_config').get()
-        master_pass = "narmada2026"
+        master_pass = "narmada2026"  # बैकअप पासवर्ड
         
         if config_doc.exists and config_doc.to_dict().get('adminPassword'):
             master_pass = config_doc.to_dict().get('adminPassword')
