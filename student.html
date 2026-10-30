@@ -3,225 +3,107 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>NVMSO - Student Registration & Exam Portal</title>
-  <link rel="stylesheet" href="student.css?v=7">
-  <link href="https://fonts.googleapis.com/css2?family=Alex+Brush&family=Plus+Jakarta+Sans:wght@400;600;700&display=swap" rel="stylesheet">
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <title>NVMSO - Student Hub 2026</title>
+  <link rel="stylesheet" href="student.css?v=6">
+  <link href="https://googleapis.com" rel="stylesheet">
+  <script src="https://cloudflare.com"></script>
 </head>
-<body oncontextmenu="return false;">
+<body>
 
 <div class="container">
-  <h1>Narmada Valley Maths & Science Olympiad (NVMSO)</h1>
-  <div id="display-academic-year" class="subtitle">Official Student Portal | Directed by V.K Olympiad</div>
+  <h1>⚡ Narmada Valley Maths & Science Olympiad 2026</h1>
+  <div class="subtitle">Official Student Portal & Examination Hub</div>
+  <div id="portal-status-msg" class="status-msg">Connecting to secure server...</div>
 
-  <div id="portal-status-msg" class="status-msg">Checking Portal Status...</div>
-
-  <!-- Smooth Navigation Tab Bar -->
-  <div class="tab-nav" id="main-tab-nav">
-    <button type="button" id="nav-btn-reg" class="tab-btn active-tab" onclick="switchTab('reg')">Student Registration</button>
-    <button type="button" id="nav-btn-login" class="tab-btn" onclick="switchTab('login')">Exam Portal</button>
-    <button type="button" id="nav-btn-result" class="tab-btn" onclick="switchTab('result')">Check Result</button>
+  <!-- NAVIGATION TABS -->
+  <div class="tab-nav">
+    <button id="nav-btn-reg" class="tab-btn active-tab" onclick="switchTab('reg')">📝 Online Registration</button>
+    <button id="nav-btn-login" class="tab-btn" onclick="switchTab('login')">✍️ Take Online Exam</button>
   </div>
 
-  <!-- REGISTRATION VIEW -->
-  <div id="registration-view" class="portal-view">
-    <div style="background: rgba(217, 83, 79, 0.12); border: 1px solid #d9534f; color: #b52b27; padding: 12px 15px; border-radius: 8px; margin-bottom: 20px; font-weight: 600; text-align: center; font-size: 13px; line-height: 1.5;">
-      🏫 <strong>Notice:</strong> Participation requires a verified School Organizer Code with Principal Permission. Invalid or unapproved codes will be blocked automatically.
-    </div>
-
-    <!-- Live Exam Mode Indicator for Student -->
-    <div id="student-exam-mode-badge" style="background: rgba(2, 117, 216, 0.12); border: 1px solid #0275d8; color: #0275d8; padding: 10px; border-radius: 8px; text-align: center; font-weight: bold; margin-bottom: 15px; font-size: 13.5px;">
-      Exam Conduct Mode: <span id="display-student-exam-mode" style="text-transform: uppercase;">Enter Organizer Code First</span>
-    </div>
-
+  <!-- VIEW 1: REGISTRATION COMPONENT -->
+  <div id="registration-view">
     <form id="reg-form">
-      <div class="form-group">
-        <label>Enter School Organizer Code (Mandatory):</label>
-        <input type="text" id="org-code" placeholder="e.g. ORG1024" oninput="fetchSchoolName(this.value)" required style="text-transform: uppercase;">
-        <div id="school-name-display" class="highlight-text"></div>
+      <div class="grid-2">
+        <div class="form-group">
+          <label>Enter School Organizer Code:</label>
+          <input type="text" id="org-code" placeholder="e.g. ORG1234" required oninput="fetchSchoolName(this.value)">
+          <span id="school-name-display" style="display:block; margin-top:5px; font-size:12px; font-weight:700;"></span>
+        </div>
+        <div class="form-group">
+          <label>Applicable Exam Mode:</label>
+          <div id="display-student-exam-mode" class="highlight-text" style="margin-top:0; background:#374151;">ONLINE</div>
+        </div>
       </div>
 
-      <div class="form-group">
-        <label>Student Full Name (Without Mr/Ms):</label>
-        <input type="text" id="std-name" placeholder="Enter student full name" required>
+      <div class="grid-2">
+        <div class="form-group"><label>Student Full Name:</label><input type="text" id="std-name" placeholder="Enter full name" required></div>
+        <div class="form-group"><label>Roll Number (Allocated by School):</label><input type="text" id="std-roll" placeholder="Enter roll number" required></div>
       </div>
 
-      <div class="form-group">
-        <label>Mother's Name:</label>
-        <input type="text" id="std-mother" placeholder="Enter mother's full name" required>
-      </div>
-
-      <div class="form-group">
-        <label>Father's Name:</label>
-        <input type="text" id="std-father" placeholder="Enter father's full name" required>
+      <div class="grid-2">
+        <div class="form-group"><label>Father's Name:</label><input type="text" id="std-father" required></div>
+        <div class="form-group"><label>Mother's Name:</label><input type="text" id="std-mother" required></div>
       </div>
 
       <div class="grid-2">
         <div class="form-group">
-          <label>Class:</label>
-          <select id="std-class" onchange="handleClassChange(this.value)" required>
-            <option value="">Select Class</option>
-            <option value="3">Class 3</option>
-            <option value="4">Class 4</option>
-            <option value="5">Class 5</option>
-            <option value="6">Class 6</option>
-            <option value="7">Class 7</option>
-            <option value="8">Class 8</option>
-            <option value="9">Class 9</option>
-            <option value="10">Class 10</option>
-            <option value="11">Class 11</option>
-            <option value="12">Class 12</option>
+          <label>Select Class:</label>
+          <select id="std-class" required onchange="handleClassChange(this.value)">
+            <option value="">-- Choose Class --</option>
+            <option value="3">Class 3rd</option><option value="4">Class 4th</option>
+            <option value="5">Class 5th</option><option value="6">Class 6th</option>
+            <option value="7">Class 7th</option><option value="8">Class 8th</option>
+            <option value="9">Class 9th</option><option value="10">Class 10th</option>
+            <option value="11">Class 11th</option><option value="12">Class 12th</option>
           </select>
         </div>
+        <div class="form-group hidden" id="stream-group">
+          <label>Select Academic Stream:</label>
+          <select id="std-stream">
+            <option value="Maths">Mathematics Stream</option>
+            <option value="Science">Science (Bio) Stream</option>
+          </select>
+        </div>
+      </div>
 
+      <div class="grid-2">
+        <div class="form-group"><label>Parent Contact Mobile Number:</label><input type="tel" id="std-contact" maxlength="10" required></div>
         <div class="form-group">
-          <label>Roll Number (Unique in School):</label>
-          <input type="text" id="std-roll" inputmode="numeric" pattern="[0-9]*" placeholder="e.g. 101" required>
+          <label>Choose Fee Payment Mode:</label>
+          <select id="payment-mode" required onchange="handlePaymentModeChange(this.value)">
+            <option value="online">Online UPI Gateway</option>
+            <option value="offline">Handover Cash to School Coordinator</option>
+          </select>
         </div>
       </div>
 
-      <div id="stream-group" class="form-group hidden">
-        <label>Select Stream (For Class 11 & 12):</label>
-        <select id="std-stream">
-          <option value="">Select Stream</option>
-          <option value="Maths">Mathematics (Science / Maths)</option>
-          <option value="Science">Biology / General Science</option>
-        </select>
-      </div>
-
-      <div class="form-group">
-        <label>10-Digit Contact Number:</label>
-        <input type="text" id="std-contact" inputmode="numeric" pattern="[0-9]*" maxlength="10" placeholder="Enter mobile number" required>
-      </div>
-
-      <div class="form-group">
-        <label>Payment Mode:</label>
-        <select id="payment-mode" onchange="handlePaymentModeChange(this.value)">
-          <option value="cash">Pay Cash to School Organizer</option>
-          <option value="online">Pay Online (UPI / QR)</option>
-        </select>
-      </div>
-
-      <!-- Online Payment Options & Direct UPI App Button -->
-      <div id="online-payment-section" class="hidden" style="margin-bottom: 15px;">
-        <!-- Direct UPI App Intent Trigger Button -->
-        <button type="button" onclick="openDirectUpiApp()" style="background: #0284c7; color: #fff; padding: 12px; width: 100%; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; margin-bottom: 10px;">
-          ⚡ Pay via UPI App (GPay / PhonePe / Paytm)
-        </button>
-
-        <button type="button" id="toggle-qr-btn" onclick="toggleQrCode()" style="background: #334155; color: white; border: none; padding: 8px 15px; border-radius: 6px; font-weight: bold; cursor: pointer; width: 100%; font-size: 13px;">
-          📱 View / Hide QR Code (Alternative)
-        </button>
-
-        <div id="dynamic-qr-container" class="flex justify-center my-4" style="margin-top: 10px; text-align: center;"></div>
-
-
-        <div class="form-group" style="margin-top: 15px; text-align: left;">
-          <label>Enter Single-Use UTR / Transaction Reference No:</label>
-          <input type="text" id="std-utr" placeholder="Enter Unique UTR Number">
+      <!-- ONLINE UPI PAYMENT CONTAINER -->
+      <div id="online-payment-section" class="qr-box">
+        <p style="color:#1e3c72; font-weight:700; margin-bottom:10px;">📲 Scan QR to Pay Registration Fee Instantly</p>
+        <div style="display:flex; justify-content:center; margin-bottom:12px;">
+          <div id="dynamic-qr-container"></div>
+        </div>
+        <button type="button" class="btn-submit" style="background:#10b981; width:auto; font-size:13px; padding:8px 16px;" onclick="openDirectUpiApp()">📱 Pay via Instant UPI Mobile Intent App</button>
+        <div class="form-group" style="margin-top:15px;">
+          <label style="color:#d9534f;">Enter UPI Payment Ref / UTR / Txn ID (12 Digits Mandatory):</label>
+          <input type="text" id="std-utr" placeholder="Enter 12-digit transaction number" maxlength="12">
         </div>
       </div>
 
-      <div class="form-group" style="margin: 20px 0; display: flex; align-items: flex-start; gap: 10px; background: rgba(0,0,0,0.02); padding: 12px; border-radius: 6px; border: 1px solid #ddd;">
-        <input type="checkbox" id="terms-checkbox" required style="width: 20px; height: 20px; cursor: pointer; margin-top: 2px;">
-        <label for="terms-checkbox" style="font-size: 13px; color: #444; cursor: pointer; font-weight: normal; line-height: 1.4;">
-          I confirm that my details are correct and I agree to the terms. Password will be generated as Mother's first 2 capital letters + Roll Number.
-        </label>
-      </div>
-
-      <button type="submit" class="btn-submit">Complete Registration</button>
+      <button type="submit" class="btn-submit">Complete Secure Registration</button>
     </form>
   </div>
 
-  <!-- EXAM LOGIN VIEW -->
-  <div id="login-view" class="portal-view hidden">
-    <h2>🔐 Student Exam Login</h2>
-    <p style="text-align:center; color:#666; margin-bottom:20px;">Use your Roll Number and Password (Mother's First 2 Capital Letters + Roll No) to login.</p>
-    
-    <form id="login-form">
-      <div class="form-group">
-        <label>Roll Number:</label>
-        <input type="text" id="login-roll" inputmode="numeric" pattern="[0-9]*" placeholder="Enter your Roll No" required>
-      </div>
-      <div class="form-group">
-        <label>Password (e.g., SU101):</label>
-        <input type="text" id="login-password" placeholder="Enter Password (Caps)" required style="text-transform: uppercase;">
-      </div>
-      <button type="submit" class="btn-submit">Proceed to Details & Exam</button>
-    </form>
-  </div>
-
-  <!-- STUDENT DETAILS CONFIRMATION VIEW -->
-  <div id="student-confirm-view" class="portal-view hidden card-box" style="max-width: 550px; margin: 20px auto; background: #0f172a; padding: 25px; border-radius: 12px; border: 2px solid #38bdf8; text-align: left;">
-    <h3 style="color:#fbbf24; margin-bottom:12px; text-align:center;">📋 Verify Your Registration Details</h3>
-    <p style="font-size:13px; color:#94a3b8; margin-bottom:15px; text-align:center;">Review your information below. Click 'Next' to proceed to the exam.</p>
-    
-    <div style="background: #1e293b; padding: 18px; border-radius: 8px; font-size: 14px; color: #cbd5e1; display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px;">
-      <div><strong>Student Name:</strong> <span id="conf-name" style="color:#fff;">-</span></div>
-      <div><strong>Roll Number:</strong> <span id="conf-roll" style="color:#38bdf8; font-weight:bold;">-</span></div>
-      <div><strong>Class & Stream:</strong> <span id="conf-class" style="color:#fff;">-</span></div>
-      <div><strong>School Name:</strong> <span id="conf-school" style="color:#fbbf24; font-weight:bold;">-</span></div>
-      <div><strong>Mother's Name:</strong> <span id="conf-mother" style="color:#fff;">-</span></div>
-      <div><strong>Payment Status:</strong> <span id="conf-pay" style="color:#4ade80; font-weight:bold;">VERIFIED</span></div>
-    </div>
-
-    <button type="button" id="proceed-to-exam-btn" class="btn-primary" style="background: #0284c7; font-size: 16px; padding: 12px; font-weight: bold; width: 100%; border: none; border-radius: 8px; cursor: pointer; color: white;">➡️ Next & Start Exam</button>
-  </div>
-
-  <!-- EXAM INTERFACE VIEW -->
-  <div id="exam-view" class="portal-view hidden">
-    <div style="display: flex; gap: 10px; margin-bottom: 15px;">
-      <div class="timer-box" style="flex: 1; margin:0;">⏳ Time: <span id="time-remaining">30:00</span></div>
-      <div class="timer-box" style="flex: 1; margin:0; background: #e0f2fe; color: #0369a1; border-color: #bae6fd;">📋 Qs: <span id="exam-total-q">0</span> | Mark: <span id="exam-mark-per-q">1</span> | Neg: <span id="exam-neg-mark">0</span></div>
-    </div>
-
-    <h2>✍️ Narmada Valley Maths & Science Olympiad Exam</h2>
-    <form id="exam-form">
-      <div id="question-container"></div>
-      <button type="submit" class="btn-submit" style="background: #28a745; margin-top: 25px;">Finalize & Submit Exam Paper</button>
-    </form>
-  </div>
-
-  <!-- RESULT LOGIN VIEW -->
-  <div id="result-login-view" class="portal-view hidden">
-    <h2>🏆 Check Exam Result & Scorecard</h2>
-    <form id="result-verify-form">
-      <div class="form-group">
-        <label>Roll Number:</label>
-        <input type="text" id="res-verify-roll" inputmode="numeric" pattern="[0-9]*" placeholder="Enter Roll No" required>
-      </div>
-      <div class="form-group">
-        <label>Password:</label>
-        <input type="text" id="res-verify-pass" placeholder="Enter Password" required style="text-transform: uppercase;">
-      </div>
-      <button type="submit" class="btn-submit" style="background: #ffc107; color: #000;">View Scorecard & Certificate</button>
-    </form>
-  </div>
-
-  <!-- SCORECARD & CERTIFICATE VIEW (Strict Edge-to-Edge Landscape) -->
-  <div id="score-card-view" class="portal-view hidden">
+  <!-- VIEW 2: EXAM ENGINE MOCK AREA -->
+  <div id="login-view" class="hidden">
     <div class="score-card">
-      <h3>🎉 Exam Evaluated Successfully!</h3>
-      <p>Marks Obtained: <span id="res-marks" style="color: #4ade80;">0</span></p>
-      <p>Percentage: <span id="res-percentage" style="color: #38bdf8;">0%</span></p>
+      <h3>✍️ Online Live Examination Frame</h3>
+      <p style="margin-top:10px; color:#cbd5e1;">The interactive question assessment dashboard will run dynamically right here when the Central Command initiates the live test block.</p>
     </div>
-
-    <!-- Full Landscape A4 Certificate Container -->
-    <div id="certificate" class="cert-card">
-      <img src="certificate-template.png" alt="Certificate Template" class="cert-bg-img">
-      <div class="cert-text-overlay">
-        <div id="cert-student-name" class="cert-student-name">Student Name</div>
-        <div id="cert-student-class" class="cert-student-class">Class: III</div>
-        <div id="cert-school-name" class="cert-school-name">School Name</div>
-      </div>
-    </div>
-
-    <button type="button" onclick="downloadHighQualityPDF()" class="btn-submit" style="background: #10b981; margin-top: 20px;">📥 Download Official Certificate (Landscape PDF)</button>
   </div>
-
 </div>
 
-<script type="module" src="student.js?v=11"></script>
+<script src="student.js?v=6"></script>
 </body>
 </html>
