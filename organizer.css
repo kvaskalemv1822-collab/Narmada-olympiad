@@ -1,256 +1,127 @@
-* { 
-  box-sizing: border-box; 
-  font-family: 'Plus Jakarta Sans', sans-serif; 
-  margin: 0; 
-  padding: 0; 
+/* ==========================================================================
+   1. ORGANIZER CYBER DARK COMMAND PANEL BASE THEME
+   ========================================================================== */
+* {
+  box-sizing: border-box;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  margin: 0;
+  padding: 0;
 }
 
-body { 
-  background: #0f172a; 
-  color: #f8fafc; 
-  padding: 15px; 
+body {
+  background-color: #0b0f19;
+  color: #f8fafc;
+  padding: 15px;
   min-height: 100vh;
+  -webkit-tap-highlight-color: transparent;
 }
 
-.container { 
-  max-width: 1100px; 
-  margin: 0 auto; 
-  background: #1e293b; 
-  padding: 24px; 
-  border-radius: 14px; 
-  box-shadow: 0 10px 25px rgba(0,0,0,0.5); 
-  border: 1px solid rgba(56, 189, 248, 0.2);
-}
-
-h1, h2, h3 { 
-  text-align: center; 
-  color: #fbbf24; 
-  margin-bottom: 10px; 
+.container {
+  max-width: 850px;
+  margin: 0 auto;
+  background: rgba(15, 23, 42, 0.95);
+  border: 1px solid #1e293b;
+  padding: 20px;
+  border-radius: 16px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
 }
 
 h1 {
-  font-size: 26px;
-  background: linear-gradient(135deg, #38bdf8 0%, #fbbf24 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
+  font-size: 24px;
+  font-weight: 800;
+  color: #ffffff;
+  text-align: center;
+  margin-bottom: 5px;
 }
 
-.org-subtitle { 
-  text-align: center; 
-  color: #94a3b8; 
-  font-size: 13px; 
-  margin-bottom: 20px; 
+.admin-subtitle {
+  color: #94a3b8;
+  font-size: 13px;
+  text-align: center;
+  margin-bottom: 20px;
+}
+
+/* ==========================================================================
+   2. INTERACTIVE UI CONTAINERS & CARDS
+   ========================================================================== */
+.card-box, .login-card {
+  background: #0f172a;
+  border: 1px solid #334155;
+  padding: 20px;
+  border-radius: 12px;
+  margin-top: 15px;
+}
+
+label {
+  display: block;
+  color: #cbd5e1;
+  font-size: 13px;
   font-weight: 600;
+  margin-bottom: 6px;
 }
 
-.notice-marquee-box {
-  background: linear-gradient(135deg, #d97706 0%, #f59e0b 100%);
-  color: #0f172a;
-  padding: 10px 15px;
+input, select, textarea {
+  width: 100%;
+  padding: 12px;
+  background: #020617;
+  color: #ffffff;
+  border: 1px solid #475569;
+  border-radius: 8px;
+  font-size: 14px;
+  outline: none;
+  transition: border-color 0.2s ease;
+}
+
+input:focus, select:focus {
+  border-color: #38bdf8;
+}
+
+/* ==========================================================================
+   3. PREMIUM ACTION BUTTONS
+   ========================================================================== */
+.btn-primary {
+  width: 100%;
+  padding: 12px 24px;
+  background: #0284c7;
+  color: white;
+  border: none;
   border-radius: 8px;
   font-weight: 700;
-  font-size: 13px;
-  margin-bottom: 20px;
-  overflow: hidden;
-  box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);
-  border-left: 5px solid #78350f;
-}
-
-.permission-card {
-  background: rgba(234, 179, 8, 0.15);
-  border: 2px dashed #facc15;
-  padding: 16px;
-  border-radius: 10px;
-  margin-bottom: 20px;
-  box-shadow: 0 4px 12px rgba(234, 179, 8, 0.2);
-}
-
-.form-group { 
-  margin-bottom: 16px; 
-}
-
-label { 
-  display: block; 
-  margin-bottom: 6px; 
-  font-weight: 600; 
-  color: #cbd5e1; 
-  font-size: 13px;
-}
-
-input, select, textarea { 
-  width: 100%; 
-  padding: 12px 14px; 
-  border: 1px solid #475569; 
-  border-radius: 8px; 
-  font-size: 14px; 
-  background: #0f172a; 
-  color: #fff; 
-  outline: none;
-  transition: border-color 0.2s, box-shadow 0.2s;
-}
-
-input:focus, select:focus, textarea:focus {
-  border-color: #38bdf8;
-  box-shadow: 0 0 8px rgba(56, 189, 248, 0.3);
-}
-
-button { 
-  width: 100%; 
-  padding: 12px; 
-  border: none; 
-  border-radius: 8px; 
-  font-size: 15px; 
-  font-weight: 700; 
-  cursor: pointer; 
-  transition: filter 0.2s;
-}
-
-button:hover {
-  filter: brightness(1.15);
-}
-
-.btn-primary { 
-  background: linear-gradient(135deg, #0284c7 0%, #38bdf8 100%); 
-  color: white; 
-  box-shadow: 0 4px 12px rgba(56, 189, 248, 0.3);
-}
-
-.btn-warning {
-  background: linear-gradient(135deg, #d97706 0%, #f59e0b 100%);
-  color: #0f172a;
-}
-
-.btn-exit {
-  margin-top: 30px; 
-  width: 100%; 
-  padding: 14px; 
-  background: linear-gradient(135deg, #dc2626 0%, #ef4444 100%); 
-  color: white; 
-  border-radius: 8px; 
-  font-weight: 700; 
-  font-size: 15px; 
-  text-transform: uppercase;
-  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
-}
-
-.hidden { display: none !important; }
-
-.card-box { 
-  max-width: 480px; 
-  margin: 20px auto; 
-  background: #0f172a; 
-  padding: 24px; 
-  border-radius: 12px; 
-  border: 1px solid #334155; 
-  box-shadow: 0 8px 20px rgba(0,0,0,0.4);
-}
-
-.auth-footer-links {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  margin-top: 16px;
-  padding-top: 14px;
-  border-top: 1px solid #334155;
-  font-size: 13px;
-  color: #94a3b8;
-}
-
-.auth-footer-links a {
-  color: #38bdf8;
-  text-decoration: none;
-  font-weight: 700;
+  font-size: 14px;
   cursor: pointer;
+  text-transform: uppercase;
+  transition: background 0.2s, transform 0.1s;
 }
 
-.header-info {
-  background: #0f172a;
-  padding: 16px;
-  border-radius: 10px;
-  margin-bottom: 20px;
-  border: 1px solid #334155;
-  text-align: center;
+.btn-primary:hover {
+  background: #0369a1;
 }
 
-.mode-box { 
-  background: #0f172a; 
-  padding: 18px; 
-  border-radius: 10px; 
-  margin-bottom: 20px; 
-  border: 1px solid rgba(56, 189, 248, 0.4); 
+.btn-primary:active {
+  transform: scale(0.98);
 }
 
-.grid-2-custom {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
-  font-size: 13.5px;
-  color: #cbd5e1;
-  padding: 5px 0;
+/* ==========================================================================
+   4. HELPER UTILITIES & RESPONSIVENESS
+   ========================================================================== */
+.hidden { 
+  display: none !important; 
+}
+
+hr {
+  border: 0;
+  border-top: 1px solid #1e293b;
+  margin: 15px 0;
 }
 
 @media (max-width: 600px) {
-  .grid-2-custom { grid-template-columns: 1fr; }
-}
-
-.stats-panel { 
-  display: grid; 
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 12px; 
-  margin-bottom: 20px; 
-}
-
-.stat-card { 
-  background: #0f172a; 
-  padding: 16px; 
-  border-radius: 10px; 
-  border: 1px solid #334155; 
-  text-align: center; 
-}
-
-.stat-num { 
-  font-size: 22px; 
-  font-weight: 800; 
-  color: #fbbf24; 
-  margin-bottom: 4px;
-}
-
-.settlement-box { 
-  background: #0f172a; 
-  padding: 18px; 
-  border-radius: 10px; 
-  margin-bottom: 20px; 
-  text-align: center; 
-  border: 1px solid #334155;
-  border-left: 5px solid #3b82f6;
-}
-
-table { 
-  width: 100%; 
-  border-collapse: collapse; 
-  font-size: 13px; 
-  white-space: nowrap;
-  margin-top: 10px;
-}
-
-th, td { 
-  padding: 12px 14px; 
-  text-align: left; 
-  border-bottom: 1px solid #334155; 
-  vertical-align: middle;
-}
-
-th { 
-  background-color: #0f172a; 
-  color: #fbbf24; 
-  text-transform: uppercase;
-  font-size: 11px;
-}
-
-tr:nth-child(even) { background-color: rgba(15, 23, 42, 0.5); }
-
-code {
-  font-family: monospace;
-  letter-spacing: 0.5px;
+  .container { 
+    padding: 15px; 
+  }
+  h1 { 
+    font-size: 20px; 
+  }
+  .card-box {
+    padding: 15px;
+  }
 }
