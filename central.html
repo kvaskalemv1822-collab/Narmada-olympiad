@@ -3,13 +3,11 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <meta http-equiv="X-Content-Type-Options" content="nosniff">
-  <meta http-equiv="X-Frame-Options" content="DENY">
   <title>NVMSO - Central Command Panel 2026</title>
-  <link rel="stylesheet" href="central.css?v=3">
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="central.css?v=7">
+  <link href="https://googleapis.com" rel="stylesheet">
 </head>
-<body oncontextmenu="return false;">
+<body>
 
 <!-- ADMIN LOGIN SCREEN -->
 <div id="admin-login-screen" class="login-wrapper">
@@ -19,306 +17,90 @@
 
     <div class="login-card">
       <div id="login-security-alert" style="color: #f87171; font-size: 12px; font-weight: bold; margin-bottom: 10px; display: none;"></div>
-      
-      <div class="login-card-title">🔐 Admin Security Login</div>
-      
+      <div class="login-card-title">🔐 Admin Master Session Authenticator</div>
       <form id="admin-login-form" onsubmit="event.preventDefault(); verifyAdminPassword();">
         <div style="margin-bottom: 16px;">
-          <label style="display: block; margin-bottom: 6px; color: #94a3b8; font-size: 12px; font-weight: 600;">Enter Admin Password:</label>
+          <label>Enter Master Admin Password:</label>
           <input type="password" id="admin-pass-input" placeholder="Enter secure password" required>
         </div>
-        <button type="submit" id="btn-admin-auth" class="btn-primary" style="width: 100%; padding: 12px; font-size: 14px;">Authenticate Panel</button>
+        <button type="submit" id="btn-admin-auth" class="btn-primary" style="width: 100%; padding: 12px;">Authenticate Panel</button>
       </form>
     </div>
   </div>
 </div>
 
-<!-- 3-SECOND UPGRADED GRAND WELCOME ANIMATION SCREEN -->
+<!-- WELCOME CURTAIN REVEAL ANIMATION LAYER -->
 <div id="grand-welcome-screen" class="welcome-overlay hidden">
   <div class="welcome-curtain-top"></div>
   <div class="welcome-curtain-bottom"></div>
-  
-  <div class="welcome-box" style="border: 2px solid #38bdf8; box-shadow: 0 0 50px rgba(56, 189, 248, 0.4);">
+  <div class="welcome-box">
     <div class="pulse-ring" style="font-size: 60px;">⚡</div>
-    <h1 class="welcome-title" style="background: linear-gradient(135deg, #38bdf8 0%, #c084fc 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">WELCOME NVMS CHIEF</h1>
-    <p class="welcome-sub">Initializing NVMSO Central Command System...</p>
-    
-    <div class="loader-bar-bg">
-      <div id="welcome-progress" class="loader-bar-fill"></div>
-    </div>
-    <p style="color:#38bdf8; font-size:14px; font-weight:700; margin-top:12px; position:relative; z-index:10;">
-      Opening Central Access in <span id="welcome-countdown">3</span> Seconds...
-    </p>
+    <h1 class="welcome-title">WELCOME NVMS CHIEF</h1>
+    <p class="welcome-sub">Initializing Real-time Cloud Pipeline Sync...</p>
+    <div class="loader-bar-bg"><div id="welcome-progress" class="loader-bar-fill"></div></div>
+    <p style="color:#38bdf8; font-size:14px; font-weight:700; margin-top:12px;">Opening Access in <span id="welcome-countdown">3</span> Seconds...</p>
   </div>
 </div>
 
-<!-- MAIN CENTRAL COMMAND PANEL CONTAINER -->
+<!-- MAIN CENTRAL MASTER CONTROL WORKSPACE -->
 <div id="admin-main-container" class="container hidden">
-  
-  <!-- Header Bar -->
-  <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #374151; padding-bottom: 15px; margin-bottom: 20px; flex-wrap: wrap; gap: 15px;">
-    <div style="flex: 1; text-align: center;">
-      <h1 style="margin: 0; text-align: center;">⚡ NVMSO CENTRAL COMMAND PANEL</h1>
-      <div class="admin-subtitle" style="text-align: center; margin: 4px 0 0 0;">Narmada Valley Maths & Science Olympiad 2026</div>
+  <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #374151; padding-bottom: 15px; margin-bottom: 20px;">
+    <div>
+      <h1 style="margin: 0; text-align: left;">⚡ NVMSO CENTRAL MASTER PANEL</h1>
+      <div class="admin-subtitle" style="text-align: left; margin: 4px 0 0 0;">Narmada Valley Maths & Science Olympiad 2026</div>
     </div>
-    <button onclick="logoutAdminSession()" style="padding: 10px 18px; background: linear-gradient(135deg, #dc2626 0%, #ef4444 100%); color: #fff; font-weight: 700;">
-      🔴 EXIT / LOGOUT
-    </button>
-  </div>
-
-  <!-- Master Revenue & Profit/Loss Ledger Panel -->
-  <div class="card-box" style="margin-bottom:25px; border: 2px solid #10b981;">
-    <h3 style="color:#10b981; text-align:left; font-size:18px;">📊 NVMSO Overall Financial Ledger & Net Profit Calculator</h3>
-    <p style="font-size:12px; color:#94a3b8; margin-bottom:15px;">Medals, Certificates aur Baki expenses yha manual enter karein. Total Net Profit auto calculate hoga.</p>
-
-    <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:12px; margin-bottom:20px;">
-      <div style="background:#0b0f19; padding:12px; border-radius:8px; text-align:center; border:1px solid #374151;">
-        <div style="font-size:12px; color:#94a3b8;">Total Revenue (Collection)</div>
-        <div id="stat-total-revenue" style="font-size:22px; font-weight:800; color:#38bdf8;">₹0</div>
-      </div>
-      <div style="background:#0b0f19; padding:12px; border-radius:8px; text-align:center; border:1px solid #374151;">
-        <div style="font-size:12px; color:#94a3b8;">Total Commission Payable</div>
-        <div id="stat-total-commission" style="font-size:22px; font-weight:800; color:#facc15;">₹0</div>
-      </div>
-      <div style="background:#0b0f19; padding:12px; border-radius:8px; text-align:center; border:1px solid #374151;">
-        <div style="font-size:12px; color:#94a3b8;">Total Manual Expenses</div>
-        <div id="stat-total-expenses" style="font-size:22px; font-weight:800; color:#f87171;">₹0</div>
-      </div>
-      <div style="background:#0b0f19; padding:12px; border-radius:8px; text-align:center; border:1px solid #10b981;">
-        <div style="font-size:12px; color:#4ade80;">Final Net Profit (Margin)</div>
-        <div id="stat-net-profit" style="font-size:22px; font-weight:800; color:#4ade80;">₹0</div>
-      </div>
-    </div>
-
-    <div style="background:#0b0f19; padding:15px; border-radius:8px; border:1px solid #374151;">
-      <h4 style="color:#fbbf24; font-size:14px; margin-bottom:10px;">🏷️ Manual Expense Input Fields:</h4>
-      <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap:12px;">
-        <div>
-          <label style="font-size:12px;">Medals & Memento Cost (₹):</label>
-          <input type="number" id="exp-medals-cost" value="0" placeholder="0" oninput="computeOverallLedgerAndProfit()">
-        </div>
-        <div>
-          <label style="font-size:12px;">Certificates Printing Cost (₹):</label>
-          <input type="number" id="exp-cert-cost" value="0" placeholder="0" oninput="computeOverallLedgerAndProfit()">
-        </div>
-        <div>
-          <label style="font-size:12px;">Other / Banner Expenses (₹):</label>
-          <input type="number" id="exp-other-cost" value="0" placeholder="0" oninput="computeOverallLedgerAndProfit()">
-        </div>
-      </div>
-      <button onclick="saveManualExpenses()" class="btn-primary" style="margin-top:12px; padding:8px 16px; font-size:13px; background:#10b981; width:auto;">Save Expense Ledger</button>
+    <div style="display:flex; gap:10px;">
+      <a href="question.html" class="btn-primary" style="padding:10px 16px; background:#7c3aed; text-decoration:none; font-size:13px; font-weight:bold; border-radius:6px;">📚 MANAGE QUESTION BANK</a>
+      <button onclick="logoutAdminSession()" style="background:#dc2626; color: #fff; padding:10px 18px; border:none; border-radius:6px; font-weight:bold; cursor:pointer;">🔴 DISCONNECT SESSION</button>
     </div>
   </div>
 
-  <!-- Change NVMS Password Section -->
-  <div class="card-box" style="margin-bottom:20px; border: 1px solid #38bdf8;">
-    <h3 style="color:#38bdf8; text-align:left; font-size:16px;">🔑 Change NVMS Security Password</h3>
-    <div style="display:flex; gap:10px; margin-top:10px; flex-wrap:wrap;">
-      <input type="text" id="new-admin-pass" placeholder="Enter New Master Password" style="flex:1; min-width:220px;">
-      <button onclick="updateAdminPasswordInFirebase()" class="btn-primary" style="width:auto; padding:0 20px; background:#0284c7;">Update Password</button>
+  <!-- PHASE INTERLOCK: EXCLUSIVE PORTAL MASTER SWITCHES -->
+  <div class="card-box" style="margin-bottom:20px; border: 1px solid #38bdf8; background:#0f172a; padding:20px; border-radius:12px;">
+    <h3 style="color:#38bdf8; text-align:left; margin-bottom:12px;">🎛️ Dynamic Portal Phase Commander</h3>
+    <p style="font-size:12px; color:#94a3b8; margin-bottom:15px;">⚠️ नोट: यहाँ से जो स्विच ऑन करेंगे, छात्र और ऑर्गनाइज़र पोर्टल पर सिर्फ वही लिंक दिखेगा, बाकी सब ऑटोमैटिक हाइड हो जाएंगे।</p>
+    
+    <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap:15px; background:#020617; padding:18px; border-radius:8px; border:1px solid #334155;">
+      <div style="display:flex; align-items:center; gap:12px;">
+        <input type="checkbox" id="cfg-reg-active" style="width:22px; height:22px; cursor:pointer;">
+        <label style="margin-bottom:0; color:#4ade80; font-size:14px; cursor:pointer;">🟢 Turn ON Candidate Registrations</label>
+      </div>
+      <div style="display:flex; align-items:center; gap:12px;">
+        <input type="checkbox" id="cfg-exam-active" style="width:22px; height:22px; cursor:pointer;">
+        <label style="margin-bottom:0; color:#38bdf8; font-size:14px; cursor:pointer;">✍️ Turn ON Examination Desk Link</label>
+      </div>
+      <div style="display:flex; align-items:center; gap:12px;">
+        <input type="checkbox" id="cfg-result-allowed" style="width:22px; height:22px; cursor:pointer;">
+        <label style="margin-bottom:0; color:#facc15; font-size:14px; cursor:pointer;">🏆 Turn ON Scorecards / Declaration</label>
+      </div>
     </div>
   </div>
 
-  <!-- Broadcast Notice Manager -->
-  <div class="card-box" style="margin-bottom:20px; border: 1px solid #f59e0b;">
-    <h3 style="color:#f59e0b; text-align:left;">📢 Broadcast Emergency Notice / Banner</h3>
-    <div style="display:flex; gap:10px; margin-top:8px;">
-      <input type="text" id="admin-broadcast-input" placeholder="Type notice message here..." style="flex:1;">
-      <button onclick="updateBroadcastNotice()" class="btn-primary" style="width:auto; padding:0 20px;">Publish Notice</button>
-    </div>
-  </div>
-
-  <!-- Master System Toggles & Fee Config -->
-  <div class="card-box" style="margin-bottom:20px;">
-    <h3 style="color:#38bdf8; text-align:left;">⚙️ Master Portal Switches, Controls & Fees</h3>
-    <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:15px; margin-top:12px;">
-      <div>
-        <label>Online Registration Fee (₹):</label>
-        <input type="number" id="cfg-online-fee" value="100">
-      </div>
-      <div>
-        <label>Offline Mode Fee (₹):</label>
-        <input type="number" id="cfg-offline-fee" value="120">
-      </div>
-      <div>
-        <label>Exam Duration (Minutes):</label>
-        <input type="number" id="cfg-duration" value="30">
-      </div>
-      <div>
-        <label>NVMS UPI ID (for QR Settling):</label>
-        <input type="text" id="cfg-upi" placeholder="narmada@upi">
-      </div>
-      <div>
-        <label>QR Code Image Link:</label>
-        <input type="text" id="cfg-qr-url" value="Qrcode.jpg">
-      </div>
+  <!-- SYSTEM ACCOUNTING & GATEWAY CONFIGURATION -->
+  <div class="card-box" style="margin-bottom:20px; border: 1px solid #10b981; background:#0f172a; padding:20px; border-radius:12px;">
+    <h3 style="color:#10b981; text-align:left; margin-bottom:12px;">💳 Fee Matrices & Financial Routing System</h3>
+    
+    <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap:15px; margin-bottom:15px;">
+      <div><label>Online Mode Fee (₹):</label><input type="number" id="cfg-online-fee" value="100"></div>
+      <div><label>Offline Desk Fee (₹):</label><input type="number" id="cfg-offline-fee" value="120"></div>
+      <div><label>Exam Duration (Minutes):</label><input type="number" id="cfg-duration" value="30"></div>
+      <div><label>Primary Fee UPI Address:</label><input type="text" id="cfg-upi" value="narmada@upi"></div>
+      <div><label>Static QR Code File Name:</label><input type="text" id="cfg-qr-url" value="Qrcode.jpg"></div>
     </div>
     
-    <div style="display:flex; gap:20px; margin-top:20px; flex-wrap:wrap; background:#0b0f19; padding:15px; border-radius:8px; border:1px solid #374151;">
-      <label style="cursor:pointer;"><input type="checkbox" id="cfg-reg-active" style="width:18px; height:18px; vertical-align:middle; margin-right:5px;"> 🟢 Registration Open Switch</label>
-      <label style="cursor:pointer;"><input type="checkbox" id="cfg-exam-active" style="width:18px; height:18px; vertical-align:middle; margin-right:5px;"> 🚀 Exam Portal Active Switch</label>
-      <label style="cursor:pointer;"><input type="checkbox" id="cfg-result-allowed" style="width:18px; height:18px; vertical-align:middle; margin-right:5px;"> 🏆 Declare Results & Certificates Switch</label>
+    <button onclick="saveGlobalConfig()" class="btn-primary" style="background:#10b981; padding:12px 24px;">💾 Save Master Parameters & Sync Matrices</button>
+  </div>
+
+  <!-- BROADCAST BANNER CONFIGURATOR -->
+  <div class="card-box" style="margin-bottom:20px; border: 1px solid #f59e0b; background:#0f172a; padding:20px; border-radius:12px;">
+    <h3 style="color:#f59e0b; text-align:left; margin-bottom:10px;">📢 Dynamic Alert Notification Banner (Notice)</h3>
+    <div style="margin-bottom:15px;">
+      <input type="text" id="admin-broadcast-input" placeholder="Type custom ticker message text to display across coordinator dashboards..." style="width:100%; padding:12px; background:#020617; color:#fff; border:1px solid #475569; border-radius:6px;">
     </div>
-    <button onclick="saveGlobalConfig()" class="btn-primary" style="margin-top:15px; width:auto;">Save Master Switches & Settings</button>
+    <button onclick="saveGlobalConfig()" class="btn-primary" style="background:#f59e0b; padding:12px 24px;">Publish Live Notification Ticker</button>
   </div>
-
-  <!-- QUESTION MANAGER BUTTON -->
-  <div class="card-box" style="margin-bottom:20px; border: 2px solid #10b981; background: linear-gradient(135deg, #064e3b 0%, #111827 100%); text-align: center;">
-    <h3 style="color:#34d399; font-size: 20px; margin-bottom: 8px;">✍️ NVMSO Question Papers & Paper Engine Manager</h3>
-    <p style="font-size:13px; color:#a7f3d0; margin-bottom:18px;">Click below to launch your customized external Question Manager Panel.</p>
-    
-    <a href="question.html" class="btn-3d-question">
-      🚀 OPEN QUESTION PAPERS MANAGER PANEL
-    </a>
-  </div>
-
-  <!-- OFFLINE STUDENTS MANUAL MARKS ENTRY SECTION -->
-  <div class="card-box" style="margin-bottom: 20px; border: 1px solid #d97706;">
-    <h3 style="color: #fbbf24; text-align: left;">📝 Offline Students Manual Marks Entry (OMR / Paper Mode)</h3>
-    <p style="font-size: 12px; color: #94a3b8; margin-bottom: 12px;">Jo school offline exam karwa rahe hain, unke students ka score aur total marks yahan manually update karein taaki unke ranks aur certificates generate ho sakein.</p>
-    
-    <div style="overflow-x:auto;">
-      <table id="admin-offline-marks-table">
-        <thead>
-          <tr>
-            <th>Roll No</th>
-            <th>Student Name</th>
-            <th>School / Org</th>
-            <th>Class</th>
-            <th>Mode</th>
-            <th>Enter Marks Obtained / Total</th>
-            <th>Action</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr><td colspan="7" style="text-align:center; color:#94a3b8;">Loading offline students...</td></tr>
-        </tbody>
-      </table>
-    </div>
-  </div>
-
-  <div class="card-box" style="margin-bottom:20px; border: 1px solid #f97316;">
-    <h3 style="color:#f97316; text-align:left;">💳 Organizer Payout Claims & Settlement UTRs</h3>
-    <div style="overflow-x:auto; margin-top:10px;">
-      <table id="admin-payout-requests-table">
-        <thead>
-          <tr>
-            <th>Organizer Code / School</th>
-            <th>Organizer Name</th>
-            <th>Claim Type / Details</th>
-            <th>UPI / UTR Provided</th>
-            <th>Action</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr><td colspan="5" style="text-align:center; color:#94a3b8;">No pending payout requests or UTR proofs.</td></tr>
-        </tbody>
-      </table>
-    </div>
-  </div>
-
-  <div class="card-box" style="margin-bottom:20px; border: 1px solid #3b82f6;">
-    <h3 style="color:#3b82f6; text-align:left;">💬 Organizer Chat Support & Help Queries</h3>
-    <div style="overflow-x:auto; margin-top:10px;">
-      <table id="admin-support-table">
-        <thead>
-          <tr>
-            <th>Organizer Code / School</th>
-            <th>Organizer Name</th>
-            <th>Support Query Message</th>
-            <th>Timestamp</th>
-            <th>Action</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr><td colspan="5" style="text-align:center; color:#94a3b8;">No support queries found.</td></tr>
-        </tbody>
-      </table>
-    </div>
-  </div>
-
-  <h3>🔍 Student UTR & Payment Verification Ledger</h3>
-  <div style="overflow-x:auto; margin-bottom:25px;">
-    <table id="admin-utr-table">
-      <thead>
-        <tr>
-          <th>Roll / ID</th>
-          <th>Student Name</th>
-          <th>School / Org</th>
-          <th>Payment Mode</th>
-          <th>UTR Number</th>
-          <th>Amount Paid</th>
-          <th>Status & Verification Alert</th>
-        </tr>
-      </thead>
-      <tbody></tbody>
-    </table>
-  </div>
-
-  <h3>🏢 Organizer Financial Ledger & Manual UTR Settlement</h3>
-  <div style="overflow-x:auto; margin-bottom:25px;">
-    <table id="admin-org-ledger-table">
-      <thead>
-        <tr>
-          <th>Org Code & School</th>
-          <th>Organizer Name</th>
-          <th>Principal NOC</th>
-          <th>Cash Coll.</th>
-          <th>Online Coll.</th>
-          <th>Direct Comm.</th>
-          <th>Net Cash Payable</th>
-          <th>Submitted UTR / Status</th>
-          <th>Manual Settlement Action</th>
-        </tr>
-      </thead>
-      <tbody></tbody>
-    </table>
-  </div>
-
-  <h3>🏆 Top 6 Ranking Lists (For Certificate Printing)</h3>
-  <div style="display:flex; gap:10px; margin-bottom:15px;">
-    <button onclick="loadRankingList('cat_3_6')" class="btn-primary" style="flex:1;">Class 3rd to 6th Ranking</button>
-    <button onclick="loadRankingList('cat_7_12')" class="btn-primary" style="flex:1; background:#059669;">Class 7th to 12th Ranking</button>
-  </div>
-  <div style="overflow-x:auto; margin-bottom:25px;">
-    <table id="admin-ranking-table">
-      <thead>
-        <tr>
-          <th>Rank</th>
-          <th>Student Name</th>
-          <th>Roll No.</th>
-          <th>Class</th>
-          <th>School Name</th>
-          <th>Score & Percentage</th>
-          <th>Award Category</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr><td colspan="7" style="text-align:center; color:#94a3b8;">Select category above to view top 6 rankings.</td></tr>
-      </tbody>
-    </table>
-  </div>
-
-  <h3>👥 Universal Student Management (Block, Re-exam, Delete & Unapproved Cash)</h3>
-  <div style="overflow-x:auto;">
-    <table id="admin-all-students-table">
-      <thead>
-        <tr>
-          <th>Roll No</th>
-          <th>Student Name</th>
-          <th>School Name</th>
-          <th>Class</th>
-          <th>Cash Approval Status</th>
-          <th>Account Status</th>
-          <th>NVMS Actions</th>
-        </tr>
-      </thead>
-      <tbody></tbody>
-    </table>
-  </div>
-
 </div>
 
-<script type="module" src="central.js"></script>
+<script src="central.js?v=7"></script>
 </body>
 </html>
