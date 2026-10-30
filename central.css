@@ -1,283 +1,246 @@
-* { 
-  box-sizing: border-box; 
-  font-family: 'Plus Jakarta Sans', sans-serif; 
-  margin: 0; 
-  padding: 0; 
+/* ==========================================================================
+   1. CYBER DARK COMMAND PANEL BASE THEME & RESET
+   ========================================================================== */
+* {
+  box-sizing: border-box;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  margin: 0;
+  padding: 0;
 }
 
-body { 
-  background: #0b0f19; 
-  color: #f8fafc; 
-  padding: 15px; 
+body {
+  background-color: #0b0f19;
+  color: #f8fafc;
+  padding: 15px;
   min-height: 100vh;
-  user-select: none;
+  -webkit-tap-highlight-color: transparent;
 }
 
-.container { 
-  max-width: 1200px; 
-  margin: 0 auto; 
-  background: #111827; 
-  padding: 24px; 
-  border-radius: 14px; 
-  box-shadow: 0 10px 30px rgba(0,0,0,0.6); 
-  border: 1px solid rgba(56, 189, 248, 0.25);
-}
-
-h1, h2, h3 { 
-  text-align: center; 
-  color: #fbbf24; 
-  margin-bottom: 12px; 
+.container {
+  max-width: 1100px;
+  margin: 0 auto;
+  background: rgba(15, 23, 42, 0.95);
+  border: 1px solid #1e293b;
+  padding: 25px;
+  border-radius: 16px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
 }
 
 h1 {
-  font-size: 26px;
-  background: linear-gradient(135deg, #38bdf8 0%, #fbbf24 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
+  font-weight: 800;
+  color: #ffffff;
+  letter-spacing: -0.5px;
+  font-size: 24px;
 }
 
-.admin-subtitle { 
-  text-align: center; 
-  color: #94a3b8; 
-  font-size: 13px; 
-  margin-bottom: 25px; 
+.admin-subtitle, .director-title {
+  color: #94a3b8;
+  font-size: 13px;
+  margin-top: 4px;
+}
+
+/* ==========================================================================
+   2. INTERACTIVE UI CONTAINERS, CARDS & INPUTS
+   ========================================================================== */
+.card-box, .control-box, .login-card {
+  background: #0f172a;
+  border: 1px solid #334155;
+  padding: 20px;
+  border-radius: 12px;
+  margin-top: 15px;
+}
+
+label {
+  display: block;
+  color: #cbd5e1;
+  font-size: 13px;
   font-weight: 600;
+  margin-bottom: 6px;
 }
 
-/* LOGIN SCREEN STYLES */
+input, select, textarea {
+  width: 100%;
+  padding: 12px;
+  background: #020617;
+  color: #ffffff;
+  border: 1px solid #475569;
+  border-radius: 8px;
+  font-size: 14px;
+  outline: none;
+  transition: border-color 0.2s ease;
+}
+
+input:focus, select:focus, textarea:focus {
+  border-color: #38bdf8;
+}
+
+/* Checkbox specific wrapper styling overrides */
+input[type="checkbox"] {
+  width: auto;
+  margin-right: 5px;
+  cursor: pointer;
+}
+
+/* ==========================================================================
+   3. PREMIUM ACTION BUTTONS
+   ========================================================================== */
+.btn-primary {
+  padding: 12px 24px;
+  background: #0284c7;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-weight: 700;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background 0.2s, transform 0.1s;
+}
+
+.btn-primary:hover {
+  background: #0369a1;
+}
+
+.btn-primary:active {
+  transform: scale(0.98);
+}
+
+button {
+  border-radius: 6px;
+  border: none;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+/* ==========================================================================
+   4. ADMIN SESSION INITIALIZATION (LOGIN MATRIX COVER)
+   ========================================================================== */
 .login-wrapper {
   position: fixed;
   top: 0; left: 0; width: 100%; height: 100%;
-  background: #0b0f19;
-  display: flex; justify-content: center; align-items: center;
-  z-index: 9999; padding: 20px;
-  background-image: radial-gradient(rgba(255,255,255,0.15) 1px, transparent 0);
-  background-size: 35px 35px;
+  background: #020617;
+  z-index: 999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
 }
 
 .login-outer-box {
-  background: #111827;
-  border: 1px solid rgba(56, 189, 248, 0.25);
-  border-radius: 16px;
-  padding: 30px 24px;
-  max-width: 480px; width: 100%;
+  width: 100%;
+  max-width: 450px;
   text-align: center;
-  box-shadow: 0 15px 35px rgba(0,0,0,0.8);
 }
 
 .login-header-title {
-  font-size: 20px;
+  font-size: 28px;
   font-weight: 800;
-  color: #38bdf8;
-  letter-spacing: 0.5px;
-  margin-bottom: 4px;
+  color: #ffffff;
 }
 
 .login-header-sub {
-  font-size: 12px;
-  color: #94a3b8;
-  margin-bottom: 25px;
-}
-
-.login-card {
-  background: #0b0f19;
-  padding: 24px;
-  border-radius: 12px;
-  border: 1px solid #374151;
-  box-shadow: inset 0 2px 4px rgba(0,0,0,0.4);
-  text-align: left;
+  font-size: 13px;
+  color: #64748b;
+  margin-top: 5px;
+  margin-bottom: 20px;
 }
 
 .login-card-title {
-  font-size: 15px;
+  font-size: 16px;
+  color: #38bdf8;
   font-weight: 700;
-  color: #f8fafc;
-  margin-bottom: 16px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
+  margin-bottom: 15px;
+  text-align: left;
 }
 
-/* Welcome Animation Styles & Permanent Overlap Fix */
+/* ==========================================================================
+   5. GRAND WELCOME CURTAIN ANIMATION LAYER SYSTEM
+   ========================================================================== */
 .welcome-overlay {
   position: fixed;
-  top: 0; left: 0; width: 100vw; height: 100vh;
-  background: #0b0f19;
-  display: flex; justify-content: center; align-items: center;
-  z-index: 10000; padding: 20px; color: #fff; text-align: center;
-  overflow: hidden;
-  transition: opacity 0.4s ease, visibility 0.4s ease;
+  top: 0; left: 0; width: 100%; height: 100%;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .welcome-curtain-top, .welcome-curtain-bottom {
   position: absolute;
-  left: 0; width: 100%; height: 50.2%;
-  background: #0b0f19;
-  z-index: 5;
+  left: 0; width: 100%; height: 50%;
+  background: #020617;
   transition: transform 0.8s cubic-bezier(0.77, 0, 0.175, 1);
-  border: none;
 }
-
 .welcome-curtain-top { top: 0; }
 .welcome-curtain-bottom { bottom: 0; }
 
-.welcome-overlay.reveal-open .welcome-curtain-top {
-  transform: translateY(-100%);
-  border-bottom: 2px solid #38bdf8;
-}
-
-.welcome-overlay.reveal-open .welcome-curtain-bottom {
-  transform: translateY(100%);
-  border-top: 2px solid #38bdf8;
-}
-
-.welcome-overlay.reveal-open .welcome-box {
-  opacity: 0;
-  transition: opacity 0.4s ease;
-}
-
 .welcome-box {
   position: relative;
-  z-index: 10;
-  max-width: 500px; width: 100%;
-  background: rgba(15, 23, 42, 0.95);
-  padding: 40px 25px;
-  border-radius: 20px;
-  border: 2px solid #fbbf24;
-  box-shadow: 0 0 40px rgba(251, 191, 36, 0.3);
-}
-
-.pulse-ring { font-size: 55px; animation: pulse 1.5s infinite; margin-bottom: 15px; }
-
-@keyframes pulse {
-  0% { transform: scale(0.95); }
-  50% { transform: scale(1.1); }
-  100% { transform: scale(0.95); }
+  z-index: 10000;
+  text-align: center;
+  transition: opacity 0.5s ease;
 }
 
 .welcome-title {
-  font-size: 26px; font-weight: 800;
-  background: linear-gradient(135deg, #4ade80 0%, #fbbf24 100%);
-  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-  margin-bottom: 8px; letter-spacing: 1px;
-}
-
-.welcome-sub { color: #cbd5e1; font-size: 14px; margin-bottom: 25px; }
-
-.loader-bar-bg {
-  width: 100%; height: 10px; background: #1f2937;
-  border-radius: 10px; overflow: hidden; border: 1px solid #374151;
-}
-
-.loader-bar-fill {
-  width: 0%; height: 100%;
-  background: linear-gradient(90deg, #38bdf8 0%, #4ade80 100%);
-  transition: width 0.1s linear;
-}
-
-.btn-3d-question {
-  display: inline-block;
-  padding: 16px 32px;
-  font-size: 16px;
-  font-weight: 800;
+  font-size: 32px;
+  font-weight: 900;
   color: #ffffff;
-  text-decoration: none;
-  text-transform: uppercase;
   letter-spacing: 1px;
-  background: linear-gradient(135deg, #059669 0%, #10b981 50%, #34d399 100%);
-  border-radius: 12px;
-  box-shadow: 0 8px 0 #047857, 0 15px 25px rgba(16, 185, 129, 0.4);
-  transition: all 0.15s ease-in-out;
-  position: relative;
-  top: 0;
-  border: 1px solid #6ee7b7;
-}
-
-.btn-3d-question:hover {
-  background: linear-gradient(135deg, #10b981 0%, #34d399 100%);
-  box-shadow: 0 6px 0 #047857, 0 18px 30px rgba(52, 211, 153, 0.6);
-  top: 2px;
-}
-
-.btn-3d-question:active {
-  box-shadow: 0 2px 0 #047857, 0 5px 10px rgba(16, 185, 129, 0.3);
-  top: 6px;
-}
-
-/* 100% Guaranteed Overlap & Ghost Screen Fix */
-.hidden { display: none !important; }
-
-.welcome-overlay.hidden {
-  display: none !important;
-  visibility: hidden !important;
-  opacity: 0 !important;
-  z-index: -9999 !important;
-  pointer-events: none !important;
-}
-
-.card-box { 
-  background: #1f2937; 
-  padding: 20px; 
-  border-radius: 10px; 
-  border: 1px solid #374151; 
-  box-shadow: 0 6px 16px rgba(0,0,0,0.3);
-}
-
-label { 
-  display: block; 
-  margin-bottom: 6px; 
-  font-weight: 600; 
-  color: #cbd5e1; 
-  font-size: 13px;
-}
-
-input, select, textarea { 
-  width: 100%; 
-  padding: 10px 12px; 
-  border: 1px solid #4b5563; 
-  border-radius: 6px; 
-  font-size: 14px; 
-  background: #0b0f19; 
-  color: #fff; 
-  outline: none;
-}
-
-input:focus, select:focus, textarea:focus { border-color: #38bdf8; }
-
-button { 
-  padding: 10px 16px; 
-  border: none; 
-  border-radius: 6px; 
-  font-size: 14px; 
-  font-weight: 700; 
-  cursor: pointer; 
-}
-
-.btn-primary { 
-  background: linear-gradient(135deg, #0284c7 0%, #38bdf8 100%); 
-  color: white; 
-}
-
-table { 
-  width: 100%; 
-  border-collapse: collapse; 
-  font-size: 13px; 
-  white-space: nowrap;
   margin-top: 10px;
 }
 
-th, td { 
-  padding: 12px 14px; 
-  text-align: left; 
-  border-bottom: 1px solid #374151; 
-  vertical-align: middle;
+.welcome-sub {
+  color: #94a3b8;
+  font-size: 14px;
 }
 
-th { 
-  background-color: #1f2937; 
-  color: #fbbf24; 
-  text-transform: uppercase;
-  font-size: 11px;
+.loader-bar-bg {
+  width: 250px;
+  height: 6px;
+  background: #1e293b;
+  border-radius: 3px;
+  margin: 20px auto 0;
+  overflow: hidden;
 }
 
-tr:nth-child(even) { background-color: rgba(31, 41, 55, 0.4); }
+.loader-bar-fill {
+  width: 0%;
+  height: 100%;
+  background: linear-gradient(90deg, #38bdf8, #7c3aed);
+  border-radius: 3px;
+}
+
+/* Curtain Reveal Animation Dynamic Hooks */
+.reveal-open .welcome-curtain-top { transform: translateY(-100%); }
+.reveal-open .welcome-curtain-bottom { transform: translateY(100%); }
+.reveal-open .welcome-box { opacity: 0; pointer-events: none; }
+
+/* ==========================================================================
+   6. GRID LAYOUT DESIGN TERMINAL & UTILITIES
+   ========================================================================== */
+.hidden { 
+  display: none !important; 
+}
+
+hr {
+  border: 0;
+  border-top: 1px solid #1e293b;
+  margin: 15px 0;
+}
+
+/* ==========================================================================
+   7. MEDIA QUERIES FOR MOBILE SMARTPHONES (RESPONSIVE EDGE)
+   ========================================================================== */
+@media (max-width: 768px) {
+  .container { 
+    padding: 15px; 
+  }
+  h1 { 
+    font-size: 20px; 
+  }
+  .card-box {
+    padding: 15px;
+  }
+  .welcome-title {
+    font-size: 24px;
+  }
+}
