@@ -9,20 +9,22 @@ from firebase_admin import credentials, firestore
 app = Flask(__name__)
 CORS(app, resources={r"/api/*": {"origins": "*"}})
 
+# 🛡️ SECURE ENVIRONMENT INITIALIZATION
 try:
     if not firebase_admin._apps:
         firebase_key_json = os.environ.get('FIREBASE_CONFIG_JSON')
         if not firebase_key_json:
-            raise ValueError("CRITICAL: FIREBASE_CONFIG_JSON is missing in Render settings!")
-            
+            raise ValueError("FIREBASE_CONFIG_JSON is missing in Render settings!")
         cred_dict = json.loads(firebase_key_json)
         cred = credentials.Certificate(cred_dict)
         firebase_admin.initialize_app(cred)
-        print("✅ Firebase Admin SDK initialized safely from Environment Locker!")
     db = firestore.client()
 except Exception as e:
-    print(f"❌ Initialization Error Details: {str(e)}")
+    print(f"❌ Init Error: {str(e)}")
 
+# ==========================================================
+# 🟢 1. SYSTEM CONFIG & MASTER TOGGLE SWITCHES
+# ==========================================================
 @app.route('/api/portal/config', methods=['GET'])
 def get_global_config():
     try:
@@ -32,19 +34,17 @@ def get_global_config():
             if "adminPassword" in config:
                 del config["adminPassword"]
             return jsonify({"status": "success", "config": config}), 200
-        return jsonify({"status": "error", "message": "Configuration map missing!"}), 404
+        return jsonify({"status": "error", "message": "Missing config!"}), 404
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
-# 🚨 THE FIX: MASTER CONFIG & TOGGLE SWITCHES UPDATE ENDPOINT
 @app.route('/api/admin/update_config', methods=['POST'])
 def update_master_portal_settings():
     try:
         data = request.json
         config_ref = db.collection('settings').document('portal_config')
         
-        # Server-side update map vector for active dashboard switches
-        config_ref.update({
+        config_ref.set({
             "onlineFee": int(data.get('onlineFee', 100)),
             "offlineFee": int(data.get('offlineFee', 120)),
             "examDuration": int(data.get('examDuration', 30)),
@@ -54,12 +54,79 @@ def update_master_portal_settings():
             "isExamActive": bool(data.get('isExamActive', False)),
             "isResultDeclared": bool(data.get('isResultDeclared', False)),
             "broadcastNotice": data.get('broadcastNotice', '').strip()
-        })
+        }, merge=True)
         
-        return jsonify({"status": "success", "message": "Master system settings published successfully!"}), 200
+        return jsonify({"status": "success", "message": "Master settings synced successfully!"}), 200
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
+# ==========================================================
+# 🟢 2. ORGANIZER CONFIGURATION HANDLERS
+# ==========================================================
+@app.route('/api/organizer/update_settings', methods=['POST'])
+def update_organizer_settings():
+    try:
+        data = request.json
+        org_code = data.get('orgCode', '').strip().upper()
+        
+        org_ref = db.collection('organizers').document(org_code)
+        if not org_ref.get().exists:
+            return jsonify({"status": "error", "message": "Organizer code not found!"}), 404
+            
+        org_ref.update({
+            "examMode": data.get('examMode', 'online'),
+            "principalApproved": bool(data.get('principalApproved', False))
+        })
+        return jsonify({"status": "success", "message": "Organizer settings updated on server!"}), 200
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route('/api/organizer/register', methods=['POST'])
+def organizer_signup():
+    try:
+        data = request.json
+        contact = data.get('contact', '').strip()
+        password = data.get('password', '').strip()
+        pin = data.get('pin', '').strip()
+
+        if len(contact) != 10 or len(pin) != 4:
+            return jsonify({"status": "error", "message": "Invalid credentials!"}), 400
+
+        existing = db.collection('organizers').where('contact', '==', contact).get()
+        if len(existing) > 0:
+            return jsonify({"status": "error", "message": "Mobile number already registered!"}), 400
+
+        generated_code = f"ORG{random.randint(1000, 9999)}"
+        db.collection('organizers').document(generated_code).set({
+            "orgCode": generated_code, "code": generated_code, "name": data.get('name'),
+            "schoolName": data.get('schoolName'), "contact": contact, "password": password, "pin": pin,
+            "refCode": data.get('refCode') if data.get('refCode') else None, "examMode": "online",
+            "principalApproved": False, "manualSettled": False, "totalRegistrations": 0, "pendingCommission": 0,
+            "registeredAt": firestore.SERVER_TIMESTAMP
+        })
+        return jsonify({"status": "success", "orgCode": generated_code}), 200
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route('/api/organizer/login', methods=['POST'])
+def organizer_login():
+    try:
+        data = request.json
+        code = data.get('orgCode', '').strip().upper()
+        password = data.get('password', '').strip()
+
+        doc = db.collection('organizers').document(code).get()
+        if doc.exists:
+            org_data = doc.to_dict()
+            if org_data.get('password') == password:
+                return jsonify({"status": "success", "data": org_data}), 200
+        return jsonify({"status": "error", "message": "Invalid credentials!"}), 401
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+# ==========================================================
+# 🟢 3. SECURE STUDENT ACCOUNT ENTRY
+# ==========================================================
 @app.route('/api/student/verify-school', methods=['POST'])
 def verify_school_code():
     try:
@@ -70,14 +137,13 @@ def verify_school_code():
         if org_doc.exists:
             org_data = org_doc.to_dict()
             if not org_data.get('principalApproved', False):
-                return jsonify({"status": "locked", "message": "School Code is temporarily locked. Principal approval pending!"}), 200
-            
+                return jsonify({"status": "locked", "message": "Principal permission required!"}), 200
             return jsonify({
                 "status": "success",
-                "schoolName": org_data.get('schoolName', 'NVMSO Associated School'),
+                "schoolName": org_data.get('schoolName'),
                 "examMode": org_data.get('examMode', 'online')
             }), 200
-        return jsonify({"status": "invalid", "message": "Organizer Code Not Found!"}), 200
+        return jsonify({"status": "invalid"}), 200
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
@@ -87,15 +153,11 @@ def secure_registration():
         data = request.json
         org_code = data.get('orgCode', '').strip().upper()
         roll_num = data.get('rollNumber', '').strip()
-        
-        if not org_code or not roll_num or not data.get('studentName'):
-            return jsonify({"status": "error", "message": "Blank entries not allowed!"}), 400
 
         student_id = f"{org_code}_{roll_num}"
         student_ref = db.collection('students').document(student_id)
-        
         if student_ref.get().exists:
-            return jsonify({"status": "error", "message": "This Roll Number is already registered!"}), 400
+            return jsonify({"status": "error", "message": "Roll Number already registered!"}), 400
 
         student_ref.set({
             "orgCode": org_code, "studentName": data.get('studentName'),
@@ -113,52 +175,7 @@ def secure_registration():
                 "totalRegistrations": firestore.Increment(1),
                 "pendingCommission": firestore.Increment(20)
             })
-
-        return jsonify({"status": "success", "message": "Registration Data Captured Safely!"}), 200
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
-
-@app.route('/api/organizer/register', methods=['POST'])
-def organizer_signup():
-    try:
-        data = request.json
-        contact = data.get('contact', '').strip()
-        password = data.get('password', '').strip()
-        pin = data.get('pin', '').strip()
-
-        if len(contact) != 10 or len(pin) != 4:
-            return jsonify({"status": "error", "message": "Invalid Contact Number or PIN!"}), 400
-
-        existing = db.collection('organizers').where('contact', '==', contact).get()
-        if len(existing) > 0:
-            return jsonify({"status": "error", "message": "This Mobile Number is already registered!"}), 400
-
-        generated_code = f"ORG{random.randint(1000, 9999)}"
-        db.collection('organizers').document(generated_code).set({
-            "orgCode": generated_code, "code": generated_code, "name": data.get('name'),
-            "schoolName": data.get('schoolName'), "contact": contact, "password": password, "pin": pin,
-            "refCode": data.get('refCode') if data.get('refCode') else None, "examMode": "online",
-            "principalApproved": False, "manualSettled": False, "totalRegistrations": 0, "pendingCommission": 0,
-            "registeredAt": firestore.SERVER_TIMESTAMP
-        })
-
-        return jsonify({"status": "success", "message": "Organizer Registered!", "orgCode": generated_code}), 200
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
-
-@app.route('/api/organizer/login', methods=['POST'])
-def organizer_login():
-    try:
-        data = request.json
-        code = data.get('orgCode', '').strip().upper()
-        password = data.get('password', '').strip()
-
-        doc = db.collection('organizers').document(code).get()
-        if doc.exists:
-            org_data = doc.to_dict()
-            if org_data.get('password') == password:
-                return jsonify({"status": "success", "data": org_data}), 200
-        return jsonify({"status": "error", "message": "Invalid Credentials!"}), 401
+        return jsonify({"status": "success"}), 200
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
@@ -169,28 +186,11 @@ def admin_master_auth():
         entered_password = data.get('password', '').strip()
         config_doc = db.collection('settings').document('portal_config').get()
         master_pass = "narmada2026"
-        
         if config_doc.exists and config_doc.to_dict().get('adminPassword'):
             master_pass = config_doc.to_dict().get('adminPassword')
-
         if entered_password == master_pass:
-            return jsonify({"status": "success", "token": "NVMS_CHIEF_SESSION_ACTIVE"}), 200
-        return jsonify({"status": "error", "message": "Access Denied!"}), 403
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
-
-@app.route('/api/admin/add-question', methods=['POST'])
-def add_new_question():
-    try:
-        data = request.json
-        db.collection('questions').add({
-            "targetClass": data.get('classRange'), "subject": data.get('subject'),
-            "qText": data.get('questionText'), "optA": data.get('optionA'),
-            "optB": data.get('optionB'), "optC": data.get('optionC'),
-            "optD": data.get('optionD'), "correctOpt": data.get('correctOption'),
-            "createdAt": firestore.SERVER_TIMESTAMP
-        })
-        return jsonify({"status": "success", "message": "Question saved safely!"}), 200
+            return jsonify({"status": "success"}), 200
+        return jsonify({"status": "error"}), 403
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
