@@ -1,15 +1,10 @@
-/**
- * Narmada Valley Maths & Science Olympiad (NVMSO)
- * Official Central Command Admin Panel Core Script
- * Protected by Secure Multi-Tab Cloud Validation Pipeline
- */
+const SERVER_URL = "https://onrender.com";
 
-const SERVER_URL = "https://nvmso-backend.onrender.com";
 window.verifyAdminPassword = async () => {
   const passInput = document.getElementById("admin-pass-input").value.trim();
   const alertBox = document.getElementById("login-security-alert");
 
-  if(!passInput) { alert("Please input master authorization key."); return; }
+  if (!passInput) { alert("Please input master authorization key."); return; }
 
   fetch(`${SERVER_URL}/api/admin/authenticate`, {
     method: "POST",
@@ -19,9 +14,10 @@ window.verifyAdminPassword = async () => {
   .then(res => {
     if (res.status === 200) {
       if (alertBox) alertBox.style.display = "none";
-      triggerGrandWelcome(); // Call curtain animation matrix
+      triggerGrandWelcome(); 
+      initializeCentralPanelData(); 
     } else {
-      throw new Error("Invalid Signature");
+      throw new Error();
     }
   })
   .catch(() => {
@@ -65,6 +61,66 @@ function triggerGrandWelcome() {
   }, 1000);
 }
 
-window.logoutAdminSession = () => {
-  location.reload();
+function initializeCentralPanelData() {
+  fetch(`${SERVER_URL}/api/portal/config`)
+    .then(res => res.json())
+    .then(data => {
+      if (data.status === "success") {
+        const config = data.config;
+        if (document.getElementById("cfg-online-fee")) document.getElementById("cfg-online-fee").value = config.onlineFee || 100;
+        if (document.getElementById("cfg-offline-fee")) document.getElementById("cfg-offline-fee").value = config.offlineFee || 120;
+        if (document.getElementById("cfg-duration")) document.getElementById("cfg-duration").value = config.examDuration || 30;
+        if (document.getElementById("cfg-upi")) document.getElementById("cfg-upi").value = config.upiId || "narmada@upi";
+        if (document.getElementById("cfg-qr-url")) document.getElementById("cfg-qr-url").value = config.qrImageUrl || "Qrcode.jpg";
+        
+        if (document.getElementById("cfg-reg-active")) document.getElementById("cfg-reg-active").checked = !!config.isRegistrationOpen;
+        if (document.getElementById("cfg-exam-active")) document.getElementById("cfg-exam-active").checked = !!config.isExamActive;
+        if (document.getElementById("cfg-result-allowed")) document.getElementById("cfg-result-allowed").checked = !!config.isResultDeclared;
+        if (document.getElementById("admin-broadcast-input")) document.getElementById("admin-broadcast-input").value = config.broadcastNotice || "";
+
+        setupSmartSwitchesExclusiveRule();
+      }
+    });
+}
+
+// 🚨 SMART INTERLOCK INTERFACE MATRIX
+// Ensures that only one portal phase remains active at any given moment.
+function setupSmartSwitchesExclusiveRule() {
+  const regChk = document.getElementById("cfg-reg-active");
+  const examChk = document.getElementById("cfg-exam-active");
+  const resultChk = document.getElementById("cfg-result-allowed");
+
+  if(regChk && examChk && resultChk) {
+    regChk.addEventListener("change", () => { if(regChk.checked) { examChk.checked = false; resultChk.checked = false; } });
+    examChk.addEventListener("change", () => { if(examChk.checked) { regChk.checked = false; resultChk.checked = false; } });
+    resultChk.addEventListener("change", () => { if(resultChk.checked) { regChk.checked = false; examChk.checked = false; } });
+  }
+}
+
+window.saveGlobalConfig = async () => {
+  const payload = {
+    onlineFee: Number(document.getElementById("cfg-online-fee").value),
+    offlineFee: Number(document.getElementById("cfg-offline-fee").value),
+    examDuration: Number(document.getElementById("cfg-duration").value),
+    upiId: document.getElementById("cfg-upi").value,
+    qrImageUrl: document.getElementById("cfg-qr-url").value,
+    isRegistrationOpen: document.getElementById("cfg-reg-active").checked,
+    isExamActive: document.getElementById("cfg-exam-active").checked,
+    isResultDeclared: document.getElementById("cfg-result-allowed").checked,
+    broadcastNotice: document.getElementById("admin-broadcast-input").value.trim()
+  };
+
+  fetch(`${SERVER_URL}/api/admin/update_config`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  })
+  .then(res => res.json())
+  .then(data => {
+    if (data.status === "success") {
+      alert("✅ Command Dispatched: Portal phases and parameters updated across server nodes!");
+    }
+  }).catch(() => alert("❌ Sync Connection Error."));
 };
+
+window.logoutAdminSession = () => { location.reload(); };
