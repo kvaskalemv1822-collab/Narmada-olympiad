@@ -2,114 +2,75 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>NVMSO - Question Bank Manager</title>
-  <link rel="stylesheet" href="central.css?v=2">
+  <link rel="stylesheet" href="central.css?v=8">
+  <link href="https://googleapis.com" rel="stylesheet">
 </head>
-<body style="background: #0b0f19; padding: 15px;">
+<body style="background: #0b0f19; padding: 15px; color:#fff;">
 
-<!-- MAIN QUESTION MANAGER CONTAINER (Direct Open) -->
-<div id="question-main-container" class="container" style="display: block !important;">
-  <h1>📚 Exam Question Bank Manager</h1>
-  <div class="director-title" style="margin-bottom: 20px;">
-    <a href="central.html" style="color: #38bdf8; text-decoration: none; font-weight: bold;">⬅ Back to Central Command Panel</a>
-  </div>
-
-  <!-- EXAM SCORING & NEGATIVE MARKING SETTINGS PANEL -->
-  <div class="control-box" style="border: 1px solid #38bdf8; background: rgba(15, 23, 42, 0.85); padding: 20px; border-radius: 12px; margin-bottom: 25px;">
-    <h3 style="color:#38bdf8; margin-bottom: 15px;">⚙️ Exam Rules & Scoring Configuration</h3>
-    <div class="grid-2" style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
-      <div>
-        <label style="color: #cbd5e1; font-weight: 600; font-size: 13px; margin-bottom: 6px; display: block;">Marks Per Correct Answer:</label>
-        <input type="number" id="config-marks-correct" value="1" min="1" max="10" style="width: 100%; padding: 10px; border-radius: 8px; background: #020617; color: #fff; border: 1px solid #475569;">
-      </div>
-      <div>
-        <label style="color: #cbd5e1; font-weight: 600; font-size: 13px; margin-bottom: 6px; display: block;">Negative Marking (per wrong answer):</label>
-        <select id="config-negative-marking" style="width: 100%; padding: 10px; border-radius: 8px; background: #020617; color: #fff; border: 1px solid #475569;">
-          <option value="0">0 (No Negative Marking)</option>
-          <option value="0.25">0.25 Marks</option>
-          <option value="0.5">0.50 Marks</option>
-          <option value="1">1 Mark</option>
-        </select>
-      </div>
+<div id="question-main-container" class="container">
+  <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #374151; padding-bottom: 15px; margin-bottom: 20px;">
+    <div>
+      <h1>📚 Exam Question Bank Manager</h1>
+      <div class="director-title">Formulate and Manage Live Competitive Papers</div>
     </div>
-    <button type="button" onclick="saveExamScoringConfig()" style="margin-top: 15px; padding: 10px 18px; font-weight: bold; border-radius: 8px; border: none; cursor: pointer; background: #0284c7; color: #fff;">💾 Save Exam Rules</button>
+    <div>
+      <a href="central.html" class="btn-primary" style="text-decoration: none; background: #4b5563; font-size: 13px;">⬅ Back to Control Room</a>
+    </div>
   </div>
 
-  <div class="control-box" style="border: 1px solid #c084fc; background: rgba(15, 23, 42, 0.85); padding: 20px; border-radius: 12px;">
-    <h3 style="color:#c084fc; margin-bottom: 15px;">✍️ Add New Exam Question</h3>
+  <!-- QUESTION MANAGER INPUT VECTOR CONTAINER -->
+  <div class="control-box" style="border: 1px solid #c084fc; background: rgba(15, 23, 42, 0.85); padding: 25px; border-radius: 12px;">
+    <h3 style="color:#c084fc; margin-bottom: 15px;">✍️ Add New Exam Question Element</h3>
     
-    <div class="setting-card" style="border: 1px dashed #c084fc; padding: 15px; border-radius: 10px;">
-      <div class="grid-2" style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
-        <div>
-          <label style="color: #cbd5e1; font-weight: 600; font-size: 13px; margin-bottom: 6px; display: block;">Select Target Class Range:</label>
-          <select id="q-class-select" style="width: 100%; padding: 10px; border-radius: 8px; background: #020617; color: #fff; border: 1px solid #475569;">
-            <option value="3-5">Class 3rd to 5th</option>
-            <option value="6-8" selected>Class 6th to 8th</option>
-            <option value="9-10">Class 9th to 10th</option>
-            <option value="11-12-Maths">Class 11th & 12th (Maths Stream)</option>
-            <option value="11-12-Science">Class 11th & 12th (Science Stream)</option>
-          </select>
-        </div>
-        <div>
-          <label style="color: #cbd5e1; font-weight: 600; font-size: 13px; margin-bottom: 6px; display: block;">Subject:</label>
-          <select id="q-subject-select" style="width: 100%; padding: 10px; border-radius: 8px; background: #020617; color: #fff; border: 1px solid #475569;">
-            <option value="Maths">Mathematics</option>
-            <option value="Science">Science</option>
-            <option value="GK">General Knowledge / Reasoning</option>
-          </select>
-        </div>
-      </div>
-
-      <div style="margin-top: 15px;">
-        <label style="color: #cbd5e1; font-weight: 600; font-size: 13px; margin-bottom: 6px; display: block;">Question Statement (Hindi/English):</label>
-        <textarea id="q-text" rows="2" placeholder="e.g. What is the capital of MP?" style="width:100%; padding:10px; border-radius:8px; background:#020617; color:#fff; border:1px solid rgba(56,189,248,0.3); outline: none;"></textarea>
-      </div>
-
-      <div class="grid-2" style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 15px;">
-        <div><label style="color: #cbd5e1; font-size: 12px; margin-bottom: 4px; display: block;">Option A:</label><input type="text" id="q-opt-a" placeholder="Option A" style="width: 100%; padding: 10px; border-radius: 8px; background: #020617; color: #fff; border: 1px solid #475569;"></div>
-        <div><label style="color: #cbd5e1; font-size: 12px; margin-bottom: 4px; display: block;">Option B:</label><input type="text" id="q-opt-b" placeholder="Option B" style="width: 100%; padding: 10px; border-radius: 8px; background: #020617; color: #fff; border: 1px solid #475569;"></div>
-      </div>
-
-      <div class="grid-2" style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 12px;">
-        <div><label style="color: #cbd5e1; font-size: 12px; margin-bottom: 4px; display: block;">Option C:</label><input type="text" id="q-opt-c" placeholder="Option C" style="width: 100%; padding: 10px; border-radius: 8px; background: #020617; color: #fff; border: 1px solid #475569;"></div>
-        <div><label style="color: #cbd5e1; font-size: 12px; margin-bottom: 4px; display: block;">Option D:</label><input type="text" id="q-opt-d" placeholder="Option D" style="width: 100%; padding: 10px; border-radius: 8px; background: #020617; color: #fff; border: 1px solid #475569;"></div>
-      </div>
-
-      <div style="margin-top: 15px; max-width: 250px;">
-        <label style="color: #cbd5e1; font-weight: 600; font-size: 13px; margin-bottom: 6px; display: block;">Correct Answer Key:</label>
-        <select id="q-correct-opt" style="width: 100%; padding: 10px; border-radius: 8px; background: #020617; color: #fff; border: 1px solid #475569;">
-          <option value="A">Option A</option>
-          <option value="B">Option B</option>
-          <option value="C">Option C</option>
-          <option value="D">Option D</option>
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:15px; margin-bottom: 15px;">
+      <div>
+        <label>Select Target Class Range:</label>
+        <select id="q-class-select">
+          <option value="3-5">Class 3rd to 5th</option>
+          <option value="6-8" selected>Class 6th to 8th</option>
+          <option value="9-10">Class 9th to 10th</option>
+          <option value="11-12-Maths">Class 11th & 12th (Maths)</option>
+          <option value="11-12-Science">Class 11th & 12th (Science)</option>
         </select>
       </div>
-
-      <button type="button" onclick="addNewQuestionToBank()" style="margin-top:20px; padding: 12px 20px; font-weight: bold; border-radius: 8px; border: none; cursor: pointer; background: linear-gradient(135deg, #7c3aed 0%, #c084fc 100%); color: #fff;">➕ Save Question to Database</button>
+      <div>
+        <label>Subject Category / Topic:</label>
+        <select id="q-subject-select">
+          <option value="Maths">Mathematics</option>
+          <option value="Science">Science Column</option>
+          <option value="GK">General Knowledge / Logic</option>
+        </select>
+      </div>
     </div>
 
-    <h4 style="color:#f8fafc; margin-top:30px; margin-bottom: 10px;">Questions in Database (<span id="total-questions-count">0</span>)</h4>
-    <div style="overflow-x: auto;">
-      <table id="questions-table" style="width: 100%; border-collapse: collapse; font-size: 13px;">
-        <thead>
-          <tr style="background: #020617; color: #fbbf24; text-align: left;">
-            <th style="padding: 10px;">Set / Class</th>
-            <th style="padding: 10px;">Subject</th>
-            <th style="padding: 10px;">Question</th>
-            <th style="padding: 10px;">Options</th>
-            <th style="padding: 10px;">Correct Ans</th>
-            <th style="padding: 10px;">Action</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr><td colspan="6" style="text-align:center; color:#94a3b8; padding: 15px;">No questions added yet.</td></tr>
-        </tbody>
-      </table>
+    <div style="margin-bottom: 15px;">
+      <label>Question Statement (Supports Hindi/English Text):</label>
+      <textarea id="q-text" rows="4" placeholder="Type or paste the exam question statement here..."></textarea>
     </div>
+
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:15px; margin-bottom: 15px;">
+      <div><label>Option A Input:</label><input type="text" id="q-opt-a" placeholder="Enter option A statement" required></div>
+      <div><label>Option B Input:</label><input type="text" id="q-opt-b" placeholder="Enter option B statement" required></div>
+      <div><label>Option C Input:</label><input type="text" id="q-opt-c" placeholder="Enter option C statement" required></div>
+      <div><label>Option D Input:</label><input type="text" id="q-opt-d" placeholder="Enter option D statement" required></div>
+    </div>
+
+    <div style="margin-bottom: 20px; max-width: 250px;">
+      <label>Correct Answer Key Matrix:</label>
+      <select id="q-correct-opt" style="border-color: #a855f7;">
+        <option value="A">Option A</option>
+        <option value="B">Option B</option>
+        <option value="C">Option C</option>
+        <option value="D">Option D</option>
+      </select>
+    </div>
+
+    <button type="button" class="btn-primary" style="width:100%; background:linear-gradient(135deg, #7c3aed 0%, #c084fc 100%); padding: 14px;" onclick="addNewQuestionToBank()">➕ Save Question to Database Engine</button>
   </div>
 </div>
 
-<script type="module" src="question.js"></script>
+<script src="question.js?v=8"></script>
 </body>
 </html>
