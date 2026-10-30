@@ -7,18 +7,13 @@ import firebase_admin
 from firebase_admin import credentials, firestore
 
 app = Flask(__name__)
-# CORS कनेक्टिविटी ताकि आपकी गिटहब की फ्रंटएंड साइट्स सुरक्षित रूप से कनेक्ट हो सकें
 CORS(app, resources={r"/api/*": {"origins": "*"}})
 
-# ==========================================================
-# 🛡️ 100% SECURE FIREBASE INITIALIZATION FROM ENV VARIABLE
-# ==========================================================
 try:
     if not firebase_admin._apps:
-        # यह कोड फ़ाइल नहीं ढूंढेगा, सीधे Render के Environment Variable से डेटा पढ़ेगा
         firebase_key_json = os.environ.get('FIREBASE_CONFIG_JSON')
         if not firebase_key_json:
-            raise ValueError("CRITICAL: FIREBASE_CONFIG_JSON variable is missing in Render Settings!")
+            raise ValueError("CRITICAL: FIREBASE_CONFIG_JSON is missing in Render settings!")
             
         cred_dict = json.loads(firebase_key_json)
         cred = credentials.Certificate(cred_dict)
@@ -28,16 +23,12 @@ try:
 except Exception as e:
     print(f"❌ Initialization Error Details: {str(e)}")
 
-# ==========================================================
-# 🟢 1. GLOBAL SETTINGS & NOTICES SYSTEM
-# ==========================================================
 @app.route('/api/portal/config', methods=['GET'])
 def get_global_config():
     try:
         config_doc = db.collection('settings').document('portal_config').get()
         if config_doc.exists:
             config = config_doc.to_dict()
-            # 🛡️ SECURITY: क्लाइंट स्क्रीन पर एडमिन का मास्टर पासवर्ड लीक नहीं होना चाहिए
             if "adminPassword" in config:
                 del config["adminPassword"]
             return jsonify({"status": "success", "config": config}), 200
@@ -45,9 +36,30 @@ def get_global_config():
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
-# ==========================================================
-# 🟢 2. STUDENT PORTAL OPERATIONS
-# ==========================================================
+# 🚨 THE FIX: MASTER CONFIG & TOGGLE SWITCHES UPDATE ENDPOINT
+@app.route('/api/admin/update_config', methods=['POST'])
+def update_master_portal_settings():
+    try:
+        data = request.json
+        config_ref = db.collection('settings').document('portal_config')
+        
+        # Server-side update map vector for active dashboard switches
+        config_ref.update({
+            "onlineFee": int(data.get('onlineFee', 100)),
+            "offlineFee": int(data.get('offlineFee', 120)),
+            "examDuration": int(data.get('examDuration', 30)),
+            "upiId": data.get('upiId', 'narmada@upi').strip(),
+            "qrImageUrl": data.get('qrImageUrl', 'Qrcode.jpg').strip(),
+            "isRegistrationOpen": bool(data.get('isRegistrationOpen', True)),
+            "isExamActive": bool(data.get('isExamActive', False)),
+            "isResultDeclared": bool(data.get('isResultDeclared', False)),
+            "broadcastNotice": data.get('broadcastNotice', '').strip()
+        })
+        
+        return jsonify({"status": "success", "message": "Master system settings published successfully!"}), 200
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
 @app.route('/api/student/verify-school', methods=['POST'])
 def verify_school_code():
     try:
@@ -57,7 +69,6 @@ def verify_school_code():
         org_doc = db.collection('organizers').document(org_code).get()
         if org_doc.exists:
             org_data = org_doc.to_dict()
-            # गेंटिंग लॉजिक: अगर प्रिंसिपल की अनुमति टिक नहीं है, तो बच्चे रुक जाएंगे
             if not org_data.get('principalApproved', False):
                 return jsonify({"status": "locked", "message": "School Code is temporarily locked. Principal approval pending!"}), 200
             
@@ -80,45 +91,33 @@ def secure_registration():
         if not org_code or not roll_num or not data.get('studentName'):
             return jsonify({"status": "error", "message": "Blank entries not allowed!"}), 400
 
-        # डुप्लीकेट रोकने के लिए स्कूल कोड + रोल नंबर का कॉम्बिनेशन
         student_id = f"{org_code}_{roll_num}"
         student_ref = db.collection('students').document(student_id)
         
         if student_ref.get().exists:
-            return jsonify({"status": "error", "message": "This Roll Number is already registered in your school!"}), 400
+            return jsonify({"status": "error", "message": "This Roll Number is already registered!"}), 400
 
         student_ref.set({
-            "orgCode": org_code,
-            "studentName": data.get('studentName'),
-            "motherName": data.get('motherName'),
-            "fatherName": data.get('fatherName'),
-            "studentClass": data.get('studentClass'),
-            "rollNumber": roll_num,
-            "stream": data.get('stream', ''),
-            "contactNumber": data.get('contactNumber'),
-            "paymentMode": data.get('paymentMode'),
-            "utrNumber": data.get('utrNumber', ''),
-            "paymentStatus": "Pending",  # सिर्फ एडमिन या ऑर्गनाइज़र ही अप्रूव कर सकेंगे
-            "examStatus": "Not Started",
-            "score": 0,
+            "orgCode": org_code, "studentName": data.get('studentName'),
+            "motherName": data.get('motherName'), "fatherName": data.get('fatherName'),
+            "studentClass": data.get('studentClass'), "rollNumber": roll_num,
+            "stream": data.get('stream', ''), "contactNumber": data.get('contactNumber'),
+            "paymentMode": data.get('paymentMode'), "utrNumber": data.get('utrNumber', ''),
+            "paymentStatus": "Pending", "examStatus": "Not Started", "score": 0,
             "createdAt": firestore.SERVER_TIMESTAMP
         })
 
-        # 📈 ऑटोमैटिक रेफ़रल और कमीशन ट्रैकर नेटवर्क (सुरक्षित बैकएंड लॉजिक)
         org_ref = db.collection('organizers').document(org_code)
         if org_ref.get().exists:
             org_ref.update({
                 "totalRegistrations": firestore.Increment(1),
-                "pendingCommission": firestore.Increment(20)  # ₹20 प्रति छात्र कमीशन ट्रैकिंग
+                "pendingCommission": firestore.Increment(20)
             })
 
         return jsonify({"status": "success", "message": "Registration Data Captured Safely!"}), 200
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
-# ==========================================================
-# 🟢 3. ORGANIZER DASHBOARD OPERATIONS
-# ==========================================================
 @app.route('/api/organizer/register', methods=['POST'])
 def organizer_signup():
     try:
@@ -128,29 +127,18 @@ def organizer_signup():
         pin = data.get('pin', '').strip()
 
         if len(contact) != 10 or len(pin) != 4:
-            return jsonify({"status": "error", "message": "Invalid Contact Number or 4-Digit Secret PIN!"}), 400
+            return jsonify({"status": "error", "message": "Invalid Contact Number or PIN!"}), 400
 
         existing = db.collection('organizers').where('contact', '==', contact).get()
         if len(existing) > 0:
             return jsonify({"status": "error", "message": "This Mobile Number is already registered!"}), 400
 
-        # रैंडम शॉर्ट कोड जनरेटर (जैसे: ORG4826)
         generated_code = f"ORG{random.randint(1000, 9999)}"
-        
         db.collection('organizers').document(generated_code).set({
-            "orgCode": generated_code,
-            "code": generated_code,
-            "name": data.get('name'),
-            "schoolName": data.get('schoolName'),
-            "contact": contact,
-            "password": password,
-            "pin": pin,
-            "refCode": data.get('refCode') if data.get('refCode') else None,
-            "examMode": "online",
-            "principalApproved": False,
-            "manualSettled": False,
-            "totalRegistrations": 0,
-            "pendingCommission": 0,
+            "orgCode": generated_code, "code": generated_code, "name": data.get('name'),
+            "schoolName": data.get('schoolName'), "contact": contact, "password": password, "pin": pin,
+            "refCode": data.get('refCode') if data.get('refCode') else None, "examMode": "online",
+            "principalApproved": False, "manualSettled": False, "totalRegistrations": 0, "pendingCommission": 0,
             "registeredAt": firestore.SERVER_TIMESTAMP
         })
 
@@ -170,29 +158,24 @@ def organizer_login():
             org_data = doc.to_dict()
             if org_data.get('password') == password:
                 return jsonify({"status": "success", "data": org_data}), 200
-        
-        return jsonify({"status": "error", "message": "Invalid Organizer Code or Password!"}), 401
+        return jsonify({"status": "error", "message": "Invalid Credentials!"}), 401
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
-# ==========================================================
-# 🟢 4. CENTRAL COMMAND ADMIN OPERATIONS
-# ==========================================================
 @app.route('/api/admin/authenticate', methods=['POST'])
 def admin_master_auth():
     try:
         data = request.json
         entered_password = data.get('password', '').strip()
-
         config_doc = db.collection('settings').document('portal_config').get()
-        master_pass = "narmada2026"  # बैकअप पासवर्ड
+        master_pass = "narmada2026"
         
         if config_doc.exists and config_doc.to_dict().get('adminPassword'):
             master_pass = config_doc.to_dict().get('adminPassword')
 
         if entered_password == master_pass:
             return jsonify({"status": "success", "token": "NVMS_CHIEF_SESSION_ACTIVE"}), 200
-        return jsonify({"status": "error", "message": "Security Alert: Access Denied!"}), 403
+        return jsonify({"status": "error", "message": "Access Denied!"}), 403
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
@@ -201,17 +184,13 @@ def add_new_question():
     try:
         data = request.json
         db.collection('questions').add({
-            "targetClass": data.get('classRange'),
-            "subject": data.get('subject'),
-            "qText": data.get('questionText'),
-            "optA": data.get('optionA'),
-            "optB": data.get('optionB'),
-            "optC": data.get('optionC'),
-            "optD": data.get('optionD'),
-            "correctOpt": data.get('correctOption'),
+            "targetClass": data.get('classRange'), "subject": data.get('subject'),
+            "qText": data.get('questionText'), "optA": data.get('optionA'),
+            "optB": data.get('optionB'), "optC": data.get('optionC'),
+            "optD": data.get('optionD'), "correctOpt": data.get('correctOption'),
             "createdAt": firestore.SERVER_TIMESTAMP
         })
-        return jsonify({"status": "success", "message": "Question saved to database safely!"}), 200
+        return jsonify({"status": "success", "message": "Question saved safely!"}), 200
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
