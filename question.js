@@ -4,7 +4,7 @@
  * Connected to Unified Live Render Server Environment
  */
 
-const SERVER_URL = "https://onrender.com";
+const SERVER_URL = "https://nvmso-backend.onrender.com"; 
 
 window.addNewQuestionToBank = async () => {
   const qText = document.getElementById("q-text").value.trim();
