@@ -9,7 +9,6 @@ from firebase_admin import credentials, firestore
 app = Flask(__name__)
 CORS(app, resources={r"/api/*": {"origins": "*"}})
 
-# 🛡️ FIREBASE INITIALIZATION FROM ENV VARIABLE LOADER
 try:
     if not firebase_admin._apps:
         firebase_key_json = os.environ.get('FIREBASE_CONFIG_JSON')
@@ -22,7 +21,6 @@ try:
 except Exception as e:
     print(f"❌ Initialization Error: {str(e)}")
 
-# --- ADMIN AUTHENTICATION ROUTE ---
 @app.route('/api/admin/authenticate', methods=['POST'])
 def admin_authenticate():
     try:
@@ -39,7 +37,6 @@ def admin_authenticate():
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
-# --- GLOBAL CONFIG METRICS ---
 @app.route('/api/portal/config', methods=['GET'])
 def get_global_config():
     try:
@@ -72,7 +69,6 @@ def update_master_portal_settings():
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
-# --- STUDENT HUB PIPELINE ---
 @app.route('/api/student/verify-school', methods=['POST'])
 def verify_school_code():
     try:
@@ -123,16 +119,19 @@ def secure_registration():
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
-# --- ORGANIZER PORTAL ENGINE ---
 @app.route('/api/organizer/register', methods=['POST'])
 def organizer_signup():
     try:
         data = request.json
+        raw_school = data.get('schoolName', '').strip()
+        # 🎯 CAPITALIZE FIRST LETTER OF EACH WORD IN SCHOOL NAME
+        formatted_school = ' '.join([w.capitalize() for w in raw_school.split()]) if raw_school else "Associated School"
+        
         contact = data.get('contact', '').strip()
         generated_code = f"ORG{random.randint(1000, 9999)}"
         db.collection('organizers').document(generated_code).set({
             "orgCode": generated_code, "code": generated_code, "name": data.get('name'),
-            "schoolName": data.get('schoolName'), "contact": contact, "password": data.get('password'), "pin": data.get('pin'),
+            "schoolName": formatted_school, "contact": contact, "password": data.get('password'), "pin": data.get('pin'),
             "refCode": data.get('refCode') if data.get('refCode') else None, "examMode": "online",
             "principalApproved": False, "manualSettled": False, "totalRegistrations": 0,
             "registeredAt": firestore.SERVER_TIMESTAMP
@@ -175,6 +174,7 @@ def get_organizer_students():
         org_doc = db.collection('organizers').document(code).get()
         org_data = org_doc.to_dict() if org_doc.exists else {}
         ref_code = org_data.get('refCode')
+        is_manually_settled = org_data.get('manualSettled', False)
         
         docs = db.collection('students').where('orgCode', '==', code).get()
         students_list = []
@@ -221,6 +221,7 @@ def get_organizer_students():
             "status": "success",
             "students": students_list,
             "isResultDeclared": is_result_on,
+            "isSettled": is_manually_settled,
             "financials": {
                 "totalRegistrations": len(students_list),
                 "onlineCount": online_count,
@@ -255,6 +256,12 @@ def request_commission_payout():
         if not org_code or not upi_id or amount <= 0:
             return jsonify({"status": "error", "message": "Invalid payout details!"}), 400
             
+        org_doc = db.collection('organizers').document(org_code).get()
+        if org_doc.exists:
+            org_data = org_doc.to_dict()
+            if not org_data.get('manualSettled', False):
+                return jsonify({"status": "error", "message": "Settlement Blocked: Please pay net amount to NVMS before requesting commission payout!"}), 400
+
         db.collection('payout_requests').add({
             "orgCode": org_code,
             "upiId": upi_id,
