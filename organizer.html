@@ -9,7 +9,7 @@
 </head>
 <body style="background:#0b0f19; padding:15px; color:#fff;">
 
-<div id="org-main-container" class="container">
+<div id="org-main-container" class="container" style="max-width: 1100px;">
   <h1>🏫 NVMSO School Coordinator Panel</h1>
   <div class="admin-subtitle">Register and Manage Associated School Desk</div>
 
@@ -51,16 +51,74 @@
 
   <!-- DASHBOARD WORKSPACE VIEW -->
   <div id="org-view" class="hidden" style="margin-top:20px;">
+    
+    <!-- BROADCAST NOTICE BANNER -->
     <div id="admin-notice-banner" class="card-box hidden" style="border:1px solid #fbbf24; background:rgba(251,191,36,0.1); margin-bottom:15px; padding:15px; border-radius:8px;">
       <p style="color:#fbbf24; font-weight:700;">📢 Broadcast Alert from Central Admin Command:</p>
       <p id="notice-text" style="font-size:13px; margin-top:4px; color:#e2e8f0;"></p>
     </div>
 
+    <!-- SCHOOL STATUS PANEL -->
     <div class="card-box" style="border:1px solid #38bdf8; background:#0f172a; padding:20px; border-radius:12px;">
       <h3 style="color:#38bdf8;">📊 Associated Desk Status Panel</h3><br>
       <p style="margin-bottom:6px;"><strong>Organizer Assigned Code:</strong> <span id="display-org-code" style="color:#ffffff; font-weight:700; background:#1e293b; padding:2px 8px; border-radius:4px;"></span></p>
       <p style="margin-bottom:6px;"><strong>Coordinator Profile:</strong> <span id="display-org-name" style="color:#e2e8f0;"></span></p>
       <p style="margin-bottom:6px;"><strong>Connected Institute:</strong> <span id="display-org-school" style="color:#e2e8f0;"></span></p>
+    </div>
+
+    <!-- FINANCIAL LEDGER & COMMISSION SETTLEMENT SUMMARY CARD -->
+    <div class="card-box" style="margin-top:20px; border:1px solid #f59e0b; background:#0f172a; padding:20px; border-radius:12px;">
+      <h3 style="color:#f59e0b; margin-bottom:15px;">💰 Financial Ledger & Commission Settlement Matrix</h3>
+      
+      <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:15px;">
+        <div style="background:#020617; padding:15px; border-radius:8px; border:1px solid #334155;">
+          <p style="font-size:12px; color:#94a3b8;">Total Registrations</p>
+          <h2 id="fin-total-regs" style="color:#ffffff; margin-top:5px;">0</h2>
+        </div>
+        <div style="background:#020617; padding:15px; border-radius:8px; border:1px solid #334155;">
+          <p style="font-size:12px; color:#94a3b8;">Total Fees Collected</p>
+          <h2 id="fin-total-fees" style="color:#38bdf8; margin-top:5px;">₹0</h2>
+        </div>
+        <div style="background:#020617; padding:15px; border-radius:8px; border:1px solid #334155;">
+          <p style="font-size:12px; color:#94a3b8;">Direct Commission (15%)</p>
+          <h2 id="fin-direct-comm" style="color:#4ade80; margin-top:5px;">₹0</h2>
+        </div>
+        <div style="background:#020617; padding:15px; border-radius:8px; border:1px solid #334155;">
+          <p style="font-size:12px; color:#94a3b8;">Referral Commission (5%)</p>
+          <h2 id="fin-ref-comm" style="color:#facc15; margin-top:5px;">₹0</h2>
+        </div>
+      </div>
+
+      <div style="margin-top:15px; background:#020617; padding:15px; border-radius:8px; border:1px solid #334155; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+        <div>
+          <p style="font-size:13px; color:#cbd5e1;"><strong>Net Amount Payable to NVMS:</strong> (Total Fees - Your 15% Direct Commission)</p>
+        </div>
+        <div>
+          <h2 id="fin-net-payable" style="color:#f87171;">₹0</h2>
+        </div>
+      </div>
+    </div>
+
+    <!-- REGISTERED STUDENTS ROSTER TABLE -->
+    <div class="card-box" style="margin-top:20px; border:1px solid #334155; background:#0f172a; padding:20px; border-radius:12px;">
+      <h3 style="color:#38bdf8; margin-bottom:15px;">📋 Registered Students Roster & Payment Approvals</h3>
+      <div style="overflow-x: auto;">
+        <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 13px;">
+          <thead>
+            <tr style="border-bottom: 2px solid #334155; color: #94a3b8;">
+              <th style="padding: 10px;">Student Name</th>
+              <th style="padding: 10px;">Roll Number</th>
+              <th style="padding: 10px;">Class</th>
+              <th style="padding: 10px;">Mode</th>
+              <th style="padding: 10px;">Payment Status</th>
+              <th style="padding: 10px;">Action / Verification</th>
+            </tr>
+          </thead>
+          <tbody id="student-roster-rows" style="color: #f8fafc;">
+            <!-- Dynamically populated via organizer.js -->
+          </tbody>
+        </table>
+      </div>
     </div>
 
     <!-- ADJUST EXAM MODE ASSIGNMENT VECTOR -->
@@ -83,9 +141,10 @@
         <label style="margin-bottom:0; cursor:pointer; color:#e2e8f0; font-size:13px;">I verify that the School Principal approval signed authorization certificate has been uploaded/confirmed.</label>
       </div>
     </div>
+
   </div>
 </div>
 
-<script src="organizer.js?v=6"></script>
+<script src="organizer.js?v=7"></script>
 </body>
 </html>
