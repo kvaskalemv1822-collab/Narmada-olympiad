@@ -377,3 +377,111 @@ if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
     app.run(host='0.0.0.0', port=port)
 
+# ==========================================================================
+# 🏫 ORG & CENTRAL DATA DISPATCHERS (REAL-TIME SYNC INVERSION)
+# ==========================================================================
+
+@app.route('/api/organizer/students', methods=['POST'])
+def get_organizer_students():
+    """स्कूल को-ऑर्डिनेटर को केवल उसके स्कूल के रजिस्टर्ड छात्रों की लाइव लिस्ट भेजता है"""
+    try:
+        data = request.json or {}
+        code = str(data.get('orgCode', '')).strip().upper()
+        
+        if not code:
+            return jsonify({"status": "error", "message": "Missing organization code reference!"}), 400
+
+        # केवल उसी स्कूल कोड के छात्रों को फेच करें
+        s_query = db.collection('students').where('orgCode', '==', code).order_by('createdAt', direction=firestore.Query.DESCENDING).get()
+        
+        students_list = []
+        total_fees = 0
+        direct_commission = 0
+        
+        org_doc = db.collection('organizers').document(code).get()
+        is_settled = org_doc.to_dict().get('manualSettled', False) if org_doc.exists else False
+        
+        config_doc = db.collection('settings').document('portal_config').get()
+        is_result_declared = config_doc.to_dict().get('isResultDeclared', False) if config_doc.exists else False
+
+        for doc in s_query:
+            s_data = doc.to_dict()
+            s_class = int(s_data.get('studentClass', 3))
+            
+            # लाइव फीस कैलकुलेशन आर्किटेक्चर (ऑनलाइन ₹100 / ऑफलाइन ₹120)
+            fee = 120 if s_data.get('paymentMode') == 'offline' else 100
+            total_fees += fee
+            direct_commission += (fee * 0.15) # 15% Standard Coordinator Margin
+            
+            students_list.append({
+                "id": doc.id,
+                "studentName": s_data.get('studentName'),
+                "rollNumber": s_data.get('rollNumber'),
+                "studentClass": s_class,
+                "paymentMode": s_data.get('paymentMode'),
+                "paymentStatus": s_data.get('paymentStatus'),
+                "utrNumber": s_data.get('utrNumber'),
+                "examStatus": s_data.get('examStatus'),
+                "score": s_data.get('score', 0),
+                "password": s_data.get('studentPassword', '🔒 HIDDEN')
+            })
+
+        financials = {
+            "totalRegistrations": len(students_list),
+            "totalFees": total_fees,
+            "directCommission": int(direct_commission),
+            "referralCommission": 0,
+            "netPayableToNvms": int(total_fees - direct_commission)
+        }
+
+        return jsonify({
+            "status": "success", 
+            "students": students_list, 
+            "financials": financials,
+            "isSettled": is_settled,
+            "isResultDeclared": is_result_declared
+        }), 200
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route('/api/admin/all_data', methods=['POST'])
+def get_all_central_admin_data():
+    """आपके मुख्य सेंट्रल मास्टर पैनल को पूरी दुनिया के सभी छात्रों और स्कूलों का डेटा लाइव दिखाता है"""
+    try:
+        # मास्टर कलेक्शन फेच वेक्टर्स
+        all_orgs = db.collection('organizers').get()
+        all_stds = db.collection('students').get()
+        
+        orgs_list = []
+        stds_list = []
+        
+        for doc in all_orgs:
+            o_data = doc.to_dict()
+            orgs_list.append({
+                "orgCode": o_data.get('orgCode'),
+                "schoolName": o_data.get('schoolName'),
+                "name": o_data.get('name'),
+                "contact": o_data.get('contact'),
+                "examMode": o_data.get('examMode', 'online'),
+                "totalRegistrations": o_data.get('totalRegistrations', 0),
+                "manualSettled": o_data.get('manualSettled', False)
+            })
+            
+        for doc in all_stds:
+            s_data = doc.to_dict()
+            stds_list.append({
+                "studentName": s_data.get('studentName'),
+                "rollNumber": s_data.get('rollNumber'),
+                "orgCode": s_data.get('orgCode'),
+                "studentClass": s_data.get('studentClass'),
+                "score": s_data.get('score', 0)
+            })
+            
+        return jsonify({
+            "status": "success",
+            "organizers": orgs_list,
+            "students": stds_list
+        }), 200
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
