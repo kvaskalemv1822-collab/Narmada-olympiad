@@ -1,4 +1,4 @@
-https://nvmso-backend.onrender.com
+const SERVER_URL = "https://nvmso-backend.onrender.com";
 let currentOrg = null;
 let portalConfig = {};
 
