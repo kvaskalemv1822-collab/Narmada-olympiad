@@ -22,9 +22,18 @@ function fetchPortalConfig() {
 
         const isRegOpen = !!portalConfigData.isRegistrationOpen;
         const isExamActive = !!portalConfigData.isExamActive;
+        const isResultDeclared = !!portalConfigData.isResultDeclared;
 
-        // 🚨 ABSOLUTE EXCLUSIVITY FILTER: Strict step segregation vectors
-        if (isRegOpen) {
+        if (isResultDeclared) {
+          if (btnReg) btnReg.style.display = "none";
+          if (btnLogin) btnLogin.style.display = "block";
+          btnLogin.textContent = "🏆 View Result / Scorecard";
+          switchTab('login'); 
+          if (statusMsg) {
+            statusMsg.textContent = "🏆 Exam Results Declared! Check your scorecard below.";
+            statusMsg.style.color = "#facc15";
+          }
+        } else if (isRegOpen) {
           if (btnReg) btnReg.style.display = "block";
           if (btnLogin) btnLogin.style.display = "none";
           switchTab('reg'); 
@@ -35,6 +44,7 @@ function fetchPortalConfig() {
         } else if (isExamActive) {
           if (btnReg) btnReg.style.display = "none";
           if (btnLogin) btnLogin.style.display = "block";
+          btnLogin.textContent = "✍️ Take Online Exam";
           switchTab('login'); 
           if (statusMsg) {
             statusMsg.textContent = "✍️ Online Exam Portal is Active.";
@@ -59,9 +69,12 @@ function fetchPortalConfig() {
 window.fetchSchoolName = function(val) {
   const display = document.getElementById("school-name-display");
   const modeBadge = document.getElementById("display-student-exam-mode");
+  const onlineSection = document.getElementById("online-payment-section");
   
   if (!val || val.trim().length < 4) {
     if (display) display.innerText = "";
+    isOrganizerVerified = false;
+    if (onlineSection) onlineSection.style.display = "none";
     return;
   }
 
@@ -73,20 +86,34 @@ window.fetchSchoolName = function(val) {
   .then(res => res.json())
   .then(data => {
     if (data.status === "success") {
-      display.innerHTML = `✅ School Authorized: <strong>${data.schoolName}</strong>`;
+      // 📌 School name bold formatting & Fee display
+      display.innerHTML = `✅ School Authorized: <strong style="color:#10b981; font-size:13px;">${data.schoolName}</strong>`;
       display.style.color = "#10b981";
       modeBadge.innerText = data.examMode.toUpperCase();
       isOrganizerVerified = true;
       verifiedOrgExamMode = data.examMode;
+
+      // Update fee text
+      const feeDisplay = document.getElementById("fee-amount-display");
+      if (feeDisplay) feeDisplay.innerText = data.applicableFee;
+
+      // Show QR code section if online payment mode is selected
+      const payMode = document.getElementById("payment-mode").value;
+      if (payMode === "online" && onlineSection) {
+        onlineSection.style.display = "block";
+      }
+
       renderDynamicUPIQR();
     } else if (data.status === "locked") {
       display.innerText = `🔒 ${data.message}`;
       display.style.color = "#f59e0b";
       isOrganizerVerified = false;
+      if (onlineSection) onlineSection.style.display = "none";
     } else {
       display.innerText = "❌ Invalid Organizer Code!";
       display.style.color = "#ef4444";
       isOrganizerVerified = false;
+      if (onlineSection) onlineSection.style.display = "none";
     }
   });
 };
@@ -95,19 +122,22 @@ function renderDynamicUPIQR() {
   const qrBox = document.getElementById("dynamic-qr-container");
   if (!qrBox) return;
   qrBox.innerHTML = "";
+  
+  // 🔒 Do not show QR code until organizer code is verified
   if (!isOrganizerVerified) {
-    qrBox.innerHTML = "<p style='color:#94a3b8; font-size:13px;'>🔒 Enter valid School Code to unlock QR.</p>";
+    qrBox.innerHTML = "<p style='color:#94a3b8; font-size:12px;'>🔒 Enter valid School Code first to generate QR.</p>";
     return;
   }
+
   let fee = verifiedOrgExamMode === "offline" ? (portalConfigData.offlineFee || 120) : (portalConfigData.onlineFee || 100);
   let upiUrl = `upi://pay?pa=${encodeURIComponent(activeUpiString)}&pn=NVMSO&am=${fee}&cu=INR`;
   if (typeof QRCode !== "undefined") {
-    new QRCode(qrBox, { text: upiUrl, width: 180, height: 180 });
+    new QRCode(qrBox, { text: upiUrl, width: 160, height: 160 });
   }
 }
 
 window.openDirectUpiApp = function() {
-  if (!isOrganizerVerified) { alert("Please verify School Code first!"); return; }
+  if (!isOrganizerVerified) { alert("Please verify School Organizer Code first!"); return; }
   let fee = verifiedOrgExamMode === "offline" ? (portalConfigData.offlineFee || 120) : (portalConfigData.onlineFee || 100);
   window.location.href = `upi://pay?pa=${encodeURIComponent(activeUpiString)}&pn=NVMSO&am=${fee}&cu=INR`;
 };
@@ -115,6 +145,12 @@ window.openDirectUpiApp = function() {
 document.getElementById('reg-form').addEventListener('submit', function(e) {
   e.preventDefault();
   if (!isOrganizerVerified) { alert("Please verify School Organizer Code first!"); return; }
+
+  const termsChecked = document.getElementById('terms-checkbox').checked;
+  if (!termsChecked) {
+    alert("⚠️ Please accept the Terms & Conditions policy before submitting registration.");
+    return;
+  }
 
   const payload = {
     orgCode: document.getElementById('org-code').value.toUpperCase(),
@@ -137,10 +173,11 @@ document.getElementById('reg-form').addEventListener('submit', function(e) {
   .then(res => res.json())
   .then(data => {
     if (data.status === "success") {
-      alert("🎉 Registration Saved Safely to Cloud Database Vector!");
+      alert("🎉 Registration Saved Successfully to Cloud Database!");
       document.getElementById('reg-form').reset();
       isOrganizerVerified = false;
-      renderDynamicUPIQR();
+      document.getElementById("online-payment-section").style.display = "none";
+      document.getElementById("school-name-display").innerText = "";
     } else {
       alert("❌ Error: " + data.message);
     }
@@ -151,20 +188,19 @@ window.switchTab = (tabName) => {
   if (tabName === 'reg') {
     document.getElementById("registration-view").classList.remove("hidden");
     document.getElementById("login-view").classList.add("hidden");
-    document.getElementById("nav-btn-reg").classList.add("active-tab");
-    document.getElementById("nav-btn-login").classList.remove("active-tab");
   } else {
     document.getElementById("registration-view").classList.add("hidden");
     document.getElementById("login-view").classList.remove("hidden");
-    document.getElementById("nav-btn-reg").classList.remove("active-tab");
-    document.getElementById("nav-btn-login").classList.add("active-tab");
   }
 };
 
 window.handlePaymentModeChange = (mode) => {
   const onlineSection = document.getElementById("online-payment-section");
-  if (mode === "online") onlineSection.classList.remove("hidden");
-  else onlineSection.classList.add("hidden");
+  if (mode === "online" && isOrganizerVerified) {
+    onlineSection.style.display = "block";
+  } else {
+    onlineSection.style.display = "none";
+  }
 };
 
 window.handleClassChange = (val) => {
