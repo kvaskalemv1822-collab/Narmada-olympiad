@@ -2,6 +2,8 @@ const SERVER_URL = "https://nvmso-backend.onrender.com";
 let currentOrg = null;
 let portalConfig = {};
 let isAccountSettled = false;
+let adminUpiId = "narmada@upi";
+let currentNetPayable = 0;
 
 document.addEventListener("DOMContentLoaded", () => {
   fetchGlobalConfigAndNotice();
@@ -78,7 +80,6 @@ function loadDashboardView() {
   document.getElementById("display-org-name").textContent = currentOrg.name;
   document.getElementById("display-org-school").textContent = currentOrg.schoolName;
   
-  // Set WhatsApp chat support link dynamically inside dashboard
   const chatLink = document.getElementById("dashboard-chat-link");
   if(chatLink) {
     chatLink.href = `https://wa.me/919999999999?text=Hello%20NVMS%20Admin,%20I%20am%20organizer%20(${orgCodeKey}%20-%20${encodeURIComponent(currentOrg.schoolName)}).%20I%20need%20help%20regarding:`;
@@ -139,6 +140,7 @@ function fetchRegisteredStudentsList() {
   .then(data => {
     if (data.status === "success") {
       isAccountSettled = !!data.isSettled;
+      adminUpiId = data.adminUpiId || "narmada@upi";
       
       const statusTextEl = document.getElementById("settlement-status-text");
       if (statusTextEl) {
@@ -152,11 +154,12 @@ function fetchRegisteredStudentsList() {
       }
 
       if (data.financials) {
+        currentNetPayable = data.financials.netPayableToNvms;
         if(document.getElementById("fin-total-regs")) document.getElementById("fin-total-regs").textContent = data.financials.totalRegistrations;
         if(document.getElementById("fin-total-fees")) document.getElementById("fin-total-fees").textContent = `₹${data.financials.totalFees}`;
         if(document.getElementById("fin-direct-comm")) document.getElementById("fin-direct-comm").textContent = `₹${data.financials.directCommission}`;
         if(document.getElementById("fin-ref-comm")) document.getElementById("fin-ref-comm").textContent = `₹${data.financials.referralCommission}`;
-        if(document.getElementById("fin-net-payable")) document.getElementById("fin-net-payable").textContent = `₹${data.financials.netPayableToNvms}`;
+        if(document.getElementById("fin-net-payable")) document.getElementById("fin-net-payable").textContent = `₹${currentNetPayable}`;
       }
 
       container.innerHTML = "";
@@ -165,9 +168,31 @@ function fetchRegisteredStudentsList() {
         return;
       }
 
-      const tableHead = document.querySelector("table thead tr");
-      if(data.isResultDeclared && tableHead && !document.getElementById("th-rank-node")) {
-         tableHead.innerHTML = `<th id="th-rank-node" style="padding:10px;">Rank Order</th>` + tableHead.innerHTML + `<th style="padding:10px;">Score Marks</th><th style="padding:10px;">Percentage</th>`;
+      // Dynamic Header for Result Ranking & Marks/Percentage
+      const tableHead = document.getElementById("roster-table-head");
+      if (tableHead) {
+        if (data.isResultDeclared) {
+          tableHead.innerHTML = `
+            <th style="padding:10px;">Rank Order</th>
+            <th style="padding:10px;">Student Name</th>
+            <th style="padding:10px;">Roll Number</th>
+            <th style="padding:10px;">Class</th>
+            <th style="padding:10px;">Mode</th>
+            <th style="padding:10px;">Payment Status</th>
+            <th style="padding:10px;">Action / Verification</th>
+            <th style="padding:10px; color:#4ade80;">Score Marks</th>
+            <th style="padding:10px; color:#38bdf8;">Percentage</th>
+          `;
+        } else {
+          tableHead.innerHTML = `
+            <th style="padding:10px;">Student Name</th>
+            <th style="padding:10px;">Roll Number</th>
+            <th style="padding:10px;">Class</th>
+            <th style="padding:10px;">Mode</th>
+            <th style="padding:10px;">Payment Status</th>
+            <th style="padding:10px;">Action / Verification</th>
+          `;
+        }
       }
 
       data.students.forEach(s => {
@@ -217,6 +242,36 @@ window.approveStudentCashEntry = function(studentId) {
       fetchRegisteredStudentsList(); 
     }
   });
+};
+
+// ⚡ DIRECT UPI / PHONEPE PAYMENT TO NVMS
+window.payNetPayableToNvms = function() {
+  if (currentNetPayable <= 0) {
+    alert("⚠️ No net amount payable to NVMS right now.");
+    return;
+  }
+  const orgCode = currentOrg.code || currentOrg.orgCode;
+  const upiLink = `upi://pay?pa=${adminUpiId}&pn=NVMSO%20Central%20Admin&am=${currentNetPayable}&cu=INR&tn=Settlement%20for%20${orgCode}`;
+  
+  // Trigger UPI intent / app (PhonePe, GPay, Paytm)
+  window.location.href = upiLink;
+
+  setTimeout(() => {
+    const utr = prompt("Enter UTR / Transaction Reference Number after successful payment to notify NVMS Admin:");
+    if (utr) {
+      fetch(`${SERVER_URL}/api/organizer/submit_settlement`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orgCode: orgCode, utrNumber: utr, amount: currentNetPayable })
+      })
+      .then(res => res.json())
+      .then(d => {
+        if(d.status === "success") {
+          alert("✅ Settlement payment proof submitted successfully! Admin will verify and unlock commission payouts.");
+        }
+      });
+    }
+  }, 1500);
 };
 
 window.requestCommissionPayout = function() {
