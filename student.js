@@ -74,6 +74,7 @@ window.fetchSchoolName = function(val) {
   if (!val || val.trim().length < 4) {
     if (display) display.innerText = "";
     isOrganizerVerified = false;
+    if (modeBadge) modeBadge.innerText = "Exam Conduct Mode: ENTER ORGANIZER CODE FIRST";
     if (onlineSection) onlineSection.style.display = "none";
     return;
   }
@@ -86,18 +87,12 @@ window.fetchSchoolName = function(val) {
   .then(res => res.json())
   .then(data => {
     if (data.status === "success") {
-      // 📌 School name bold formatting & Fee display
       display.innerHTML = `✅ School Authorized: <strong style="color:#10b981; font-size:13px;">${data.schoolName}</strong>`;
       display.style.color = "#10b981";
-      modeBadge.innerText = data.examMode.toUpperCase();
+      modeBadge.innerText = `EXAM CONDUCT MODE: ${data.examMode.toUpperCase()}`;
       isOrganizerVerified = true;
       verifiedOrgExamMode = data.examMode;
 
-      // Update fee text
-      const feeDisplay = document.getElementById("fee-amount-display");
-      if (feeDisplay) feeDisplay.innerText = data.applicableFee;
-
-      // Show QR code section if online payment mode is selected
       const payMode = document.getElementById("payment-mode").value;
       if (payMode === "online" && onlineSection) {
         onlineSection.style.display = "block";
@@ -123,7 +118,6 @@ function renderDynamicUPIQR() {
   if (!qrBox) return;
   qrBox.innerHTML = "";
   
-  // 🔒 Do not show QR code until organizer code is verified
   if (!isOrganizerVerified) {
     qrBox.innerHTML = "<p style='color:#94a3b8; font-size:12px;'>🔒 Enter valid School Code first to generate QR.</p>";
     return;
@@ -142,6 +136,50 @@ window.openDirectUpiApp = function() {
   window.location.href = `upi://pay?pa=${encodeURIComponent(activeUpiString)}&pn=NVMSO&am=${fee}&cu=INR`;
 };
 
+// 📌 Confirm Details & Proceed Button Click Handler
+window.validateAndShowPayment = function() {
+  if (!isOrganizerVerified) {
+    alert("⚠️ Please enter and verify a valid School Organizer Code first!");
+    document.getElementById('org-code').focus();
+    return;
+  }
+  
+  const orgCode = document.getElementById('org-code').value.trim();
+  const name = document.getElementById('std-name').value.trim();
+  const mother = document.getElementById('std-mother').value.trim();
+  const father = document.getElementById('std-father').value.trim();
+  const stdClass = document.getElementById('std-class').value;
+  const roll = document.getElementById('std-roll').value.trim();
+  const contact = document.getElementById('std-contact').value.trim();
+
+  if (!orgCode || !name || !mother || !father || !stdClass || !roll || !contact) {
+    alert("❌ Please fill out all required student details before proceeding to payment!");
+    return;
+  }
+
+  // Hide Details Section, Show Payment Section Smoothly
+  document.getElementById('details-section').style.display = 'none';
+  document.getElementById('payment-section').style.display = 'block';
+  renderDynamicUPIQR();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+};
+
+window.backToDetails = function() {
+  document.getElementById('payment-section').style.display = 'none';
+  document.getElementById('details-section').style.display = 'block';
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+};
+
+window.toggleQrDisplay = function() {
+  const qrDiv = document.getElementById('dynamic-qr-container');
+  if (qrDiv.style.display === 'none' || qrDiv.style.display === '') {
+    qrDiv.style.display = 'flex';
+  } else {
+    qrDiv.style.display = 'none';
+  }
+};
+
+// 📌 Final Registration Form Submission
 document.getElementById('reg-form').addEventListener('submit', function(e) {
   e.preventDefault();
   if (!isOrganizerVerified) { alert("Please verify School Organizer Code first!"); return; }
@@ -154,15 +192,15 @@ document.getElementById('reg-form').addEventListener('submit', function(e) {
 
   const payload = {
     orgCode: document.getElementById('org-code').value.toUpperCase(),
-    studentName: document.getElementById('std-name').value,
-    motherName: document.getElementById('std-mother').value,
-    fatherName: document.getElementById('std-father').value,
+    studentName: document.getElementById('std-name').value.trim(),
+    motherName: document.getElementById('std-mother').value.trim(),
+    fatherName: document.getElementById('std-father').value.trim(),
     studentClass: document.getElementById('std-class').value,
-    rollNumber: document.getElementById('std-roll').value,
+    rollNumber: document.getElementById('std-roll').value.trim(),
     stream: document.getElementById('std-stream') ? document.getElementById('std-stream').value : '',
-    contactNumber: document.getElementById('std-contact').value,
+    contactNumber: document.getElementById('std-contact').value.trim(),
     paymentMode: document.getElementById('payment-mode').value,
-    utrNumber: document.getElementById('std-utr') ? document.getElementById('std-utr').value : ''
+    utrNumber: document.getElementById('std-utr') ? document.getElementById('std-utr').value.trim() : ''
   };
 
   fetch(`${SERVER_URL}/api/student/register`, {
@@ -175,12 +213,17 @@ document.getElementById('reg-form').addEventListener('submit', function(e) {
     if (data.status === "success") {
       alert("🎉 Registration Saved Successfully to Cloud Database!");
       document.getElementById('reg-form').reset();
+      document.getElementById('payment-section').style.display = 'none';
+      document.getElementById('details-section').style.display = 'block';
       isOrganizerVerified = false;
-      document.getElementById("online-payment-section").style.display = "none";
       document.getElementById("school-name-display").innerText = "";
+      document.getElementById("display-student-exam-mode").innerText = "Exam Conduct Mode: ENTER ORGANIZER CODE FIRST";
     } else {
       alert("❌ Error: " + data.message);
     }
+  })
+  .catch(() => {
+    alert("❌ Server connection error. Please try again.");
   });
 });
 
