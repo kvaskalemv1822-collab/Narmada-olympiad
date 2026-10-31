@@ -3,10 +3,10 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>NVMSO - Student Hub 2026</title>
-  <link rel="stylesheet" href="student.css?v=6">
+  <title>NVMSO - Student Portal 2026</title>
+  <link rel="stylesheet" href="student.css?v=10">
   <link href="https://googleapis.com" rel="stylesheet">
-  <script src="https://cloudflare.com"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 </head>
 <body>
 
@@ -18,7 +18,7 @@
   <!-- NAVIGATION TABS -->
   <div class="tab-nav">
     <button id="nav-btn-reg" class="tab-btn active-tab" onclick="switchTab('reg')">📝 Online Registration</button>
-    <button id="nav-btn-login" class="tab-btn" onclick="switchTab('login')">✍️ Take Online Exam</button>
+    <button id="nav-btn-login" class="tab-btn" onclick="switchTab('login')" style="display:none;">✍️ Take Online Exam</button>
   </div>
 
   <!-- VIEW 1: REGISTRATION COMPONENT -->
@@ -28,7 +28,8 @@
         <div class="form-group">
           <label>Enter School Organizer Code:</label>
           <input type="text" id="org-code" placeholder="e.g. ORG1234" required oninput="fetchSchoolName(this.value)">
-          <span id="school-name-display" style="display:block; margin-top:5px; font-size:12px; font-weight:700;"></span>
+          <!-- School name bold display -->
+          <span id="school-name-display" style="display:block; margin-top:5px; font-size:12px; font-weight:bold;"></span>
         </div>
         <div class="form-group">
           <label>Applicable Exam Mode:</label>
@@ -78,9 +79,11 @@
         </div>
       </div>
 
-      <!-- ONLINE UPI PAYMENT CONTAINER -->
-      <div id="online-payment-section" class="qr-box">
-        <p style="color:#1e3c72; font-weight:700; margin-bottom:10px;">📲 Scan QR to Pay Registration Fee Instantly</p>
+      <!-- ONLINE UPI PAYMENT CONTAINER (Initially Hidden until organizer code verified) -->
+      <div id="online-payment-section" class="qr-box" style="display:none;">
+        <p style="color:#1e3c72; font-weight:700; margin-bottom:6px;">📲 Scan QR to Pay Registration Fee Instantly</p>
+        <p style="font-size:13px; color:#d9534f; font-weight:bold; margin-bottom:10px;">Applicable Registration Fee: ₹<span id="fee-amount-display">100</span></p>
+        
         <div style="display:flex; justify-content:center; margin-bottom:12px;">
           <div id="dynamic-qr-container"></div>
         </div>
@@ -88,6 +91,19 @@
         <div class="form-group" style="margin-top:15px;">
           <label style="color:#d9534f;">Enter UPI Payment Ref / UTR / Txn ID (12 Digits Mandatory):</label>
           <input type="text" id="std-utr" placeholder="Enter 12-digit transaction number" maxlength="12">
+        </div>
+      </div>
+
+      <!-- TERMS & CONDITIONS CHECKBOX WITH CLICKABLE POLICY LINK -->
+      <div style="display: flex; align-items: flex-start; gap: 10px; margin-bottom: 20px; background: rgba(2, 6, 23, 0.6); padding: 12px; border-radius: 8px; border: 1px solid #334155;">
+        <input type="checkbox" id="terms-checkbox" required style="width: 20px; height: 20px; cursor: pointer; margin-top: 2px;">
+        <div style="font-size: 12px; color: #cbd5e1; line-height: 1.4;">
+          <label for="terms-checkbox" style="cursor:pointer;">
+            I hereby declare that all information furnished is true and correct. I agree to abide by all rules and examination guidelines of the <strong>Narmada Valley Maths & Science Olympiad (NVMSO 2026)</strong>.
+          </label>
+          <div style="margin-top: 6px;">
+            <a href="terms.html" target="_blank" style="color: #38bdf8; text-decoration: underline; font-weight: bold;">📄 Click here to read Terms & Conditions Policy</a>
+          </div>
         </div>
       </div>
 
@@ -104,6 +120,6 @@
   </div>
 </div>
 
-<script src="student.js?v=6"></script>
+<script src="student.js?v=10"></script>
 </body>
 </html>
