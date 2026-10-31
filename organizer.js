@@ -1,6 +1,7 @@
 const SERVER_URL = "https://nvmso-backend.onrender.com";
 let currentOrg = null;
 let portalConfig = {};
+let isAccountSettled = false;
 
 document.addEventListener("DOMContentLoaded", () => {
   fetchGlobalConfigAndNotice();
@@ -77,6 +78,12 @@ function loadDashboardView() {
   document.getElementById("display-org-name").textContent = currentOrg.name;
   document.getElementById("display-org-school").textContent = currentOrg.schoolName;
   
+  // Set WhatsApp chat support link dynamically inside dashboard
+  const chatLink = document.getElementById("dashboard-chat-link");
+  if(chatLink) {
+    chatLink.href = `https://wa.me/919999999999?text=Hello%20NVMS%20Admin,%20I%20am%20organizer%20(${orgCodeKey}%20-%20${encodeURIComponent(currentOrg.schoolName)}).%20I%20need%20help%20regarding:`;
+  }
+  
   document.getElementById("principal-perm-checkbox").checked = !!currentOrg.principalApproved;
   document.getElementById("org-exam-mode-select").value = currentOrg.examMode || "online";
   document.getElementById("current-applicable-fee").textContent = (currentOrg.examMode === "offline") ? (portalConfig.offlineFee || 120) : (portalConfig.onlineFee || 100);
@@ -131,6 +138,19 @@ function fetchRegisteredStudentsList() {
   .then(res => res.json())
   .then(data => {
     if (data.status === "success") {
+      isAccountSettled = !!data.isSettled;
+      
+      const statusTextEl = document.getElementById("settlement-status-text");
+      if (statusTextEl) {
+        if (isAccountSettled) {
+          statusTextEl.textContent = "🟢 Settlement Confirmed: Net amount paid to NVMS.";
+          statusTextEl.style.color = "#4ade80";
+        } else {
+          statusTextEl.textContent = "🔒 Settlement Pending: Pay net amount to NVMS to unlock commission payouts.";
+          statusTextEl.style.color = "#f87171";
+        }
+      }
+
       if (data.financials) {
         if(document.getElementById("fin-total-regs")) document.getElementById("fin-total-regs").textContent = data.financials.totalRegistrations;
         if(document.getElementById("fin-total-fees")) document.getElementById("fin-total-fees").textContent = `₹${data.financials.totalFees}`;
@@ -200,6 +220,11 @@ window.approveStudentCashEntry = function(studentId) {
 };
 
 window.requestCommissionPayout = function() {
+  if (!isAccountSettled) {
+    alert("🔒 Locked: You must pay the net amount to NVMS first before requesting a commission payout!");
+    return;
+  }
+
   const upiId = document.getElementById("payout-upi-input").value.trim();
   const netPayableText = document.getElementById("fin-direct-comm").textContent;
   const amount = parseFloat(netPayableText.replace('₹', '')) || 0;
