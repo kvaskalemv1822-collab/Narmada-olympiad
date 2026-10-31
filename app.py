@@ -124,7 +124,6 @@ def organizer_signup():
     try:
         data = request.json
         raw_school = data.get('schoolName', '').strip()
-        # 🎯 CAPITALIZE FIRST LETTER OF EACH WORD IN SCHOOL NAME
         formatted_school = ' '.join([w.capitalize() for w in raw_school.split()]) if raw_school else "Associated School"
         
         contact = data.get('contact', '').strip()
@@ -186,6 +185,7 @@ def get_organizer_students():
         portal_cfg = config_doc.to_dict() if config_doc.exists else {}
         online_fee = portal_cfg.get('onlineFee', 100)
         offline_fee = portal_cfg.get('offlineFee', 120)
+        admin_upi = portal_cfg.get('upiId', 'narmada@upi')
         
         for d in docs:
             s = d.to_dict()
@@ -222,6 +222,7 @@ def get_organizer_students():
             "students": students_list,
             "isResultDeclared": is_result_on,
             "isSettled": is_manually_settled,
+            "adminUpiId": admin_upi,
             "financials": {
                 "totalRegistrations": len(students_list),
                 "onlineCount": online_count,
@@ -242,6 +243,25 @@ def approve_student_payment():
         student_id = data.get('studentId')
         db.collection('students').document(student_id).update({"paymentStatus": "Approved"})
         return jsonify({"status": "success", "message": "Payment Status Verified Live!"}), 200
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route('/api/organizer/submit_settlement', methods=['POST'])
+def submit_settlement():
+    try:
+        data = request.json
+        org_code = data.get('orgCode', '').strip().upper()
+        utr = data.get('utrNumber', '').strip()
+        amount = data.get('amount', 0)
+        
+        db.collection('settlement_requests').add({
+            "orgCode": org_code,
+            "utrNumber": utr,
+            "amount": amount,
+            "status": "Pending Verification",
+            "submittedAt": firestore.SERVER_TIMESTAMP
+        })
+        return jsonify({"status": "success", "message": "Settlement payment proof submitted to NVMS admin!"}), 200
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
