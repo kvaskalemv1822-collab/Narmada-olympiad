@@ -4,20 +4,27 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>NVMSO - School Coordinator Panel</title>
-  <link rel="stylesheet" href="central.css?v=8">
+  <link rel="stylesheet" href="central.css?v=9">
   <link href="https://googleapis.com" rel="stylesheet">
+  <style>
+    /* 🎯 5-LETTER MULTI-COLOR NVMSO LOGO STYLING */
+    .nvms-logo-title span:nth-child(1) { color: #38bdf8; } /* N - Sky Blue */
+    .nvms-logo-title span:nth-child(2) { color: #4ade80; } /* V - Green */
+    .nvms-logo-title span:nth-child(3) { color: #facc15; } /* M - Yellow */
+    .nvms-logo-title span:nth-child(4) { color: #f87171; } /* S - Red */
+    .nvms-logo-title span:nth-child(5) { color: #c084fc; } /* O - Purple */
+  </style>
 </head>
 <body style="background:#0b0f19; padding:15px; color:#fff;">
 
 <div id="org-main-container" class="container" style="max-width: 1100px;">
   
-  <!-- TOP CENTERED HEADER WITH LOGOUT -->
-  <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #374151; padding-bottom: 15px; margin-bottom: 20px;">
-    <div style="width: 100%; text-align: center; position: relative;">
-      <h1 style="margin: 0; font-size: 24px; color: #fff;">🏫 NVMSO School Coordinator Panel</h1>
-      <div class="admin-subtitle" style="margin: 4px 0 0 0; color: #94a3b8;">Narmada Valley Maths & Science Olympiad 2026</div>
-      <button onclick="logoutOrganizerSession()" style="position: absolute; right: 0; top: 0; background: #dc2626; color: #fff; border: none; padding: 8px 14px; font-size: 12px; border-radius: 6px; font-weight: bold; cursor: pointer;">🔴 Logout</button>
-    </div>
+  <!-- TOP CENTERED HEADER WITH MULTI-COLOR NVMSO -->
+  <div style="text-align: center; border-bottom: 1px solid #374151; padding-bottom: 15px; margin-bottom: 20px;">
+    <h1 class="nvms-logo-title" style="margin: 0; font-size: 26px; font-weight: 900; letter-spacing: 2px;">
+      🏫 <span>N</span><span>V</span><span>M</span><span>S</span><span>O</span> School Coordinator Panel
+    </h1>
+    <div class="admin-subtitle" style="margin: 4px 0 0 0; color: #94a3b8;">Narmada Valley Maths & Science Olympiad 2026</div>
   </div>
 
   <!-- AUTH LAYER CONTAINER -->
@@ -45,7 +52,7 @@
       <h3 style="color:#4ade80; text-align:center;">📝 Create Associated Desk Account</h3><br>
       <form id="org-reg-form">
         <div style="margin-bottom:10px;"><label>Full Name of Coordinator:</label><input type="text" id="new-org-name" required></div>
-        <div style="margin-bottom:10px;"><label>School Authorized Full Name:</label><input type="text" id="new-org-school" required></div>
+        <div style="margin-bottom:10px;"><label>School Authorized Full Name (Will format first letter capital):</label><input type="text" id="new-org-school" placeholder="e.g. ma parvati school barwani" required></div>
         <div style="margin-bottom:10px;"><label>WhatsApp Contact Mobile Number:</label><input type="tel" id="new-org-contact" maxlength="10" required></div>
         <div style="margin-bottom:10px;"><label>Create Secure Password:</label><input type="password" id="new-org-pass" required></div>
         <div style="margin-bottom:10px;"><label>Secret Security PIN (4-Digits Recovery):</label><input type="text" id="new-org-pin" maxlength="4" required></div>
@@ -59,6 +66,21 @@
   <!-- DASHBOARD WORKSPACE VIEW -->
   <div id="org-view" class="hidden" style="margin-top:20px;">
     
+    <!-- DASHBOARD INTERNAL ACTION BAR (LOGOUT & CHAT SUPPORT INSIDE PANEL) -->
+    <div class="card-box" style="display: flex; justify-content: space-between; align-items: center; background: #0f172a; padding: 12px 20px; border-radius: 10px; margin-bottom: 15px; border: 1px solid #334155;">
+      <div style="display: flex; align-items: center; gap: 10px;">
+        <span style="font-size: 13px; color: #4ade80; font-weight: bold;">🟢 Panel Active & Connected</span>
+      </div>
+      <div style="display: flex; gap: 10px;">
+        <!-- CHAT SUPPORT BUTTON INSIDE DASHBOARD -->
+        <a href="https://wa.me/919999999999?text=Hello%20NVMS%20Admin,%20I%20am%20organizer%20code:%20" id="dashboard-chat-link" target="_blank" style="background: #25d366; color: white; padding: 8px 14px; border-radius: 6px; font-weight: bold; text-decoration: none; font-size: 12px; display: inline-flex; align-items: center; gap: 6px;">
+          💬 Chat Support with Admin
+        </a>
+        <!-- LOGOUT BUTTON INSIDE DASHBOARD -->
+        <button onclick="logoutOrganizerSession()" style="background: #dc2626; color: #fff; border: none; padding: 8px 14px; font-size: 12px; border-radius: 6px; font-weight: bold; cursor: pointer;">🔴 Logout</button>
+      </div>
+    </div>
+
     <!-- BROADCAST NOTICE BANNER -->
     <div id="admin-notice-banner" class="card-box hidden" style="border:1px solid #fbbf24; background:rgba(251,191,36,0.1); margin-bottom:15px; padding:15px; border-radius:8px;">
       <p style="color:#fbbf24; font-weight:700;">📢 Broadcast Alert from Central Admin Command:</p>
@@ -73,7 +95,7 @@
       <p style="margin-bottom:6px;"><strong>Connected Institute:</strong> <span id="display-org-school" style="color:#e2e8f0;"></span></p>
     </div>
 
-    <!-- EXAM MODE & CONFIGURATIONS (PLACED HIGHER UP) -->
+    <!-- EXAM MODE & CONFIGURATIONS -->
     <div class="card-box" style="margin-top:20px; border:1px solid #10b981; background:#0f172a; padding:20px; border-radius:12px;">
       <h3 style="color:#10b981;">⚙️ Student Examination Parameters & Configurations</h3><br>
       
@@ -94,7 +116,7 @@
       </div>
     </div>
 
-    <!-- FINANCIAL LEDGER & COMMISSION SETTLEMENT SUMMARY CARD WITH UPI PAYOUT REQUEST -->
+    <!-- FINANCIAL LEDGER & COMMISSION SETTLEMENT SUMMARY CARD -->
     <div class="card-box" style="margin-top:20px; border:1px solid #f59e0b; background:#0f172a; padding:20px; border-radius:12px;">
       <h3 style="color:#f59e0b; margin-bottom:15px;">💰 Financial Ledger & Commission Settlement Matrix</h3>
       
@@ -120,6 +142,7 @@
       <div style="margin-top:15px; background:#020617; padding:15px; border-radius:8px; border:1px solid #334155; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
         <div>
           <p style="font-size:13px; color:#cbd5e1;"><strong>Net Amount Payable to NVMS:</strong> (Total Fees - Your 15% Direct Commission)</p>
+          <p id="settlement-status-text" style="font-size: 11px; margin-top: 4px; font-weight: bold;"></p>
         </div>
         <div>
           <h2 id="fin-net-payable" style="color:#f87171;">₹0</h2>
@@ -129,6 +152,7 @@
       <!-- COMMISSION PAYOUT REQUEST BOX -->
       <div style="margin-top: 15px; background: #020617; padding: 15px; border-radius: 8px; border: 1px solid #334155;">
         <p style="font-size: 13px; color: #38bdf8; font-weight: bold; margin-bottom: 8px;">📤 Request Commission Payout via UPI from NVMS</p>
+        <p style="font-size: 11px; color: #94a3b8; margin-bottom: 10px;">⚠️ Note: Payout request is locked and allowed only after NVMS confirms receipt of net payable amount.</p>
         <div style="display: flex; gap: 10px; flex-wrap: wrap;">
           <input type="text" id="payout-upi-input" placeholder="Enter your UPI ID (e.g. name@okaxis)" style="flex: 1; min-width: 200px; padding: 10px; background: #0f172a; color: #fff; border: 1px solid #475569; border-radius: 6px;">
           <button onclick="requestCommissionPayout()" class="btn-primary" style="background: #f59e0b; padding: 10px 20px; width: auto;">Request Payout</button>
@@ -161,11 +185,6 @@
   </div>
 </div>
 
-<!-- FLOATING WHATSAPP CHAT SUPPORT BUTTON -->
-<a href="https://wa.me/919999999999?text=Hello%20NVMS%20Admin,%20I%20need%20help%20regarding%20my%20coordinator%20portal." target="_blank" style="position: fixed; bottom: 20px; right: 20px; background: #25d366; color: white; padding: 12px 18px; border-radius: 50px; font-weight: bold; text-decoration: none; box-shadow: 0 4px 12px rgba(0,0,0,0.4); display: flex; align-items: center; gap: 8px; z-index: 9999; font-size: 14px;">
-  <span>💬 Chat Support</span>
-</a>
-
-<script src="organizer.js?v=8"></script>
+<script src="organizer.js?v=9"></script>
 </body>
 </html>
