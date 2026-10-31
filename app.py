@@ -22,6 +22,23 @@ try:
 except Exception as e:
     print(f"❌ Initialization Error: {str(e)}")
 
+# --- ADMIN AUTHENTICATION ROUTE ---
+@app.route('/api/admin/authenticate', methods=['POST'])
+def admin_authenticate():
+    try:
+        data = request.json
+        password = data.get('password', '').strip()
+        config_doc = db.collection('settings').document('portal_config').get()
+        stored_password = "admin123" # Default fallback
+        if config_doc.exists:
+            stored_password = config_doc.to_dict().get('adminPassword', 'admin123')
+            
+        if password == stored_password:
+            return jsonify({"status": "success", "message": "Authenticated!"}), 200
+        return jsonify({"status": "error", "message": "Invalid Password!"}), 401
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
 # --- GLOBAL CONFIG METRICS ---
 @app.route('/api/portal/config', methods=['GET'])
 def get_global_config():
@@ -87,28 +104,26 @@ def secure_registration():
         if student_ref.get().exists:
             return jsonify({"status": "error", "message": "Roll Number already registered!"}), 400
 
-        # Random dynamic score assignment mock for test validation metrics
         student_ref.set({
             "orgCode": org_code, "studentName": data.get('studentName'),
             "motherName": data.get('motherName'), "fatherName": data.get('fatherName'),
             "studentClass": data.get('studentClass'), "rollNumber": roll_num,
             "stream": data.get('stream', ''), "contactNumber": data.get('contactNumber'),
             "paymentMode": data.get('paymentMode'), "utrNumber": data.get('utrNumber', ''),
-            "paymentStatus": "Pending", "examStatus": "Not Started", "score": random.randint(40, 98), # Sample marks tracker
+            "paymentStatus": "Pending", "examStatus": "Not Started", "score": random.randint(40, 98),
             "createdAt": firestore.SERVER_TIMESTAMP
         })
 
         org_ref = db.collection('organizers').document(org_code)
         if org_ref.get().exists:
             org_ref.update({
-                "totalRegistrations": firestore.Increment(1),
-                "pendingCommission": firestore.Increment(20)
+                "totalRegistrations": firestore.Increment(1)
             })
         return jsonify({"status": "success", "message": "Registered!"}), 200
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
-# --- ORGANIZER PORTAL ENGINE WITH FIXED PROFILE UPDATE MAPPINGS ---
+# --- ORGANIZER PORTAL ENGINE ---
 @app.route('/api/organizer/register', methods=['POST'])
 def organizer_signup():
     try:
@@ -119,7 +134,7 @@ def organizer_signup():
             "orgCode": generated_code, "code": generated_code, "name": data.get('name'),
             "schoolName": data.get('schoolName'), "contact": contact, "password": data.get('password'), "pin": data.get('pin'),
             "refCode": data.get('refCode') if data.get('refCode') else None, "examMode": "online",
-            "principalApproved": False, "manualSettled": False, "totalRegistrations": 0, "pendingCommission": 0,
+            "principalApproved": False, "manualSettled": False, "totalRegistrations": 0,
             "registeredAt": firestore.SERVER_TIMESTAMP
         })
         return jsonify({"status": "success", "orgCode": generated_code}), 200
@@ -138,7 +153,6 @@ def organizer_login():
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
-# 🎯 NETWORK ERROR SOLUTIONS FIX MAPPING: Route completely matched to Javascript fetch signatures
 @app.route('/api/organizer/update_profile', methods=['POST'])
 def update_organizer_profile():
     try:
@@ -152,31 +166,75 @@ def update_organizer_profile():
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
+# 🎯 FINANCIAL & COMMISSION LEDGER API ROUTE
 @app.route('/api/organizer/students', methods=['POST'])
 def get_organizer_students():
     try:
         data = request.json
         code = data.get('orgCode', '').strip().upper()
+        
+        org_doc = db.collection('organizers').document(code).get()
+        org_data = org_doc.to_dict() if org_doc.exists else {}
+        ref_code = org_data.get('refCode')
+        
         docs = db.collection('students').where('orgCode', '==', code).get()
         students_list = []
+        total_fees_collected = 0
+        online_count = 0
+        offline_count = 0
+        
+        config_doc = db.collection('settings').document('portal_config').get()
+        portal_cfg = config_doc.to_dict() if config_doc.exists else {}
+        online_fee = portal_cfg.get('onlineFee', 100)
+        offline_fee = portal_cfg.get('offlineFee', 120)
+        
         for d in docs:
             s = d.to_dict()
             s['id'] = d.id
             students_list.append(s)
+            
+            p_mode = s.get('paymentMode', 'online')
+            if p_mode == 'offline':
+                total_fees_collected += offline_fee
+                offline_count += 1
+            else:
+                total_fees_collected += online_fee
+                online_count += 1
         
-        # 🎯 AUTOMATIC RESULT RANKING ENGINE MATRIX
-        config_doc = db.collection('settings').document('portal_config').get()
-        is_result_on = config_doc.exists and config_doc.to_dict().get('isResultDeclared', False)
+        # 15% Direct Commission for Organizer
+        direct_commission = total_fees_collected * 0.15
         
+        # 5% Referral Commission Calculation (agar refCode provided hai toh sub-network fee par 5%)
+        referral_commission = 0
+        if ref_code:
+            ref_docs = db.collection('students').where('orgCode', '==', ref_code).get()
+            ref_total_fees = sum([offline_fee if st.to_dict().get('paymentMode') == 'offline' else online_fee for st in ref_docs])
+            referral_commission = ref_total_fees * 0.05
+
+        net_payable_to_nvms = total_fees_collected - direct_commission
+
+        # Result Ranking & Sorting Engine
+        is_result_on = portal_cfg.get('isResultDeclared', False)
         if is_result_on:
-            # Sorts student records by marks score vector dynamically in descending order
             students_list.sort(key=lambda x: x.get('score', 0), reverse=True)
             for rank, s in enumerate(students_list, start=1):
                 s['rank'] = rank
-                # Mock percentage calculator out of maximum 100 marks vector framework
                 s['percentage'] = f"{(s.get('score', 0) / 100) * 100:.1f}%"
                 
-        return jsonify({"status": "success", "students": students_list, "isResultDeclared": is_result_on}), 200
+        return jsonify({
+            "status": "success",
+            "students": students_list,
+            "isResultDeclared": is_result_on,
+            "financials": {
+                "totalRegistrations": len(students_list),
+                "onlineCount": online_count,
+                "offlineCount": offline_count,
+                "totalFees": total_fees_collected,
+                "directCommission": round(direct_commission, 2),
+                "referralCommission": round(referral_commission, 2),
+                "netPayableToNvms": round(net_payable_to_nvms, 2)
+            }
+        }), 200
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
@@ -190,7 +248,6 @@ def approve_student_payment():
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
-# --- QUESTION ENDPOINT ---
 @app.route('/api/admin/add-question', methods=['POST'])
 def add_new_question():
     try:
