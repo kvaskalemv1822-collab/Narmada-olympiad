@@ -131,7 +131,6 @@ function fetchRegisteredStudentsList() {
   .then(res => res.json())
   .then(data => {
     if (data.status === "success") {
-      // 📊 Populate Financial Ledger & Commission Metrics
       if (data.financials) {
         if(document.getElementById("fin-total-regs")) document.getElementById("fin-total-regs").textContent = data.financials.totalRegistrations;
         if(document.getElementById("fin-total-fees")) document.getElementById("fin-total-fees").textContent = `₹${data.financials.totalFees}`;
@@ -148,7 +147,7 @@ function fetchRegisteredStudentsList() {
 
       const tableHead = document.querySelector("table thead tr");
       if(data.isResultDeclared && tableHead && !document.getElementById("th-rank-node")) {
-         tableHead.innerHTML = `<th id="th-rank-node">Rank Order</th>` + tableHead.innerHTML + `<th>Score Marks</th><th>Percentage</th>`;
+         tableHead.innerHTML = `<th id="th-rank-node" style="padding:10px;">Rank Order</th>` + tableHead.innerHTML + `<th style="padding:10px;">Score Marks</th><th style="padding:10px;">Percentage</th>`;
       }
 
       data.students.forEach(s => {
@@ -164,17 +163,17 @@ function fetchRegisteredStudentsList() {
           actionCell = `<span style='color:#64748b; font-size:11px;'>Waiting UPI Ref</span>`;
         }
 
-        let rankCell = data.isResultDeclared ? `<td><strong>Rank #${s.rank}</strong></td>` : "";
-        let scoreCells = data.isResultDeclared ? `<td><span style='color:#4ade80; font-weight:bold;'>${s.score}</span></td><td><span style='color:#38bdf8; font-weight:bold;'>${s.percentage}</span></td>` : "";
+        let rankCell = data.isResultDeclared ? `<td style="padding:10px;"><strong>Rank #${s.rank}</strong></td>` : "";
+        let scoreCells = data.isResultDeclared ? `<td style="padding:10px;"><span style='color:#4ade80; font-weight:bold;'>${s.score}</span></td><td style="padding:10px;"><span style='color:#38bdf8; font-weight:bold;'>${s.percentage}</span></td>` : "";
 
-        const row = `<tr>
+        const row = `<tr style="border-bottom: 1px solid #1e293b;">
           ${rankCell}
-          <td><strong>${s.studentName}</strong></td>
-          <td><code>${s.rollNumber}</code></td>
-          <td>Class ${s.studentClass}</td>
-          <td><span style="background:#1e293b; padding:2px 6px; border-radius:4px; font-size:11px; font-weight:bold; color:${isOfflinePay ? '#fbbf24':'#38bdf8'}">${s.paymentMode.toUpperCase()}</span></td>
-          <td>${statusBadge}</td>
-          <td>${actionCell}</td>
+          <td style="padding:10px;"><strong>${s.studentName}</strong></td>
+          <td style="padding:10px;"><code>${s.rollNumber}</code></td>
+          <td style="padding:10px;">Class ${s.studentClass}</td>
+          <td style="padding:10px;"><span style="background:#1e293b; padding:2px 6px; border-radius:4px; font-size:11px; font-weight:bold; color:${isOfflinePay ? '#fbbf24':'#38bdf8'}">${s.paymentMode.toUpperCase()}</span></td>
+          <td style="padding:10px;">${statusBadge}</td>
+          <td style="padding:10px;">${actionCell}</td>
           ${scoreCells}
         </tr>`;
         container.innerHTML += row;
@@ -200,6 +199,36 @@ window.approveStudentCashEntry = function(studentId) {
   });
 };
 
+window.requestCommissionPayout = function() {
+  const upiId = document.getElementById("payout-upi-input").value.trim();
+  const netPayableText = document.getElementById("fin-direct-comm").textContent;
+  const amount = parseFloat(netPayableText.replace('₹', '')) || 0;
+
+  if(!upiId) {
+    alert("⚠️ Please enter your valid UPI ID for payout request.");
+    return;
+  }
+
+  fetch(`${SERVER_URL}/api/organizer/request_payout`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      orgCode: currentOrg.code || currentOrg.orgCode,
+      upiId: upiId,
+      amount: amount
+    })
+  })
+  .then(res => res.json())
+  .then(data => {
+    if(data.status === "success") {
+      alert("✅ Commission Payout Request sent successfully to NVMS Admin!");
+      document.getElementById("payout-upi-input").value = "";
+    } else {
+      alert("❌ Error: " + data.message);
+    }
+  });
+};
+
 window.switchOrgTab = (tab) => {
   if (tab === 'reg') {
     document.getElementById("org-reg-box").classList.remove("hidden");
@@ -209,3 +238,5 @@ window.switchOrgTab = (tab) => {
     document.getElementById("org-login-box").classList.remove("hidden");
   }
 };
+
+window.logoutOrganizerSession = () => { location.reload(); };
