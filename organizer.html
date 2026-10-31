@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>NVMSO - School Coordinator Panel</title>
-  <link rel="stylesheet" href="central.css?v=10">
+  <link rel="stylesheet" href="central.css?v=11">
   <link href="https://googleapis.com" rel="stylesheet">
   <style>
     .nvms-logo-title span:nth-child(1) { color: #38bdf8; }
@@ -46,7 +46,7 @@
       <h3 style="color:#4ade80; text-align:center;">📝 Create Associated Desk Account</h3><br>
       <form id="org-reg-form">
         <div style="margin-bottom:10px;"><label>Full Name of Coordinator:</label><input type="text" id="new-org-name" required></div>
-        <div style="margin-bottom:10px;"><label>School Authorized Full Name (Will format first letter capital):</label><input type="text" id="new-org-school" placeholder="e.g. ma parvati school barwani" required></div>
+        <div style="margin-bottom:10px;"><label>School Authorized Full Name:</label><input type="text" id="new-org-school" placeholder="e.g. Ma Parvati School Barwani" required></div>
         <div style="margin-bottom:10px;"><label>WhatsApp Contact Mobile Number:</label><input type="tel" id="new-org-contact" maxlength="10" required></div>
         <div style="margin-bottom:10px;"><label>Create Secure Password:</label><input type="password" id="new-org-pass" required></div>
         <div style="margin-bottom:10px;"><label>Secret Security PIN (4-Digits Recovery):</label><input type="text" id="new-org-pin" maxlength="4" required></div>
@@ -103,6 +103,7 @@
       </div>
     </div>
 
+    <!-- FINANCIAL LEDGER & COMMISSION SETTLEMENT MATRIX -->
     <div class="card-box" style="margin-top:20px; border:1px solid #f59e0b; background:#0f172a; padding:20px; border-radius:12px;">
       <h3 style="color:#f59e0b; margin-bottom:15px;">💰 Financial Ledger & Commission Settlement Matrix</h3>
       
@@ -132,11 +133,21 @@
         </div>
         <div style="display: flex; align-items: center; gap: 15px;">
           <h2 id="fin-net-payable" style="color:#f87171;">₹0</h2>
-          <!-- PAY NET AMOUNT TO NVMS BUTTON -->
           <button onclick="payNetPayableToNvms()" class="btn-primary" style="background: #10b981; padding: 10px 16px; font-size: 12px; width: auto;">⚡ Pay via UPI / PhonePe</button>
         </div>
       </div>
 
+      <!-- SETTLEMENT UTR SUBMISSION BOX -->
+      <div style="margin-top: 15px; background: #020617; padding: 15px; border-radius: 8px; border: 1px solid #334155;">
+        <p style="font-size: 13px; color: #10b981; font-weight: bold; margin-bottom: 8px;">📥 Submit UTR / Payment Proof After Paying NVMS</p>
+        <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+          <input type="text" id="settlement-utr-input" placeholder="Enter UTR / Transaction Reference No" style="flex: 1; min-width: 180px; padding: 10px; background: #0f172a; color: #fff; border: 1px solid #475569; border-radius: 6px;">
+          <input type="number" id="settlement-amount-input" placeholder="Amount Paid (₹)" style="width: 140px; padding: 10px; background: #0f172a; color: #fff; border: 1px solid #475569; border-radius: 6px;">
+          <button onclick="submitSettlementProof()" class="btn-primary" style="background: #10b981; padding: 10px 20px; width: auto;">Submit UTR</button>
+        </div>
+      </div>
+
+      <!-- COMMISSION PAYOUT REQUEST BOX -->
       <div style="margin-top: 15px; background: #020617; padding: 15px; border-radius: 8px; border: 1px solid #334155;">
         <p style="font-size: 13px; color: #38bdf8; font-weight: bold; margin-bottom: 8px;">📤 Request Commission Payout via UPI from NVMS</p>
         <p style="font-size: 11px; color: #94a3b8; margin-bottom: 10px;">⚠️ Note: Payout request is locked and allowed only after NVMS confirms receipt of net payable amount.</p>
@@ -171,6 +182,6 @@
   </div>
 </div>
 
-<script src="organizer.js?v=10"></script>
+<script src="organizer.js?v=11"></script>
 </body>
 </html>
