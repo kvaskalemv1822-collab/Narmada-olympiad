@@ -1,5 +1,8 @@
 const SERVER_URL = "https://nvmso-backend.onrender.com";
 let allStudentsCache = [];
+let allOrganizersCache = [];
+let pendingSettlementsCache = [];
+let pendingPayoutsCache = [];
 
 window.verifyAdminPassword = async () => {
   const passInput = document.getElementById("admin-pass-input").value.trim();
@@ -78,8 +81,7 @@ function initializeCentralPanelData() {
         if (document.getElementById("admin-broadcast-input")) document.getElementById("admin-broadcast-input").value = config.broadcastNotice || "";
 
         setupSmartSwitchesExclusiveRule();
-        fetchAdminFinancialRequests();
-        fetchOrganizersAndStudentsData();
+        fetchAllCentralData();
       }
     });
 }
@@ -115,66 +117,156 @@ window.saveGlobalConfig = async () => {
   .then(res => res.json())
   .then(data => {
     if (data.status === "success") {
-      alert("✅ Command Dispatched: Portal phases and parameters updated across server nodes!");
+      alert("✅ Command Dispatched: Portal phases and parameters updated successfully!");
     }
-  }).catch(() => alert("❌ Sync Connection Error."));
+  });
 };
 
-// Fetch Organizers & Students for detailed tracking and rankings
-function fetchOrganizersAndStudentsData() {
-  fetch(`${SERVER_URL}/api/admin/all_data`, { method: "POST" })
-    .then(res => res.json())
-    .then(data => {
-      if(data.status === "success") {
-        // 4. Organizers Tracker
-        const orgRows = document.getElementById("admin-organizers-rows");
-        if(orgRows) {
-          orgRows.innerHTML = data.organizers.length ? "" : "<tr><td colspan='6' style='text-align:center; color:#64748b;'>No organizers registered yet.</td></tr>";
-          data.organizers.forEach(org => {
-            orgRows.innerHTML += `
-              <tr style="border-bottom:1px solid #1e293b;">
-                <td style="padding:10px;"><code>${org.orgCode}</code></td>
-                <td style="padding:10px;"><strong>${org.schoolName}</strong></td>
-                <td style="padding:10px;">${org.name}</td>
-                <td style="padding:10px;">${org.contact}</td>
-                <td style="padding:10px;"><span style="background:#1e293b; padding:2px 6px; border-radius:4px; font-weight:bold; color:${org.examMode=='offline'?'#fbbf24':'#38bdf8'}">${(org.examMode || 'online').toUpperCase()}</span></td>
-                <td style="padding:10px; color:#4ade80; font-weight:bold;">${org.totalRegistrations || 0}</td>
-              </tr>
-            `;
-          });
-        }
+function fetchAllCentralData() {
+  Promise.all([
+    fetch(`${SERVER_URL}/api/admin/all_data`, { method: "POST" }).then(res => res.json()),
+    fetch(`${SERVER_URL}/api/admin/financial_requests`).then(res => res.json())
+  ]).then(([data1, data2]) => {
+    if (data1.status === "success") {
+      allOrganizersCache = data1.organizers || [];
+      allStudentsCache = data1.students || [];
+    }
+    if (data2.status === "success") {
+      pendingSettlementsCache = data2.settlements || [];
+      pendingPayoutsCache = data2.payouts || [];
+    }
 
-        // 5. Student Details Blocks Cache
-        allStudentsCache = data.students || [];
-        renderStudentBlocks(allStudentsCache);
-
-        // 6. Rankings Load
-        loadClassRankings();
-      }
-    }).catch(() => {});
+    renderMergedOrganizersTable();
+    populateSchoolDropdowns();
+    loadSchoolRankings();
+    loadSchoolStudentLedger();
+  });
 }
 
-function renderStudentBlocks(students) {
-  const container = document.getElementById("student-blocks-container");
-  if(!container) return;
-  container.innerHTML = students.length ? "" : "<p style='color:#64748b;'>No students found.</p>";
+// 1. MERGED ORGANIZER, EXAM MODE & SETTLEMENT MANAGER
+function renderMergedOrganizersTable() {
+  const tbody = document.getElementById("admin-organizers-rows");
+  if(!tbody) return;
+  tbody.innerHTML = allOrganizersCache.length ? "" : "<tr><td colspan='6' style='text-align:center; color:#64748b;'>No organizers registered yet.</td></tr>";
 
-  students.forEach(s => {
-    container.innerHTML += `
-      <div style="background:#020617; padding:12px; border-radius:8px; border:1px solid #334155;">
-        <p style="font-weight:bold; color:#38bdf8; margin-bottom:4px;">${s.studentName} <span style="font-size:11px; color:#94a3b8;">(Roll: ${s.rollNumber})</span></p>
-        <p style="font-size:12px; color:#cbd5e1; margin-bottom:2px;">Class: ${s.studentClass} | School Code: <code>${s.orgCode}</code></p>
-        <p style="font-size:12px; color:#cbd5e1; margin-bottom:8px;">Payment: <span style="color:${s.paymentStatus=='Approved'?'#4ade80':'#f87171'}">${s.paymentStatus}</span> | Score: <strong style="color:#facc15;">${s.score || 0}</strong></p>
-        <button onclick="triggerReExam('${s.id}')" style="background:#7c3aed; color:#fff; border:none; padding:4px 10px; font-size:11px; border-radius:4px; font-weight:bold; cursor:pointer;">🔄 Trigger Re-Exam</button>
-      </div>
+  allOrganizersCache.forEach(org => {
+    const code = org.code || org.orgCode;
+    const isSettled = org.manualSettled;
+
+    // Find pending settlement for this org
+    const sett = pendingSettlementsCache.find(s => s.orgCode === code);
+    const payout = pendingPayoutsCache.find(p => p.orgCode === code);
+
+    let settCell = isSettled ? "<span style='color:#4ade80; font-weight:bold;'>✔️ Settled (Paid)</span>" : "<span style='color:#f87171;'>Pending Settlement</span>";
+    if (sett) {
+      settCell = `<code style="color:#facc15;">UTR: ${sett.utrNumber} (₹${sett.amount})</code>`;
+    }
+
+    let actionCell = isSettled ? "<span style='color:#38bdf8;'>Payout Unlocked</span>" : (sett ? `<button onclick="approveOrganizerSettlement('${code}', '${sett.id}')" style="background:#10b981; color:#fff; border:none; padding:4px 10px; font-size:11px; border-radius:4px; font-weight:bold; cursor:pointer;">Verify Settlement</button>` : "N/A");
+
+    if (payout) {
+      actionCell += `<br><button onclick="markPayoutCompleted('${payout.id}')" style="margin-top:4px; background:#f59e0b; color:#fff; border:none; padding:4px 8px; font-size:10px; border-radius:4px; font-weight:bold; cursor:pointer;">Pay Payout (₹${payout.amount})</button>`;
+    }
+
+    tbody.innerHTML += `
+      <tr style="border-bottom:1px solid #1e293b;">
+        <td style="padding:10px;"><code style="color:#38bdf8; font-weight:bold;">${code}</code><br><span style="font-size:12px; color:#cbd5e1;">${org.schoolName}</span></td>
+        <td style="padding:10px;">${org.name}<br><span style="font-size:11px; color:#94a3b8;">${org.contact}</span></td>
+        <td style="padding:10px;"><span style="background:#1e293b; padding:2px 6px; border-radius:4px; font-weight:bold; color:${org.examMode=='offline'?'#fbbf24':'#38bdf8'}">${(org.examMode || 'online').toUpperCase()}</span></td>
+        <td style="padding:10px; color:#4ade80; font-weight:bold;">${org.totalRegistrations || 0}</td>
+        <td style="padding:10px;">${settCell}</td>
+        <td style="padding:10px;">${actionCell}</td>
+      </tr>
     `;
   });
 }
 
-window.filterStudentBlocks = function() {
-  const query = document.getElementById("student-search-input").value.trim().toLowerCase();
-  const filtered = allStudentsCache.filter(s => s.studentName.toLowerCase().includes(query) || s.rollNumber.toLowerCase().includes(query));
-  renderStudentBlocks(filtered);
+function populateSchoolDropdowns() {
+  const rankSelect = document.getElementById("ranking-school-select");
+  const ledgerSelect = document.getElementById("ledger-school-select");
+  
+  let optionsHtml = '<option value="ALL">-- All Schools Combined --</option>';
+  allOrganizersCache.forEach(org => {
+    const code = org.code || org.orgCode;
+    optionsHtml += `<option value="${code}">${code} - ${org.schoolName}</option>`;
+  });
+
+  if(rankSelect) rankSelect.innerHTML = optionsHtml;
+  if(ledgerSelect) ledgerSelect.innerHTML = optionsHtml;
+}
+
+// 2. SCHOOL-WISE RANKING (TOP 6 IN 2 COLUMNS)
+window.loadSchoolRankings = function() {
+  const selectedOrg = document.getElementById("ranking-school-select").value;
+  const gridContainer = document.getElementById("school-rankings-grid");
+  if(!gridContainer) return;
+
+  let studentsToRank = allStudentsCache;
+  if (selectedOrg !== "ALL") {
+    studentsToRank = allStudentsCache.filter(s => s.orgCode === selectedOrg);
+  }
+
+  // Sort descending by score
+  studentsToRank.sort((a, b) => (b.score || 0) - (a.score || 0));
+  const top6 = studentsToRank.slice(0, 6);
+
+  gridContainer.innerHTML = top6.length ? "" : "<p style='color:#64748b;'>No ranked students found for this selection.</p>";
+
+  top6.forEach((s, idx) => {
+    const rank = idx + 1;
+    let tierText = "Digital Certificate";
+    let tierColor = "#38bdf8";
+
+    if (rank === 1) { tierText = "🥇 1st Rank - Gold Medal + Physical Cert"; tierColor = "#facc15"; }
+    else if (rank === 2) { tierText = "🥈 2nd Rank - Silver Medal + Physical Cert"; tierColor = "#e2e8f0"; }
+    else if (rank === 3) { tierText = "🥉 3rd Rank - Bronze Medal + Physical Cert"; tierColor = "#fb923c"; }
+    else if (rank >= 4 && rank <= 6) { tierText = "📜 Top 6 - Physical Certificate"; tierColor = "#4ade80"; }
+
+    gridContainer.innerHTML += `
+      <div style="background:#020617; padding:15px; border-radius:8px; border:1px solid #334155;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+          <span style="background:#1e293b; color:${tierColor}; padding:2px 8px; border-radius:4px; font-weight:bold; font-size:12px;">Rank #${rank}</span>
+          <span style="color:#4ade80; font-weight:bold;">Score: ${s.score || 0} (${(s.score || 0)}%)</span>
+        </div>
+        <p style="font-weight:bold; font-size:15px; color:#fff; margin-bottom:4px;">${s.studentName}</p>
+        <p style="font-size:12px; color:#94a3b8; margin-bottom:2px;">Class: ${s.studentClass} | Roll: <code>${s.rollNumber}</code></p>
+        <p style="font-size:12px; color:${tierColor}; font-weight:bold; margin-top:6px;">${tierText}</p>
+      </div>
+    `;
+  });
+};
+
+// 3. SCHOOL-WISE STUDENT DETAILS LEDGER
+window.loadSchoolStudentLedger = function() {
+  const selectedOrg = document.getElementById("ledger-school-select").value;
+  const tbody = document.getElementById("ledger-student-rows");
+  if(!tbody) return;
+
+  let students = allStudentsCache;
+  if (selectedOrg !== "ALL") {
+    students = allStudentsCache.filter(s => s.orgCode === selectedOrg);
+  }
+
+  tbody.innerHTML = students.length ? "" : "<tr><td colspan='5' style='text-align:center; color:#64748b;'>No students registered under this selection.</td></tr>";
+
+  students.forEach(s => {
+    const isApproved = s.paymentStatus === "Approved";
+    const payMode = (s.paymentMode || 'online').toUpperCase();
+    const utrInfo = s.utrNumber ? `<br><code style="color:#facc15; font-size:11px;">UTR: ${s.utrNumber}</code>` : "";
+    const paymentBadge = `<span style="color:${isApproved?'#4ade80':'#f87171'}; font-weight:bold;">${s.paymentStatus} (${payMode})</span>${utrInfo}`;
+
+    tbody.innerHTML += `
+      <tr style="border-bottom:1px solid #1e293b;">
+        <td style="padding:10px;"><strong>${s.studentName}</strong><br><span style="font-size:11px; color:#94a3b8;">Roll: ${s.rollNumber}</span></td>
+        <td style="padding:10px;">Class ${s.studentClass}</td>
+        <td style="padding:10px;">${paymentBadge}</td>
+        <td style="padding:10px;"><strong style="color:#4ade80;">${s.score || 0}</strong> <span style="color:#38bdf8; font-size:11px;">(${(s.score || 0)}%)</span></td>
+        <td style="padding:10px;">
+          <button onclick="triggerReExam('${s.id}')" style="background:#7c3aed; color:#fff; border:none; padding:4px 10px; font-size:11px; border-radius:4px; font-weight:bold; cursor:pointer;">🔄 Re-Exam</button>
+        </td>
+      </tr>
+    `;
+  });
 };
 
 window.triggerReExam = function(studentId) {
@@ -184,104 +276,26 @@ window.triggerReExam = function(studentId) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ studentId: studentId })
   }).then(res => res.json()).then(d => {
-    if(d.status === "success") alert("✅ Re-Exam triggered successfully for student!");
+    if(d.status === "success") alert("✅ Re-Exam triggered successfully!");
   });
 };
-
-// 6. Class-wise Ranking & Top 6 Tier System
-window.loadClassRankings = function() {
-  const stream = document.getElementById("ranking-stream-select").value;
-  const tbody = document.getElementById("ranking-table-rows");
-  if(!tbody) return;
-
-  // Filter students based on class block (3-7 or 8-12)
-  const targetStudents = allStudentsCache.filter(s => {
-    const clsNum = parseInt(s.studentClass) || 0;
-    if (stream === "3-7") return clsNum >= 3 && clsNum <= 7;
-    if (stream === "8-12") return clsNum >= 8 && clsNum <= 12;
-    return false;
-  });
-
-  // Sort by score descending
-  targetStudents.sort((a, b) => (b.score || 0) - (a.score || 0));
-
-  tbody.innerHTML = targetStudents.length ? "" : "<tr><td colspan='6' style='text-align:center; color:#64748b;'>No student records found in this block.</td></tr>";
-
-  targetStudents.forEach((s, idx) => {
-    const rank = idx + 1;
-    let tierBadge = "<span style='color:#38bdf8;'>💻 Digital Certificate</span>";
-
-    if (rank === 1) tierBadge = "<span style='color:#facc15; font-weight:bold;'>🥇 1st Rank - Gold Medal + Physical Cert</span>";
-    else if (rank === 2) tierBadge = "<span style='color:#e2e8f0; font-weight:bold;'>🥈 2nd Rank - Silver Medal + Physical Cert</span>";
-    else if (rank === 3) tierBadge = "<span style='color:#fb923c; font-weight:bold;'>🥉 3rd Rank - Bronze Medal + Physical Cert</span>";
-    else if (rank >= 4 && rank <= 6) tierBadge = "<span style='color:#4ade80; font-weight:bold;'>📜 Top 6 Rank - Physical Certificate</span>";
-
-    tbody.innerHTML += `
-      <tr style="border-bottom:1px solid #1e293b;">
-        <td style="padding:10px;"><strong>#${rank}</strong></td>
-        <td style="padding:10px;">${s.studentName}</td>
-        <td style="padding:10px;">Class ${s.studentClass}</td>
-        <td style="padding:10px;"><code>${s.orgCode}</code></td>
-        <td style="padding:10px;"><strong style="color:#4ade80;">${s.score || 0}</strong> <span style="color:#94a3b8; font-size:11px;">(${(s.score || 0)}%)</span></td>
-        <td style="padding:10px;">${tierBadge}</td>
-      </tr>
-    `;
-  });
-};
-
-function fetchAdminFinancialRequests() {
-  fetch(`${SERVER_URL}/api/admin/financial_requests`)
-    .then(res => res.json())
-    .then(data => {
-      if(data.status === "success") {
-        const settContainer = document.getElementById("admin-settlement-list");
-        const payoutContainer = document.getElementById("admin-payout-list");
-
-        if(settContainer) {
-          settContainer.innerHTML = data.settlements.length ? "" : "<p style='color:#64748b;'>No settlement proofs submitted yet.</p>";
-          data.settlements.forEach(st => {
-            settContainer.innerHTML += `
-              <div style="background:#0f172a; padding:10px; border-radius:6px; margin-bottom:8px; border:1px solid #334155;">
-                <p><strong>School Code:</strong> <span style="color:#38bdf8;">${st.orgCode}</span></p>
-                <p><strong>UTR:</strong> <code>${st.utrNumber}</code> | <strong>Amount:</strong> ₹${st.amount}</p>
-                <button onclick="approveOrganizerSettlement('${st.orgCode}', '${st.id}')" style="margin-top:6px; background:#10b981; color:#fff; border:none; padding:4px 10px; font-size:11px; border-radius:4px; font-weight:bold; cursor:pointer;">✔️ Verify & Unlock Payouts</button>
-              </div>
-            `;
-          });
-        }
-
-        if(payoutContainer) {
-          payoutContainer.innerHTML = data.payouts.length ? "" : "<p style='color:#64748b;'>No payout requests pending.</p>";
-          data.payouts.forEach(p => {
-            payoutContainer.innerHTML += `
-              <div style="background:#0f172a; padding:10px; border-radius:6px; margin-bottom:8px; border:1px solid #334155;">
-                <p><strong>School:</strong> <span style="color:#facc15;">${p.orgCode}</span> | <strong>Amount:</strong> ₹${p.amount}</p>
-                <p><strong>UPI ID:</strong> <code>${p.upiId}</code></p>
-                <button onclick="markPayoutCompleted('${p.id}')" style="margin-top:6px; background:#f59e0b; color:#fff; border:none; padding:4px 10px; font-size:11px; border-radius:4px; font-weight:bold; cursor:pointer;">💸 Mark Paid</button>
-              </div>
-            `;
-          });
-        }
-      }
-    }).catch(() => {});
-}
 
 window.approveOrganizerSettlement = function(orgCode, reqId) {
-  if(!confirm(`Confirm settlement approval for ${orgCode}? This will unlock their commission payouts.`)) return;
+  if(!confirm(`Confirm settlement approval for ${orgCode}?`)) return;
   fetch(`${SERVER_URL}/api/admin/approve_settlement`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ orgCode: orgCode, requestId: reqId })
   }).then(res => res.json()).then(d => {
     if(d.status === "success") {
-      alert("✅ Settlement Verified! Commission payouts unlocked for this school.");
-      fetchAdminFinancialRequests();
+      alert("✅ Settlement Verified!");
+      fetchAllCentralData();
     }
   });
 };
 
 window.markPayoutCompleted = function(payoutId) {
-  if(!confirm("Mark this commission payout as completed?")) return;
+  if(!confirm("Mark commission payout as completed?")) return;
   fetch(`${SERVER_URL}/api/admin/complete_payout`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -289,7 +303,7 @@ window.markPayoutCompleted = function(payoutId) {
   }).then(res => res.json()).then(d => {
     if(d.status === "success") {
       alert("🎉 Payout marked as completed!");
-      fetchAdminFinancialRequests();
+      fetchAllCentralData();
     }
   });
 };
