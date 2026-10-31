@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>NVMSO - Central Command Panel 2026</title>
-  <link rel="stylesheet" href="central.css?v=8">
+  <link rel="stylesheet" href="central.css?v=9">
   <link href="https://googleapis.com" rel="stylesheet">
   <style>
     .nvms-logo-title span:nth-child(1) { color: #38bdf8; }
@@ -17,24 +17,27 @@
 <body>
 
 <!-- ADMIN LOGIN SCREEN -->
-<div id="admin-login-screen" class="login-wrapper">
-  <div class="login-outer-box">
-    <div class="nvms-logo-title login-header-title" style="font-size: 32px; font-weight: 900; letter-spacing: 2px;">
-      <span>N</span><span>V</span><span>M</span><span>S</span><span>O</span> Central
-    </div>
-    <div class="login-header-sub">Narmada Valley Maths & Science Olympiad 2026</div>
+<div id="admin-login-screen" class="login-wrapper" style="display: flex; justify-content: center; align-items: center; min-height: 100vh; background: #0b0f19; padding: 15px;">
+  
+  <!-- LOGIN BOX CONTAINER -->
+  <div class="login-card" style="width: 100%; max-width: 420px; background: rgba(15, 23, 42, 0.95); border: 1px solid #334155; padding: 30px 25px; border-radius: 16px; box-shadow: 0 20px 40px rgba(0,0,0,0.6); text-align: center;">
+    
+    <!-- NVMSO CENTERED HEADER -->
+    <h1 class="nvms-logo-title" style="margin: 0 0 4px 0; font-size: 32px; font-weight: 900; letter-spacing: 2px;">
+      <span>N</span><span>V</span><span>M</span><span>S</span><span>O</span>
+    </h1>
+    <div style="font-size: 16px; font-weight: 700; color: #38bdf8; margin-bottom: 6px; letter-spacing: 1px;">Central Command</div>
+    <div class="login-header-sub" style="font-size: 12px; color: #94a3b8; margin-bottom: 25px;">Narmada Valley Maths & Science Olympiad 2026</div>
 
-    <div class="login-card">
-      <div id="login-security-alert" style="color: #f87171; font-size: 12px; font-weight: bold; margin-bottom: 10px; display: none;"></div>
-      <div class="login-card-title">🔐 Admin Master Session Authenticator</div>
-      <form id="admin-login-form" onsubmit="event.preventDefault(); verifyAdminPassword();">
-        <div style="margin-bottom: 16px;">
-          <label>Enter Master Admin Password:</label>
-          <input type="password" id="admin-pass-input" placeholder="Enter secure password" required>
-        </div>
-        <button type="submit" id="btn-admin-auth" class="btn-primary" style="width: 100%; padding: 12px;">Authenticate Panel</button>
-      </form>
-    </div>
+    <div id="login-security-alert" style="color: #f87171; font-size: 12px; font-weight: bold; margin-bottom: 12px; display: none; background: rgba(248,113,113,0.1); padding: 8px; border-radius: 6px; border: 1px solid #f87171;"></div>
+    
+    <form id="admin-login-form" onsubmit="event.preventDefault(); verifyAdminPassword();" style="text-align: left;">
+      <div style="margin-bottom: 18px;">
+        <label style="display: block; color: #cbd5e1; font-size: 13px; font-weight: 600; margin-bottom: 6px;">Enter Master Admin Password:</label>
+        <input type="password" id="admin-pass-input" placeholder="Enter secure password" style="width: 100%; padding: 12px; background: #020617; color: #ffffff; border: 1px solid #475569; border-radius: 8px; font-size: 14px; outline: none;" required>
+      </div>
+      <button type="submit" id="btn-admin-auth" class="btn-primary" style="width: 100%; padding: 12px; background: #0284c7; color: white; border: none; border-radius: 8px; font-weight: 700; font-size: 14px; cursor: pointer; text-transform: uppercase;">Authenticate Panel</button>
+    </form>
   </div>
 </div>
 
@@ -52,13 +55,13 @@
 </div>
 
 <!-- MAIN CENTRAL MASTER CONTROL WORKSPACE -->
-<div id="admin-main-container" class="container hidden">
+<div id="admin-main-container" class="container hidden" style="max-width: 1100px; margin: 0 auto; background: rgba(15, 23, 42, 0.95); border: 1px solid #1e293b; padding: 25px; border-radius: 16px;">
   <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #374151; padding-bottom: 15px; margin-bottom: 20px; flex-wrap: wrap; gap: 15px;">
     <div>
       <h1 class="nvms-logo-title" style="margin: 0; text-align: left; font-size: 26px; font-weight: 900; letter-spacing: 1px;">
         ⚡ <span>N</span><span>V</span><span>M</span><span>S</span><span>O</span> CENTRAL MASTER PANEL
       </h1>
-      <div class="admin-subtitle" style="text-align: left; margin: 4px 0 0 0;">Narmada Valley Maths & Science Olympiad 2026</div>
+      <div class="admin-subtitle" style="text-align: left; margin: 4px 0 0 0; color: #94a3b8;">Narmada Valley Maths & Science Olympiad 2026</div>
     </div>
     <div style="display:flex; gap:10px;">
       <a href="question.html" class="btn-primary" style="padding:10px 16px; background:#7c3aed; text-decoration:none; font-size:13px; font-weight:bold; border-radius:6px;">📚 MANAGE QUESTION BANK</a>
@@ -99,7 +102,7 @@
       <div><label>Static QR Code File Name:</label><input type="text" id="cfg-qr-url" value="Qrcode.jpg"></div>
     </div>
     
-    <button onclick="saveGlobalConfig()" class="btn-primary" style="background:#10b981; padding:12px 24px;">💾 Save Master Parameters & Sync Matrices</button>
+    <button onclick="saveGlobalConfig()" class="btn-primary" style="background:#10b981; padding:12px 24px; width:auto;">💾 Save Master Parameters & Sync Matrices</button>
   </div>
 
   <!-- BROADCAST BANNER CONFIGURATOR -->
@@ -108,7 +111,7 @@
     <div style="margin-bottom:15px;">
       <input type="text" id="admin-broadcast-input" placeholder="Type custom ticker message text to display across coordinator dashboards..." style="width:100%; padding:12px; background:#020617; color:#fff; border:1px solid #475569; border-radius:6px;">
     </div>
-    <button onclick="saveGlobalConfig()" class="btn-primary" style="background:#f59e0b; padding:12px 24px;">Publish Live Notification Ticker</button>
+    <button onclick="saveGlobalConfig()" class="btn-primary" style="background:#f59e0b; padding:12px 24px; width:auto;">Publish Live Notification Ticker</button>
   </div>
 
   <!-- FINANCIAL SETTLEMENTS & PAYOUT VERIFICATION MANAGER -->
@@ -139,6 +142,6 @@
 
 </div>
 
-<script src="central.js?v=8"></script>
+<script src="central.js?v=9"></script>
 </body>
 </html>
