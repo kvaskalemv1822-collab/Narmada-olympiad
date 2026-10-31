@@ -82,7 +82,6 @@ function loadDashboardView() {
   document.getElementById("current-applicable-fee").textContent = (currentOrg.examMode === "offline") ? (portalConfig.offlineFee || 120) : (portalConfig.onlineFee || 100);
 }
 
-// 🚨 EXAM MODE SCRIPT SIGNATURE FIX WITH TEMPLATE LITERAL INTERPOLATION
 window.updateExamMode = function(val) {
   if (!currentOrg) return;
   fetch(`${SERVER_URL}/api/organizer/update_profile`, {
@@ -120,7 +119,6 @@ window.togglePrincipalPermission = function(isChecked) {
   });
 };
 
-// 🚨 ADVANCED LEDGER ROSTER: Handles On/Offline markers, Approve Cash gates, and Rank Sort order arrays
 function fetchRegisteredStudentsList() {
   const container = document.getElementById("student-roster-rows");
   if(!container || !currentOrg) return;
@@ -132,23 +130,33 @@ function fetchRegisteredStudentsList() {
   })
   .then(res => res.json())
   .then(data => {
-    if (data.status === "success" && data.students.length > 0) {
+    if (data.status === "success") {
+      // 📊 Populate Financial Ledger & Commission Metrics
+      if (data.financials) {
+        if(document.getElementById("fin-total-regs")) document.getElementById("fin-total-regs").textContent = data.financials.totalRegistrations;
+        if(document.getElementById("fin-total-fees")) document.getElementById("fin-total-fees").textContent = `₹${data.financials.totalFees}`;
+        if(document.getElementById("fin-direct-comm")) document.getElementById("fin-direct-comm").textContent = `₹${data.financials.directCommission}`;
+        if(document.getElementById("fin-ref-comm")) document.getElementById("fin-ref-comm").textContent = `₹${data.financials.referralCommission}`;
+        if(document.getElementById("fin-net-payable")) document.getElementById("fin-net-payable").textContent = `₹${data.financials.netPayableToNvms}`;
+      }
+
       container.innerHTML = "";
-      
-      // Updates table head matrix dynamically if result scorecard vector is published live
-      const tableHead = document.querySelector("table inequities thead tr");
+      if (data.students.length === 0) {
+        container.innerHTML = `<tr><td colspan="7" style="text-align:center; color:#64748b; padding:15px;">No students registered under this school code yet.</td></tr>`;
+        return;
+      }
+
+      const tableHead = document.querySelector("table thead tr");
       if(data.isResultDeclared && tableHead && !document.getElementById("th-rank-node")) {
-         tableHead.innerHTML = `<th>Rank Order</th>` + tableHead.innerHTML + `<th>Score Marks</th><th>Percentage</th>`;
+         tableHead.innerHTML = `<th id="th-rank-node">Rank Order</th>` + tableHead.innerHTML + `<th>Score Marks</th><th>Percentage</th>`;
       }
 
       data.students.forEach(s => {
         const isApproved = s.paymentStatus === "Approved";
         const isOfflinePay = s.paymentMode === "offline";
         
-        // Status indicator matrix vectors
         const statusBadge = isApproved ? "<span style='color:#4ade80; font-weight:bold;'>✔️ Approved</span>" : "<span style='color:#f87171; font-weight:bold;'>⏳ Pending Verification</span>";
         
-        // 🎯 ACTION GATE SWITCH: 'Approve Cash' switch shows only for offline cash entries
         let actionCell = "<span>N/A</span>";
         if (!isApproved && isOfflinePay) {
           actionCell = `<button onclick="approveStudentCashEntry('${s.id}')" style="background:#10b981; color:#fff; border:none; padding:6px 12px; font-size:11px; border-radius:4px; font-weight:bold; cursor:pointer;">💸 Approve Cash</button>`;
