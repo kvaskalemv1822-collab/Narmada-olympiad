@@ -80,7 +80,7 @@ def get_global_config():
         if config_doc.exists:
             config = config_doc.to_dict()
             if "adminPassword" in config: 
-                del config["adminPassword"] # Strips master admin key
+                del config["adminPassword"]
             return jsonify({"status": "success", "config": config}), 200
         return jsonify({"status": "error", "message": "Config mapping trace missing!"}), 404
     except Exception as e:
@@ -164,7 +164,9 @@ def secure_registration():
             if not utr_number or len(utr_number) != 12 or not utr_number.isdigit() or utr_number in ["123456789012", "000000000000", "999999999999"]:
                 return jsonify({"status": "cyber_attack", "message": "🚫 Fraud Match Detected: Invalid Transaction UTR Number!"}), 400
 
-        # SAVE STUDENT WITH BOTH `orgCode` AND `schoolCode` FOR INSTANT PANEL SYNCHRONIZATION
+        # CASH PAYMENT PENDING LOGIC
+        is_cash = (payment_mode == "offline")
+
         student_payload = {
             "studentId": student_id,
             "orgCode": org_code,
@@ -178,8 +180,8 @@ def secure_registration():
             "contactNumber": contact_number,
             "paymentMode": payment_mode,
             "utrNumber": utr_number,
-            "paymentStatus": "Approved" if payment_mode == "offline" else "Pending Verification",
-            "paymentVerified": True if payment_mode == "offline" else False,
+            "paymentStatus": "Pending Verification" if is_cash else "Pending Verification", # Online & Offline both start as pending until verified
+            "paymentVerified": False,
             "score": 0,
             "percentage": 0,
             "timestamp": firestore.SERVER_TIMESTAMP
