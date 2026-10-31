@@ -4,14 +4,21 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>NVMSO - School Coordinator Panel</title>
-  <link rel="stylesheet" href="central.css?v=6">
+  <link rel="stylesheet" href="central.css?v=8">
   <link href="https://googleapis.com" rel="stylesheet">
 </head>
 <body style="background:#0b0f19; padding:15px; color:#fff;">
 
 <div id="org-main-container" class="container" style="max-width: 1100px;">
-  <h1>🏫 NVMSO School Coordinator Panel</h1>
-  <div class="admin-subtitle">Register and Manage Associated School Desk</div>
+  
+  <!-- TOP CENTERED HEADER WITH LOGOUT -->
+  <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #374151; padding-bottom: 15px; margin-bottom: 20px;">
+    <div style="width: 100%; text-align: center; position: relative;">
+      <h1 style="margin: 0; font-size: 24px; color: #fff;">🏫 NVMSO School Coordinator Panel</h1>
+      <div class="admin-subtitle" style="margin: 4px 0 0 0; color: #94a3b8;">Narmada Valley Maths & Science Olympiad 2026</div>
+      <button onclick="logoutOrganizerSession()" style="position: absolute; right: 0; top: 0; background: #dc2626; color: #fff; border: none; padding: 8px 14px; font-size: 12px; border-radius: 6px; font-weight: bold; cursor: pointer;">🔴 Logout</button>
+    </div>
+  </div>
 
   <!-- AUTH LAYER CONTAINER -->
   <div id="org-auth-section" class="login-card" style="max-width:450px; margin: 30px auto 0 auto;">
@@ -66,7 +73,28 @@
       <p style="margin-bottom:6px;"><strong>Connected Institute:</strong> <span id="display-org-school" style="color:#e2e8f0;"></span></p>
     </div>
 
-    <!-- FINANCIAL LEDGER & COMMISSION SETTLEMENT SUMMARY CARD -->
+    <!-- EXAM MODE & CONFIGURATIONS (PLACED HIGHER UP) -->
+    <div class="card-box" style="margin-top:20px; border:1px solid #10b981; background:#0f172a; padding:20px; border-radius:12px;">
+      <h3 style="color:#10b981;">⚙️ Student Examination Parameters & Configurations</h3><br>
+      
+      <div style="max-width:400px; margin-bottom:12px;">
+        <label>Choose Applicable Mode for Your Enrolled Candidates:</label>
+        <select id="org-exam-mode-select" onchange="updateExamMode(this.value)" style="background:#020617; color:#fff; border:1px solid #475569; padding:10px; border-radius:6px; width:100%;">
+          <option value="online">Online Mode (Strict Smart Smartphone/PC Evaluation)</option>
+          <option value="offline">Offline Desk Mode (OMR / Physical Sheet Paper)</option>
+        </select>
+      </div>
+      <p style="font-size:13px; color:#94a3b8;">Current Student Fee Mapping: <strong style="color:#fbbf24;">₹<span id="current-applicable-fee">100</span></strong> per participant profile.</p>
+      
+      <br><hr style="border-color:#1e293b; margin-bottom:15px;"><br>
+      
+      <div style="display:flex; align-items:center; gap:12px; background:#020617; padding:15px; border-radius:8px; border:1px solid #334155;">
+        <input type="checkbox" id="principal-perm-checkbox" style="width:22px; height:22px; cursor:pointer;" onchange="togglePrincipalPermission(this.checked)">
+        <label style="margin-bottom:0; cursor:pointer; color:#e2e8f0; font-size:13px;">I verify that the School Principal approval signed authorization certificate has been uploaded/confirmed.</label>
+      </div>
+    </div>
+
+    <!-- FINANCIAL LEDGER & COMMISSION SETTLEMENT SUMMARY CARD WITH UPI PAYOUT REQUEST -->
     <div class="card-box" style="margin-top:20px; border:1px solid #f59e0b; background:#0f172a; padding:20px; border-radius:12px;">
       <h3 style="color:#f59e0b; margin-bottom:15px;">💰 Financial Ledger & Commission Settlement Matrix</h3>
       
@@ -97,6 +125,15 @@
           <h2 id="fin-net-payable" style="color:#f87171;">₹0</h2>
         </div>
       </div>
+
+      <!-- COMMISSION PAYOUT REQUEST BOX -->
+      <div style="margin-top: 15px; background: #020617; padding: 15px; border-radius: 8px; border: 1px solid #334155;">
+        <p style="font-size: 13px; color: #38bdf8; font-weight: bold; margin-bottom: 8px;">📤 Request Commission Payout via UPI from NVMS</p>
+        <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+          <input type="text" id="payout-upi-input" placeholder="Enter your UPI ID (e.g. name@okaxis)" style="flex: 1; min-width: 200px; padding: 10px; background: #0f172a; color: #fff; border: 1px solid #475569; border-radius: 6px;">
+          <button onclick="requestCommissionPayout()" class="btn-primary" style="background: #f59e0b; padding: 10px 20px; width: auto;">Request Payout</button>
+        </div>
+      </div>
     </div>
 
     <!-- REGISTERED STUDENTS ROSTER TABLE -->
@@ -121,30 +158,14 @@
       </div>
     </div>
 
-    <!-- ADJUST EXAM MODE ASSIGNMENT VECTOR -->
-    <div class="card-box" style="margin-top:20px; border:1px solid #10b981; background:#0f172a; padding:20px; border-radius:12px;">
-      <h3 style="color:#10b981;">⚙️ Student Examination Parameters & Configurations</h3><br>
-      
-      <div style="max-width:400px; margin-bottom:12px;">
-        <label>Choose Applicable Mode for Your Enrolled Candidates:</label>
-        <select id="org-exam-mode-select" onchange="updateExamMode(this.value)" style="background:#020617; color:#fff; border:1px solid #475569; padding:10px; border-radius:6px; width:100%;">
-          <option value="online">Online Mode (Strict Smart Smartphone/PC Evaluation)</option>
-          <option value="offline">Offline Desk Mode (OMR / Physical Sheet Paper)</option>
-        </select>
-      </div>
-      <p style="font-size:13px; color:#94a3b8;">Current Student Fee Mapping: <strong style="color:#fbbf24;">₹<span id="current-applicable-fee">100</span></strong> per participant profile.</p>
-      
-      <br><hr style="border-color:#1e293b; margin-bottom:15px;"><br>
-      
-      <div style="display:flex; align-items:center; gap:12px; background:#020617; padding:15px; border-radius:8px; border:1px solid #334155;">
-        <input type="checkbox" id="principal-perm-checkbox" style="width:22px; height:22px; cursor:pointer;" onchange="togglePrincipalPermission(this.checked)">
-        <label style="margin-bottom:0; cursor:pointer; color:#e2e8f0; font-size:13px;">I verify that the School Principal approval signed authorization certificate has been uploaded/confirmed.</label>
-      </div>
-    </div>
-
   </div>
 </div>
 
-<script src="organizer.js?v=7"></script>
+<!-- FLOATING WHATSAPP CHAT SUPPORT BUTTON -->
+<a href="https://wa.me/919999999999?text=Hello%20NVMS%20Admin,%20I%20need%20help%20regarding%20my%20coordinator%20portal." target="_blank" style="position: fixed; bottom: 20px; right: 20px; background: #25d366; color: white; padding: 12px 18px; border-radius: 50px; font-weight: bold; text-decoration: none; box-shadow: 0 4px 12px rgba(0,0,0,0.4); display: flex; align-items: center; gap: 8px; z-index: 9999; font-size: 14px;">
+  <span>💬 Chat Support</span>
+</a>
+
+<script src="organizer.js?v=8"></script>
 </body>
 </html>
