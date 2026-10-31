@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>NVMSO - Central Command Panel 2026</title>
-  <link rel="stylesheet" href="central.css?v=12">
+  <link rel="stylesheet" href="central.css?v=13">
   <link href="https://googleapis.com" rel="stylesheet">
   <style>
     .nvms-logo-title span:nth-child(1) { color: #38bdf8; }
@@ -53,7 +53,7 @@
 <!-- MAIN CENTRAL MASTER CONTROL WORKSPACE -->
 <div id="admin-main-container" class="container hidden" style="max-width: 1100px; margin: 0 auto; background: rgba(15, 23, 42, 0.95); border: 1px solid #1e293b; padding: 25px; border-radius: 16px;">
   
-  <!-- 1. CENTERED HEADER -->
+  <!-- CENTERED HEADER -->
   <div style="text-align: center; border-bottom: 1px solid #374151; padding-bottom: 15px; margin-bottom: 20px;">
     <h1 class="nvms-logo-title" style="margin: 0; font-size: 28px; font-weight: 900; letter-spacing: 2px;">
       ⚡ <span>N</span><span>V</span><span>M</span><span>S</span><span>O</span> CENTRAL MASTER PANEL
@@ -65,7 +65,7 @@
     </div>
   </div>
 
-  <!-- 2. BROADCAST BANNER CONFIGURATOR (PLACED JUST BELOW HEADER) -->
+  <!-- BROADCAST BANNER CONFIGURATOR -->
   <div class="card-box" style="margin-bottom:20px; border: 1px solid #f59e0b; background:#0f172a; padding:20px; border-radius:12px;">
     <h3 style="color:#f59e0b; text-align:left; margin-bottom:10px;">📢 Dynamic Alert Notification Banner (Notice Broadcast)</h3>
     <div style="margin-bottom:12px;">
@@ -101,96 +101,70 @@
     <button onclick="saveGlobalConfig()" class="btn-primary" style="background:#10b981; padding:10px 20px; width:auto;">💾 Save Master Parameters</button>
   </div>
 
-  <!-- 4. ORGANIZER DETAILS & EXAM MODE TRACKER -->
+  <!-- 1. MERGED: ASSOCIATED SCHOOL ORGANIZERS, EXAM MODE & SETTLEMENTS -->
   <div class="card-box" style="margin-bottom:20px; border: 1px solid #38bdf8; background:#0f172a; padding:20px; border-radius:12px;">
-    <h3 style="color:#38bdf8; text-align:left; margin-bottom:12px;">🏫 Associated School Organizers & Exam Modes Tracker</h3>
+    <h3 style="color:#38bdf8; text-align:left; margin-bottom:12px;">🏫 Associated School Organizers, Exam Modes & Settlement Manager</h3>
     <div style="overflow-x: auto;">
       <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 13px;">
         <thead>
           <tr style="border-bottom: 2px solid #334155; color: #94a3b8;">
-            <th style="padding:10px;">Org Code</th>
-            <th style="padding:10px;">School Name</th>
+            <th style="padding:10px;">Org Code / School</th>
             <th style="padding:10px;">Coordinator</th>
-            <th style="padding:10px;">Contact</th>
             <th style="padding:10px;">Exam Mode</th>
             <th style="padding:10px;">Registrations</th>
+            <th style="padding:10px;">Settlement UTR Proof</th>
+            <th style="padding:10px;">Action / Payout</th>
           </tr>
         </thead>
         <tbody id="admin-organizers-rows" style="color: #f8fafc;">
-          <!-- Loaded via central.js -->
+          <!-- Merged organizer & settlement rows -->
         </tbody>
       </table>
     </div>
   </div>
 
-  <!-- 5. STUDENT DETAILS BLOCKS & RE-EXAM MANAGER -->
-  <div class="card-box" style="margin-bottom:20px; border: 1px solid #38bdf8; background:#0f172a; padding:20px; border-radius:12px;">
-    <h3 style="color:#38bdf8; text-align:left; margin-bottom:12px;">👤 Student Details Blocks & Re-Exam Trigger</h3>
-    <div style="display:flex; gap:10px; margin-bottom:15px;">
-      <input type="text" id="student-search-input" placeholder="Search by Roll Number or Student Name..." style="flex:1; padding:10px; background:#020617; color:#fff; border:1px solid #475569; border-radius:6px;">
-      <button onclick="filterStudentBlocks()" class="btn-primary" style="background:#0284c7; width:auto; padding:10px 20px;">Search</button>
+  <!-- 2. SCHOOL-WISE RANKING (TOP 6 IN 2 COLUMNS) -->
+  <div class="card-box" style="margin-bottom:20px; border: 1px solid #facc15; background:#0f172a; padding:20px; border-radius:12px;">
+    <h3 style="color:#facc15; text-align:left; margin-bottom:12px;">🏆 School-Wise Top 6 Rankings (2-Column Grid View)</h3>
+    <div style="margin-bottom:15px;">
+      <select id="ranking-school-select" onchange="loadSchoolRankings()" style="padding:10px; background:#020617; color:#fff; border:1px solid #475569; border-radius:6px; min-width: 250px;">
+        <!-- Populated dynamically with schools -->
+      </select>
     </div>
-    <div id="student-blocks-container" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap:15px; max-height: 350px; overflow-y: auto;">
-      <!-- Student cards populated dynamically -->
+    <!-- 2 Column Grid for Top 6 Rankings -->
+    <div id="school-rankings-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 15px;">
+      <!-- Populated via central.js -->
     </div>
   </div>
 
-  <!-- 6. CLASS-WISE RANKING & CERTIFICATE TIER SYSTEM (TOP 6) -->
-  <div class="card-box" style="margin-bottom:20px; border: 1px solid #facc15; background:#0f172a; padding:20px; border-radius:12px;">
-    <h3 style="color:#facc15; text-align:left; margin-bottom:12px;">🏆 Class-Wise Top 6 Ranking & Certificate Tiers</h3>
-    <p style="font-size:12px; color:#94a3b8; margin-bottom:15px;">
-      🥇 1st: Gold | 🥈 2nd: Silver | 🥉 3rd: Bronze (Physical Cert) | 4th, 5th, 6th: Physical Cert | Others: Digital Cert
-    </p>
-
-    <div style="display:flex; gap:15px; margin-bottom:15px;">
-      <select id="ranking-stream-select" onchange="loadClassRankings()" style="padding:10px; background:#020617; color:#fff; border:1px solid #475569; border-radius:6px;">
-        <option value="3-7">Classes 3rd to 7th Block</option>
-        <option value="8-12">Classes 8th to 12th Block</option>
+  <!-- 3. SCHOOL-WISE STUDENT DETAILS LEDGER -->
+  <div class="card-box" style="margin-bottom:20px; border: 1px solid #10b981; background:#0f172a; padding:20px; border-radius:12px;">
+    <h3 style="color:#10b981; text-align:left; margin-bottom:12px;">📋 School-Wise Student Details Ledger & Actions</h3>
+    <div style="margin-bottom:15px;">
+      <select id="ledger-school-select" onchange="loadSchoolStudentLedger()" style="padding:10px; background:#020617; color:#fff; border:1px solid #475569; border-radius:6px; min-width: 250px;">
+        <!-- Populated dynamically -->
       </select>
     </div>
-
     <div style="overflow-x: auto;">
       <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 13px;">
         <thead>
           <tr style="border-bottom: 2px solid #334155; color: #94a3b8;">
-            <th style="padding:10px;">Rank</th>
             <th style="padding:10px;">Student Name</th>
             <th style="padding:10px;">Class</th>
-            <th style="padding:10px;">School Code</th>
-            <th style="padding:10px;">Score / %</th>
-            <th style="padding:10px; color:#facc15;">Medal / Certificate Tier</th>
+            <th style="padding:10px;">Payment Status & UTR</th>
+            <th style="padding:10px;">Marks / %</th>
+            <th style="padding:10px;">Action</th>
           </tr>
         </thead>
-        <tbody id="ranking-table-rows" style="color: #f8fafc;">
-          <!-- Ranked rows populated here -->
+        <tbody id="ledger-student-rows" style="color: #f8fafc;">
+          <!-- Populated via central.js -->
         </tbody>
       </table>
-    </div>
-  </div>
-
-  <!-- FINANCIAL SETTLEMENTS & PAYOUT VERIFICATION MANAGER -->
-  <div class="card-box" style="margin-bottom:20px; border: 1px solid #c084fc; background:#0f172a; padding:20px; border-radius:12px;">
-    <h3 style="color:#c084fc; text-align:left; margin-bottom:12px;">🏦 Organizer Settlements & Commission Payout Requests</h3>
-    
-    <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap:20px;">
-      <div style="background:#020617; padding:15px; border-radius:8px; border:1px solid #334155;">
-        <h4 style="color:#4ade80; margin-bottom:10px; font-size:14px;">📥 Net Settlement UTR Proofs Received</h4>
-        <div id="admin-settlement-list" style="font-size: 13px; color: #cbd5e1; max-height: 200px; overflow-y: auto;">
-          <p style="color: #64748b;">Loading settlement requests...</p>
-        </div>
-      </div>
-
-      <div style="background:#020617; padding:15px; border-radius:8px; border:1px solid #334155;">
-        <h4 style="color:#facc15; margin-bottom:10px; font-size:14px;">📤 Commission Payout Requests</h4>
-        <div id="admin-payout-list" style="font-size: 13px; color: #cbd5e1; max-height: 200px; overflow-y: auto;">
-          <p style="color: #64748b;">Loading payout requests...</p>
-        </div>
-      </div>
     </div>
   </div>
 
 </div>
 
-<script src="central.js?v=12"></script>
+<script src="central.js?v=13"></script>
 </body>
 </html>
