@@ -79,12 +79,11 @@ function initializeCentralPanelData() {
         if (document.getElementById("admin-broadcast-input")) document.getElementById("admin-broadcast-input").value = config.broadcastNotice || "";
 
         setupSmartSwitchesExclusiveRule();
+        fetchAdminFinancialRequests();
       }
     });
 }
 
-// 🚨 SMART INTERLOCK INTERFACE MATRIX
-// Ensures that only one portal phase remains active at any given moment.
 function setupSmartSwitchesExclusiveRule() {
   const regChk = document.getElementById("cfg-reg-active");
   const examChk = document.getElementById("cfg-exam-active");
@@ -121,6 +120,72 @@ window.saveGlobalConfig = async () => {
       alert("✅ Command Dispatched: Portal phases and parameters updated across server nodes!");
     }
   }).catch(() => alert("❌ Sync Connection Error."));
+};
+
+// Fetch settlement and payout requests for Admin
+function fetchAdminFinancialRequests() {
+  fetch(`${SERVER_URL}/api/admin/financial_requests`)
+    .then(res => res.json())
+    .then(data => {
+      if(data.status === "success") {
+        const settContainer = document.getElementById("admin-settlement-list");
+        const payoutContainer = document.getElementById("admin-payout-list");
+
+        if(settContainer) {
+          settContainer.innerHTML = data.settlements.length ? "" : "<p style='color:#64748b;'>No settlement proofs submitted yet.</p>";
+          data.settlements.forEach(st => {
+            settContainer.innerHTML += `
+              <div style="background:#0f172a; padding:10px; border-radius:6px; margin-bottom:8px; border:1px solid #334155;">
+                <p><strong>School Code:</strong> <span style="color:#38bdf8;">${st.orgCode}</span></p>
+                <p><strong>UTR:</strong> <code>${st.utrNumber}</code> | <strong>Amount:</strong> ₹${st.amount}</p>
+                <button onclick="approveOrganizerSettlement('${st.orgCode}', '${st.id}')" style="margin-top:6px; background:#10b981; color:#fff; border:none; padding:4px 10px; font-size:11px; border-radius:4px; font-weight:bold; cursor:pointer;">✔️ Verify & Unlock Payouts</button>
+              </div>
+            `;
+          });
+        }
+
+        if(payoutContainer) {
+          payoutContainer.innerHTML = data.payouts.length ? "" : "<p style='color:#64748b;'>No payout requests pending.</p>";
+          data.payouts.forEach(p => {
+            payoutContainer.innerHTML += `
+              <div style="background:#0f172a; padding:10px; border-radius:6px; margin-bottom:8px; border:1px solid #334155;">
+                <p><strong>School:</strong> <span style="color:#facc15;">${p.orgCode}</span> | <strong>Amount:</strong> ₹${p.amount}</p>
+                <p><strong>UPI ID:</strong> <code>${p.upiId}</code></p>
+                <button onclick="markPayoutCompleted('${p.id}')" style="margin-top:6px; background:#f59e0b; color:#fff; border:none; padding:4px 10px; font-size:11px; border-radius:4px; font-weight:bold; cursor:pointer;">💸 Mark Paid</button>
+              </div>
+            `;
+          });
+        }
+      }
+    }).catch(() => {});
+}
+
+window.approveOrganizerSettlement = function(orgCode, reqId) {
+  if(!confirm(`Confirm settlement approval for ${orgCode}? This will unlock their commission payouts.`)) return;
+  fetch(`${SERVER_URL}/api/admin/approve_settlement`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ orgCode: orgCode, requestId: reqId })
+  }).then(res => res.json()).then(d => {
+    if(d.status === "success") {
+      alert("✅ Settlement Verified! Commission payouts unlocked for this school.");
+      fetchAdminFinancialRequests();
+    }
+  });
+};
+
+window.markPayoutCompleted = function(payoutId) {
+  if(!confirm("Mark this commission payout as completed?")) return;
+  fetch(`${SERVER_URL}/api/admin/complete_payout`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ payoutId: payoutId })
+  }).then(res => res.json()).then(d => {
+    if(d.status === "success") {
+      alert("🎉 Payout marked as completed!");
+      fetchAdminFinancialRequests();
+    }
+  });
 };
 
 window.logoutAdminSession = () => { location.reload(); };
