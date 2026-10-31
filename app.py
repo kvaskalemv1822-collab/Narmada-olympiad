@@ -22,7 +22,7 @@ try:
 except Exception as e:
     print(f"❌ Initialization Error: {str(e)}")
 
-# --- ADMIN AUTHENTICATION ROUTE (BUG FIXED & STRIPPED) ---
+# --- ADMIN AUTHENTICATION ROUTE (SECURE FIREBASE CHECK) ---
 @app.route('/api/admin/authenticate', methods=['POST'])
 def admin_authenticate():
     try:
@@ -63,8 +63,6 @@ def update_master_portal_settings():
             "onlineFee": int(data.get('onlineFee', 100)),
             "offlineFee": int(data.get('offlineFee', 120)),
             "examDuration": int(data.get('examDuration', 30)),
-            "upiId": str(data.get('upiId', 'narmada@upi')).strip(),
-            "qrImageUrl": str(data.get('qrImageUrl', 'Qrcode.jpg')).strip(),
             "isRegistrationOpen": bool(data.get('isRegistrationOpen', True)),
             "isExamActive": bool(data.get('isExamActive', False)),
             "isResultDeclared": bool(data.get('isResultDeclared', False)),
@@ -300,7 +298,37 @@ def request_commission_payout():
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
-# --- ADMIN FINANCIAL REQUESTS ROUTES ---
+# --- ADMIN COMMAND & FINANCIAL REQUESTS ROUTES ---
+@app.route('/api/admin/all_data', methods=['POST'])
+def get_admin_all_data():
+    try:
+        org_docs = db.collection('organizers').get()
+        organizers = [o.to_dict() for o in org_docs]
+        
+        stud_docs = db.collection('students').get()
+        students = []
+        for d in stud_docs:
+            s = d.to_dict()
+            s['id'] = d.id
+            students.append(s)
+            
+        return jsonify({"status": "success", "organizers": organizers, "students": students}), 200
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route('/api/admin/reexam', methods=['POST'])
+def admin_trigger_reexam():
+    try:
+        data = request.json or {}
+        student_id = data.get('studentId')
+        db.collection('students').document(student_id).update({
+            "examStatus": "Not Started",
+            "score": 0
+        })
+        return jsonify({"status": "success", "message": "Re-exam triggered!"}), 200
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
 @app.route('/api/admin/financial_requests', methods=['GET'])
 def get_admin_financial_requests():
     try:
