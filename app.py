@@ -29,7 +29,7 @@ def admin_authenticate():
         data = request.json
         password = data.get('password', '').strip()
         config_doc = db.collection('settings').document('portal_config').get()
-        stored_password = "admin123" # Default fallback
+        stored_password = "admin123"
         if config_doc.exists:
             stored_password = config_doc.to_dict().get('adminPassword', 'admin123')
             
@@ -166,7 +166,6 @@ def update_organizer_profile():
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
-# 🎯 FINANCIAL & COMMISSION LEDGER API ROUTE
 @app.route('/api/organizer/students', methods=['POST'])
 def get_organizer_students():
     try:
@@ -201,10 +200,8 @@ def get_organizer_students():
                 total_fees_collected += online_fee
                 online_count += 1
         
-        # 15% Direct Commission for Organizer
         direct_commission = total_fees_collected * 0.15
         
-        # 5% Referral Commission Calculation (agar refCode provided hai toh sub-network fee par 5%)
         referral_commission = 0
         if ref_code:
             ref_docs = db.collection('students').where('orgCode', '==', ref_code).get()
@@ -213,7 +210,6 @@ def get_organizer_students():
 
         net_payable_to_nvms = total_fees_collected - direct_commission
 
-        # Result Ranking & Sorting Engine
         is_result_on = portal_cfg.get('isResultDeclared', False)
         if is_result_on:
             students_list.sort(key=lambda x: x.get('score', 0), reverse=True)
@@ -248,16 +244,25 @@ def approve_student_payment():
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
-@app.route('/api/admin/add-question', methods=['POST'])
-def add_new_question():
+@app.route('/api/organizer/request_payout', methods=['POST'])
+def request_commission_payout():
     try:
         data = request.json
-        db.collection('questions').add({
-            "targetClass": data.get('classRange'), "subject": data.get('subject'), "qText": data.get('questionText'),
-            "optA": data.get('optionA'), "optB": data.get('optionB'), "optC": data.get('optionC'), "optD": data.get('optionD'),
-            "correctOpt": data.get('correctOption'), "createdAt": firestore.SERVER_TIMESTAMP
+        org_code = data.get('orgCode', '').strip().upper()
+        upi_id = data.get('upiId', '').strip()
+        amount = data.get('amount', 0)
+        
+        if not org_code or not upi_id or amount <= 0:
+            return jsonify({"status": "error", "message": "Invalid payout details!"}), 400
+            
+        db.collection('payout_requests').add({
+            "orgCode": org_code,
+            "upiId": upi_id,
+            "amount": amount,
+            "status": "Pending",
+            "requestedAt": firestore.SERVER_TIMESTAMP
         })
-        return jsonify({"status": "success"}), 200
+        return jsonify({"status": "success", "message": "Payout request sent successfully!"}), 200
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
