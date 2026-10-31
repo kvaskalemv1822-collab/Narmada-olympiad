@@ -9,6 +9,7 @@ from firebase_admin import credentials, firestore
 app = Flask(__name__)
 CORS(app, resources={r"/api/*": {"origins": "*"}})
 
+# 🛡️ FIREBASE INITIALIZATION FROM ENV VARIABLE LOADER
 try:
     if not firebase_admin._apps:
         firebase_key_json = os.environ.get('FIREBASE_CONFIG_JSON')
@@ -21,15 +22,18 @@ try:
 except Exception as e:
     print(f"❌ Initialization Error: {str(e)}")
 
+# --- ADMIN AUTHENTICATION ROUTE (BUG FIXED & STRIPPED) ---
 @app.route('/api/admin/authenticate', methods=['POST'])
 def admin_authenticate():
     try:
-        data = request.json
-        password = data.get('password', '').strip()
+        data = request.json or {}
+        password = str(data.get('password', '')).strip()
+        
         config_doc = db.collection('settings').document('portal_config').get()
-        stored_password = "admin123"
+        stored_password = "admin123" # Default fallback
         if config_doc.exists:
-            stored_password = config_doc.to_dict().get('adminPassword', 'admin123')
+            cfg_data = config_doc.to_dict()
+            stored_password = str(cfg_data.get('adminPassword', 'admin123')).strip()
             
         if password == stored_password:
             return jsonify({"status": "success", "message": "Authenticated!"}), 200
@@ -37,6 +41,7 @@ def admin_authenticate():
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
+# --- GLOBAL CONFIG METRICS ---
 @app.route('/api/portal/config', methods=['GET'])
 def get_global_config():
     try:
@@ -53,27 +58,28 @@ def get_global_config():
 @app.route('/api/admin/update_config', methods=['POST'])
 def update_master_portal_settings():
     try:
-        data = request.json
+        data = request.json or {}
         db.collection('settings').document('portal_config').update({
             "onlineFee": int(data.get('onlineFee', 100)),
             "offlineFee": int(data.get('offlineFee', 120)),
             "examDuration": int(data.get('examDuration', 30)),
-            "upiId": data.get('upiId', 'narmada@upi').strip(),
-            "qrImageUrl": data.get('qrImageUrl', 'Qrcode.jpg').strip(),
+            "upiId": str(data.get('upiId', 'narmada@upi')).strip(),
+            "qrImageUrl": str(data.get('qrImageUrl', 'Qrcode.jpg')).strip(),
             "isRegistrationOpen": bool(data.get('isRegistrationOpen', True)),
             "isExamActive": bool(data.get('isExamActive', False)),
             "isResultDeclared": bool(data.get('isResultDeclared', False)),
-            "broadcastNotice": data.get('broadcastNotice', '').strip()
+            "broadcastNotice": str(data.get('broadcastNotice', '')).strip()
         })
         return jsonify({"status": "success", "message": "Master parameters synced!"}), 200
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
+# --- STUDENT HUB PIPELINE ---
 @app.route('/api/student/verify-school', methods=['POST'])
 def verify_school_code():
     try:
-        data = request.json
-        org_code = data.get('orgCode', '').strip().upper()
+        data = request.json or {}
+        org_code = str(data.get('orgCode', '')).strip().upper()
         org_doc = db.collection('organizers').document(org_code).get()
         if org_doc.exists:
             org_data = org_doc.to_dict()
@@ -88,9 +94,9 @@ def verify_school_code():
 @app.route('/api/student/register', methods=['POST'])
 def secure_registration():
     try:
-        data = request.json
-        org_code = data.get('orgCode', '').strip().upper()
-        roll_num = data.get('rollNumber', '').strip()
+        data = request.json or {}
+        org_code = str(data.get('orgCode', '')).strip().upper()
+        roll_num = str(data.get('rollNumber', '')).strip()
         
         if not org_code or not roll_num or not data.get('studentName'):
             return jsonify({"status": "error", "message": "Blank entries not allowed!"}), 400
@@ -119,19 +125,20 @@ def secure_registration():
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
+# --- ORGANIZER PORTAL ENGINE ---
 @app.route('/api/organizer/register', methods=['POST'])
 def organizer_signup():
     try:
-        data = request.json
-        raw_school = data.get('schoolName', '').strip()
+        data = request.json or {}
+        raw_school = str(data.get('schoolName', '')).strip()
         formatted_school = ' '.join([w.capitalize() for w in raw_school.split()]) if raw_school else "Associated School"
         
-        contact = data.get('contact', '').strip()
+        contact = str(data.get('contact', '')).strip()
         generated_code = f"ORG{random.randint(1000, 9999)}"
         db.collection('organizers').document(generated_code).set({
             "orgCode": generated_code, "code": generated_code, "name": data.get('name'),
             "schoolName": formatted_school, "contact": contact, "password": data.get('password'), "pin": data.get('pin'),
-            "refCode": data.get('refCode') if data.get('refCode') else None, "examMode": "online",
+            "refCode": str(data.get('refCode', '')).strip().upper() if data.get('refCode') else None, "examMode": "online",
             "principalApproved": False, "manualSettled": False, "totalRegistrations": 0,
             "registeredAt": firestore.SERVER_TIMESTAMP
         })
@@ -142,10 +149,10 @@ def organizer_signup():
 @app.route('/api/organizer/login', methods=['POST'])
 def organizer_login():
     try:
-        data = request.json
-        code = data.get('orgCode', '').strip().upper()
+        data = request.json or {}
+        code = str(data.get('orgCode', '')).strip().upper()
         doc = db.collection('organizers').document(code).get()
-        if doc.exists and doc.to_dict().get('password') == data.get('password'):
+        if doc.exists and str(doc.to_dict().get('password', '')).strip() == str(data.get('password', '')).strip():
             return jsonify({"status": "success", "data": doc.to_dict()}), 200
         return jsonify({"status": "error", "message": "Invalid credentials!"}), 401
     except Exception as e:
@@ -154,8 +161,8 @@ def organizer_login():
 @app.route('/api/organizer/update_profile', methods=['POST'])
 def update_organizer_profile():
     try:
-        data = request.json
-        code = data.get('orgCode', '').strip().upper()
+        data = request.json or {}
+        code = str(data.get('orgCode', '')).strip().upper()
         db.collection('organizers').document(code).update({
             "examMode": data.get('examMode', 'online'),
             "principalApproved": bool(data.get('principalApproved', False))
@@ -167,8 +174,8 @@ def update_organizer_profile():
 @app.route('/api/organizer/students', methods=['POST'])
 def get_organizer_students():
     try:
-        data = request.json
-        code = data.get('orgCode', '').strip().upper()
+        data = request.json or {}
+        code = str(data.get('orgCode', '')).strip().upper()
         
         org_doc = db.collection('organizers').document(code).get()
         org_data = org_doc.to_dict() if org_doc.exists else {}
@@ -239,7 +246,7 @@ def get_organizer_students():
 @app.route('/api/organizer/approve_payment', methods=['POST'])
 def approve_student_payment():
     try:
-        data = request.json
+        data = request.json or {}
         student_id = data.get('studentId')
         db.collection('students').document(student_id).update({"paymentStatus": "Approved"})
         return jsonify({"status": "success", "message": "Payment Status Verified Live!"}), 200
@@ -249,9 +256,9 @@ def approve_student_payment():
 @app.route('/api/organizer/submit_settlement', methods=['POST'])
 def submit_settlement():
     try:
-        data = request.json
-        org_code = data.get('orgCode', '').strip().upper()
-        utr = data.get('utrNumber', '').strip()
+        data = request.json or {}
+        org_code = str(data.get('orgCode', '')).strip().upper()
+        utr = str(data.get('utrNumber', '')).strip()
         amount = data.get('amount', 0)
         
         db.collection('settlement_requests').add({
@@ -261,16 +268,16 @@ def submit_settlement():
             "status": "Pending Verification",
             "submittedAt": firestore.SERVER_TIMESTAMP
         })
-        return jsonify({"status": "success", "message": "Settlement payment proof submitted to NVMS admin!"}), 200
+        return jsonify({"status": "success", "message": "Settlement payment proof submitted!"}), 200
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
 @app.route('/api/organizer/request_payout', methods=['POST'])
 def request_commission_payout():
     try:
-        data = request.json
-        org_code = data.get('orgCode', '').strip().upper()
-        upi_id = data.get('upiId', '').strip()
+        data = request.json or {}
+        org_code = str(data.get('orgCode', '')).strip().upper()
+        upi_id = str(data.get('upiId', '')).strip()
         amount = data.get('amount', 0)
         
         if not org_code or not upi_id or amount <= 0:
@@ -280,7 +287,7 @@ def request_commission_payout():
         if org_doc.exists:
             org_data = org_doc.to_dict()
             if not org_data.get('manualSettled', False):
-                return jsonify({"status": "error", "message": "Settlement Blocked: Please pay net amount to NVMS before requesting commission payout!"}), 400
+                return jsonify({"status": "error", "message": "Settlement Blocked: Please pay net amount to NVMS first!"}), 400
 
         db.collection('payout_requests').add({
             "orgCode": org_code,
@@ -290,6 +297,52 @@ def request_commission_payout():
             "requestedAt": firestore.SERVER_TIMESTAMP
         })
         return jsonify({"status": "success", "message": "Payout request sent successfully!"}), 200
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+# --- ADMIN FINANCIAL REQUESTS ROUTES ---
+@app.route('/api/admin/financial_requests', methods=['GET'])
+def get_admin_financial_requests():
+    try:
+        settle_docs = db.collection('settlement_requests').where('status', '==', 'Pending Verification').get()
+        settlements = []
+        for d in settle_docs:
+            item = d.to_dict()
+            item['id'] = d.id
+            settlements.append(item)
+            
+        payout_docs = db.collection('payout_requests').where('status', '==', 'Pending').get()
+        payouts = []
+        for d in payout_docs:
+            item = d.to_dict()
+            item['id'] = d.id
+            payouts.append(item)
+            
+        return jsonify({"status": "success", "settlements": settlements, "payouts": payouts}), 200
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route('/api/admin/approve_settlement', methods=['POST'])
+def approve_settlement_proof():
+    try:
+        data = request.json or {}
+        org_code = str(data.get('orgCode', '')).strip().upper()
+        req_id = data.get('requestId')
+        
+        db.collection('organizers').document(org_code).update({"manualSettled": True})
+        db.collection('settlement_requests').document(req_id).update({"status": "Verified"})
+        
+        return jsonify({"status": "success", "message": "Settlement approved and payouts unlocked!"}), 200
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route('/api/admin/complete_payout', methods=['POST'])
+def complete_commission_payout():
+    try:
+        data = request.json or {}
+        payout_id = data.get('payoutId')
+        db.collection('payout_requests').document(payout_id).update({"status": "Completed"})
+        return jsonify({"status": "success", "message": "Payout marked as completed!"}), 200
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
