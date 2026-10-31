@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>NVMSO - Student Portal 2026</title>
-  <link rel="stylesheet" href="student.css?v=10">
+  <link rel="stylesheet" href="student.css?v=11">
   <link href="https://googleapis.com" rel="stylesheet">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 </head>
@@ -27,12 +27,14 @@
       
       <!-- STEP 1: STUDENT DETAILS SECTION -->
       <div id="details-section">
-        <div class="form-group" style="margin-bottom:12px;">
-          <label>Notice: Participation requires a verified School Organizer Code with Principal Permission. Invalid or unapproved codes will be blocked automatically.</label>
+        
+        <!-- 🎨 COLORFUL & STYLISH NOTICE BOX -->
+        <div style="background: linear-gradient(135deg, rgba(245, 158, 11, 0.15), rgba(217, 119, 6, 0.15)); border: 1px solid #f59e0b; padding: 12px 15px; border-radius: 8px; margin-bottom: 15px; color: #fcd34d; font-size: 13px; line-height: 1.4;">
+          <strong>⚠️ Notice:</strong> Participation requires a verified School Organizer Code with Principal Permission. Invalid or unapproved codes will be blocked automatically.
         </div>
 
         <div class="form-group" style="margin-bottom:12px;">
-          <div id="display-student-exam-mode" class="highlight-text" style="background:#374151; padding:8px; text-align:center; font-weight:bold; border-radius:6px;">Exam Conduct Mode: ENTER ORGANIZER CODE FIRST</div>
+          <div id="display-student-exam-mode" class="highlight-text" style="background:#1e293b; color:#38bdf8; padding:10px; text-align:center; font-weight:bold; border-radius:6px; border:1px solid #334155;">Exam Conduct Mode: ENTER ORGANIZER CODE FIRST</div>
         </div>
 
         <div class="form-group" style="margin-bottom:12px;">
@@ -83,7 +85,7 @@
         </div>
 
         <!-- CONFIRM DETAILS & PROCEED BUTTON -->
-        <button type="button" class="btn-submit" style="background:#0284c7; margin-bottom:15px;" onclick="validateAndShowPayment()">Confirm Details & Proceed to Payment</button>
+        <button type="button" class="btn-submit" style="background:linear-gradient(135deg, #0284c7, #0369a1); margin-bottom:15px; font-weight:bold; cursor:pointer;" onclick="validateAndShowPayment()">Confirm Details & Proceed to Payment ➡</button>
       </div>
 
       <!-- STEP 2: PAYMENT & SUBMISSION SECTION (Initially Hidden) -->
@@ -99,11 +101,11 @@
         <!-- ONLINE UPI PAYMENT CONTAINER -->
         <div id="online-payment-section" class="qr-box" style="margin-bottom:15px;">
           <button type="button" class="btn-submit" style="background:#0284c7; margin-bottom:10px;" onclick="openDirectUpiApp()">⚡ Pay via UPI App (GPay / PhonePe / Paytm)</button>
-          <button type="button" class="btn-submit" style="background:#1e293b; color:#fff; margin-bottom:12px;" onclick="toggleQrDisplay()">📱 View / Hide QR Code (Alternative)</button>
+          <button type="button" class="btn-submit" style="background:#1e293b; color:#fff; margin-bottom:12px; border:1px solid #475569;" onclick="toggleQrDisplay()">📱 View / Hide QR Code (Alternative)</button>
           <div id="dynamic-qr-container" style="display:none; justify-content:center; margin-bottom:12px;"></div>
           
           <div class="form-group">
-            <label style="color:#d9534f;">Enter Single-Use UTR / Transaction Reference No:</label>
+            <label style="color:#f87171;">Enter Single-Use UTR / Transaction Reference No:</label>
             <input type="text" id="std-utr" placeholder="Enter Unique UTR Number" maxlength="12">
           </div>
         </div>
@@ -117,8 +119,8 @@
         </div>
 
         <div style="display:flex; gap:10px;">
-          <button type="button" class="btn-submit" style="background:#475569; width:35%;" onclick="backToDetails()">⬅ Edit Details</button>
-          <button type="submit" class="btn-submit" style="background:#10b981; width:65%;">COMPLETE REGISTRATION</button>
+          <button type="button" class="btn-submit" style="background:#475569; width:35%; cursor:pointer;" onclick="backToDetails()">⬅ Edit Details</button>
+          <button type="submit" class="btn-submit" style="background:#10b981; width:65%; font-weight:bold; cursor:pointer;">COMPLETE REGISTRATION</button>
         </div>
       </div>
 
@@ -134,6 +136,6 @@
   </div>
 </div>
 
-<script src="student.js?v=10"></script>
+<script src="student.js?v=11"></script>
 </body>
 </html>
