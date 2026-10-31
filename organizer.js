@@ -1,10 +1,9 @@
-const SERVER_URL = "https://nvmso-backend.onrender.com";
+https://nvmso-backend.onrender.com
 let currentOrg = null;
 let portalConfig = {};
 
 document.addEventListener("DOMContentLoaded", () => {
   fetchGlobalConfigAndNotice();
-  enforceNumericInputs();
 });
 
 function fetchGlobalConfigAndNotice() {
@@ -20,29 +19,28 @@ function fetchGlobalConfigAndNotice() {
           noticeBanner.classList.remove("hidden");
         }
       }
-    }).catch(err => console.log("Notice channel connection signature delay."));
+    });
 }
 
 window.verifyOrgLogin = async () => {
   const code = document.getElementById("org-code-input").value.trim().toUpperCase();
   const password = document.getElementById("org-pass-input").value.trim();
 
-  if(!code || !password) { alert("Please input authorization credentials."); return; }
-
   fetch(`${SERVER_URL}/api/organizer/login`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ orgCode: code, password: password })
   })
-  .then(res => {
-    if (!res.ok) throw new Error();
-    return res.json();
-  })
+  .then(res => res.json())
   .then(response => {
-    currentOrg = response.data;
-    loadDashboardView();
-  })
-  .catch(() => { alert("❌ Access Denied: Invalid Organizer Code or Password!"); });
+    if (response.status === "success") {
+      currentOrg = response.data;
+      loadDashboardView();
+      fetchRegisteredStudentsList(); 
+    } else {
+      alert("❌ Access Denied: Invalid Credentials!");
+    }
+  });
 };
 
 document.getElementById("org-reg-form")?.addEventListener("submit", async (e) => {
@@ -64,10 +62,8 @@ document.getElementById("org-reg-form")?.addEventListener("submit", async (e) =>
   .then(res => res.json())
   .then(data => {
     if (data.status === "success") {
-      alert(`🎉 Desk Profile Created Successfully!\n\nYour Live Organizer Code is: ${data.orgCode}\n\nProvide this code to your students to launch registration.`);
+      alert(`🎉 Account Created! Code: ${data.orgCode}`);
       location.reload();
-    } else {
-      alert("❌ Operation Terminated: " + data.message);
     }
   });
 });
@@ -86,17 +82,14 @@ function loadDashboardView() {
   document.getElementById("current-applicable-fee").textContent = (currentOrg.examMode === "offline") ? (portalConfig.offlineFee || 120) : (portalConfig.onlineFee || 100);
 }
 
-// 🚨 MODE PERSISTENCE FIX: Saves mode configurations securely to server documents
+// 🚨 EXAM MODE SCRIPT SIGNATURE FIX WITH TEMPLATE LITERAL INTERPOLATION
 window.updateExamMode = function(val) {
   if (!currentOrg) return;
-  
   fetch(`${SERVER_URL}/api/organizer/update_profile`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      orgCode: currentOrg.code || currentOrg.orgCode,
-      examMode: val,
-      principalApproved: currentOrg.principalApproved
+      orgCode: currentOrg.code || currentOrg.orgCode, examMode: val, principalApproved: currentOrg.principalApproved
     })
   })
   .then(res => res.json())
@@ -104,38 +97,100 @@ window.updateExamMode = function(val) {
     if(data.status === "success") {
       currentOrg.examMode = val;
       document.getElementById("current-applicable-fee").textContent = val === "offline" ? (portalConfig.offlineFee || 120) : (portalConfig.onlineFee || 100);
-      alert(`✅ Configuration Updated: Mode shifted to ${val.toUpperCase()} successfully!`);
+      alert(`✅ Configuration Updated: Mode saved as ${val.toUpperCase()} successfully!`);
     }
-  }).catch(() => alert("Network validation error."));
+  });
 };
 
 window.togglePrincipalPermission = function(isChecked) {
   if (!currentOrg) return;
-  
   fetch(`${SERVER_URL}/api/organizer/update_profile`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      orgCode: currentOrg.code || currentOrg.orgCode,
-      examMode: currentOrg.examMode || "online",
-      principalApproved: isChecked
+      orgCode: currentOrg.code || currentOrg.orgCode, examMode: currentOrg.examMode || "online", principalApproved: isChecked
     })
   })
   .then(res => res.json())
   .then(data => {
     if(data.status === "success") {
       currentOrg.principalApproved = isChecked;
-      alert(isChecked ? "📜 Principal verification marked live on server ledger!" : "🔒 Approval revoked.");
+      alert("📜 Principal permission status updated and saved permanently!");
     }
   });
 };
 
-function enforceNumericInputs() {
-  ['new-org-contact', 'new-org-pin'].forEach(id => {
-    const el = document.getElementById(id);
-    if (el) el.addEventListener("input", (e) => { e.target.value = e.target.value.replace(/[^0-9]/g, ""); });
+// 🚨 ADVANCED LEDGER ROSTER: Handles On/Offline markers, Approve Cash gates, and Rank Sort order arrays
+function fetchRegisteredStudentsList() {
+  const container = document.getElementById("student-roster-rows");
+  if(!container || !currentOrg) return;
+
+  fetch(`${SERVER_URL}/api/organizer/students`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ orgCode: currentOrg.code || currentOrg.orgCode })
+  })
+  .then(res => res.json())
+  .then(data => {
+    if (data.status === "success" && data.students.length > 0) {
+      container.innerHTML = "";
+      
+      // Updates table head matrix dynamically if result scorecard vector is published live
+      const tableHead = document.querySelector("table inequities thead tr");
+      if(data.isResultDeclared && tableHead && !document.getElementById("th-rank-node")) {
+         tableHead.innerHTML = `<th>Rank Order</th>` + tableHead.innerHTML + `<th>Score Marks</th><th>Percentage</th>`;
+      }
+
+      data.students.forEach(s => {
+        const isApproved = s.paymentStatus === "Approved";
+        const isOfflinePay = s.paymentMode === "offline";
+        
+        // Status indicator matrix vectors
+        const statusBadge = isApproved ? "<span style='color:#4ade80; font-weight:bold;'>✔️ Approved</span>" : "<span style='color:#f87171; font-weight:bold;'>⏳ Pending Verification</span>";
+        
+        // 🎯 ACTION GATE SWITCH: 'Approve Cash' switch shows only for offline cash entries
+        let actionCell = "<span>N/A</span>";
+        if (!isApproved && isOfflinePay) {
+          actionCell = `<button onclick="approveStudentCashEntry('${s.id}')" style="background:#10b981; color:#fff; border:none; padding:6px 12px; font-size:11px; border-radius:4px; font-weight:bold; cursor:pointer;">💸 Approve Cash</button>`;
+        } else if (!isApproved && !isOfflinePay) {
+          actionCell = `<span style='color:#64748b; font-size:11px;'>Waiting UPI Ref</span>`;
+        }
+
+        let rankCell = data.isResultDeclared ? `<td><strong>Rank #${s.rank}</strong></td>` : "";
+        let scoreCells = data.isResultDeclared ? `<td><span style='color:#4ade80; font-weight:bold;'>${s.score}</span></td><td><span style='color:#38bdf8; font-weight:bold;'>${s.percentage}</span></td>` : "";
+
+        const row = `<tr>
+          ${rankCell}
+          <td><strong>${s.studentName}</strong></td>
+          <td><code>${s.rollNumber}</code></td>
+          <td>Class ${s.studentClass}</td>
+          <td><span style="background:#1e293b; padding:2px 6px; border-radius:4px; font-size:11px; font-weight:bold; color:${isOfflinePay ? '#fbbf24':'#38bdf8'}">${s.paymentMode.toUpperCase()}</span></td>
+          <td>${statusBadge}</td>
+          <td>${actionCell}</td>
+          ${scoreCells}
+        </tr>`;
+        container.innerHTML += row;
+      });
+    }
   });
 }
+
+window.approveStudentCashEntry = function(studentId) {
+  if(!confirm("Confirm cash collection payment verification approval?")) return;
+
+  fetch(`${SERVER_URL}/api/organizer/approve_payment`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ studentId: studentId })
+  })
+  .then(res => res.json())
+  .then(data => {
+    if(data.status === "success") {
+      alert("🎉 Registration Fee Cash Payment Verification Approved Successfully!");
+      fetchRegisteredStudentsList(); 
+    }
+  });
+};
 
 window.switchOrgTab = (tab) => {
   if (tab === 'reg') {
