@@ -160,6 +160,12 @@ function fetchRegisteredStudentsList() {
         if(document.getElementById("fin-direct-comm")) document.getElementById("fin-direct-comm").textContent = `₹${data.financials.directCommission}`;
         if(document.getElementById("fin-ref-comm")) document.getElementById("fin-ref-comm").textContent = `₹${data.financials.referralCommission}`;
         if(document.getElementById("fin-net-payable")) document.getElementById("fin-net-payable").textContent = `₹${currentNetPayable}`;
+        
+        // Prefill settlement amount input automatically
+        const amountInput = document.getElementById("settlement-amount-input");
+        if(amountInput && !amountInput.value) {
+          amountInput.value = currentNetPayable;
+        }
       }
 
       container.innerHTML = "";
@@ -168,7 +174,6 @@ function fetchRegisteredStudentsList() {
         return;
       }
 
-      // Dynamic Header for Result Ranking & Marks/Percentage
       const tableHead = document.getElementById("roster-table-head");
       if (tableHead) {
         if (data.isResultDeclared) {
@@ -244,7 +249,7 @@ window.approveStudentCashEntry = function(studentId) {
   });
 };
 
-// ⚡ DIRECT UPI / PHONEPE PAYMENT TO NVMS
+// ⚡ DIRECT UPI PAYMENT TO NVMS
 window.payNetPayableToNvms = function() {
   if (currentNetPayable <= 0) {
     alert("⚠️ No net amount payable to NVMS right now.");
@@ -252,26 +257,38 @@ window.payNetPayableToNvms = function() {
   }
   const orgCode = currentOrg.code || currentOrg.orgCode;
   const upiLink = `upi://pay?pa=${adminUpiId}&pn=NVMSO%20Central%20Admin&am=${currentNetPayable}&cu=INR&tn=Settlement%20for%20${orgCode}`;
-  
-  // Trigger UPI intent / app (PhonePe, GPay, Paytm)
   window.location.href = upiLink;
+};
 
-  setTimeout(() => {
-    const utr = prompt("Enter UTR / Transaction Reference Number after successful payment to notify NVMS Admin:");
-    if (utr) {
-      fetch(`${SERVER_URL}/api/organizer/submit_settlement`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ orgCode: orgCode, utrNumber: utr, amount: currentNetPayable })
-      })
-      .then(res => res.json())
-      .then(d => {
-        if(d.status === "success") {
-          alert("✅ Settlement payment proof submitted successfully! Admin will verify and unlock commission payouts.");
-        }
-      });
+// 📥 SUBMIT UTR AFTER PAYMENT
+window.submitSettlementProof = function() {
+  const utr = document.getElementById("settlement-utr-input").value.trim();
+  const amount = parseFloat(document.getElementById("settlement-amount-input").value) || currentNetPayable;
+  const orgCode = currentOrg.code || currentOrg.orgCode;
+
+  if(!utr) {
+    alert("⚠️ Please enter the UTR / Transaction Reference Number.");
+    return;
+  }
+
+  fetch(`${SERVER_URL}/api/organizer/submit_settlement`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      orgCode: orgCode,
+      utrNumber: utr,
+      amount: amount
+    })
+  })
+  .then(res => res.json())
+  .then(data => {
+    if(data.status === "success") {
+      alert("✅ Settlement payment proof submitted successfully! Admin will verify and unlock commission payouts.");
+      document.getElementById("settlement-utr-input").value = "";
+    } else {
+      alert("❌ Error: " + data.message);
     }
-  }, 1500);
+  });
 };
 
 window.requestCommissionPayout = function() {
