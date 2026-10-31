@@ -1,4 +1,5 @@
 const SERVER_URL = "https://nvmso-backend.onrender.com";
+let allStudentsCache = [];
 
 window.verifyAdminPassword = async () => {
   const passInput = document.getElementById("admin-pass-input").value.trim();
@@ -70,8 +71,6 @@ function initializeCentralPanelData() {
         if (document.getElementById("cfg-online-fee")) document.getElementById("cfg-online-fee").value = config.onlineFee || 100;
         if (document.getElementById("cfg-offline-fee")) document.getElementById("cfg-offline-fee").value = config.offlineFee || 120;
         if (document.getElementById("cfg-duration")) document.getElementById("cfg-duration").value = config.examDuration || 30;
-        if (document.getElementById("cfg-upi")) document.getElementById("cfg-upi").value = config.upiId || "narmada@upi";
-        if (document.getElementById("cfg-qr-url")) document.getElementById("cfg-qr-url").value = config.qrImageUrl || "Qrcode.jpg";
         
         if (document.getElementById("cfg-reg-active")) document.getElementById("cfg-reg-active").checked = !!config.isRegistrationOpen;
         if (document.getElementById("cfg-exam-active")) document.getElementById("cfg-exam-active").checked = !!config.isExamActive;
@@ -80,6 +79,7 @@ function initializeCentralPanelData() {
 
         setupSmartSwitchesExclusiveRule();
         fetchAdminFinancialRequests();
+        fetchOrganizersAndStudentsData();
       }
     });
 }
@@ -101,8 +101,6 @@ window.saveGlobalConfig = async () => {
     onlineFee: Number(document.getElementById("cfg-online-fee").value),
     offlineFee: Number(document.getElementById("cfg-offline-fee").value),
     examDuration: Number(document.getElementById("cfg-duration").value),
-    upiId: document.getElementById("cfg-upi").value,
-    qrImageUrl: document.getElementById("cfg-qr-url").value,
     isRegistrationOpen: document.getElementById("cfg-reg-active").checked,
     isExamActive: document.getElementById("cfg-exam-active").checked,
     isResultDeclared: document.getElementById("cfg-result-allowed").checked,
@@ -122,7 +120,115 @@ window.saveGlobalConfig = async () => {
   }).catch(() => alert("❌ Sync Connection Error."));
 };
 
-// Fetch settlement and payout requests for Admin
+// Fetch Organizers & Students for detailed tracking and rankings
+function fetchOrganizersAndStudentsData() {
+  fetch(`${SERVER_URL}/api/admin/all_data`, { method: "POST" })
+    .then(res => res.json())
+    .then(data => {
+      if(data.status === "success") {
+        // 4. Organizers Tracker
+        const orgRows = document.getElementById("admin-organizers-rows");
+        if(orgRows) {
+          orgRows.innerHTML = data.organizers.length ? "" : "<tr><td colspan='6' style='text-align:center; color:#64748b;'>No organizers registered yet.</td></tr>";
+          data.organizers.forEach(org => {
+            orgRows.innerHTML += `
+              <tr style="border-bottom:1px solid #1e293b;">
+                <td style="padding:10px;"><code>${org.orgCode}</code></td>
+                <td style="padding:10px;"><strong>${org.schoolName}</strong></td>
+                <td style="padding:10px;">${org.name}</td>
+                <td style="padding:10px;">${org.contact}</td>
+                <td style="padding:10px;"><span style="background:#1e293b; padding:2px 6px; border-radius:4px; font-weight:bold; color:${org.examMode=='offline'?'#fbbf24':'#38bdf8'}">${(org.examMode || 'online').toUpperCase()}</span></td>
+                <td style="padding:10px; color:#4ade80; font-weight:bold;">${org.totalRegistrations || 0}</td>
+              </tr>
+            `;
+          });
+        }
+
+        // 5. Student Details Blocks Cache
+        allStudentsCache = data.students || [];
+        renderStudentBlocks(allStudentsCache);
+
+        // 6. Rankings Load
+        loadClassRankings();
+      }
+    }).catch(() => {});
+}
+
+function renderStudentBlocks(students) {
+  const container = document.getElementById("student-blocks-container");
+  if(!container) return;
+  container.innerHTML = students.length ? "" : "<p style='color:#64748b;'>No students found.</p>";
+
+  students.forEach(s => {
+    container.innerHTML += `
+      <div style="background:#020617; padding:12px; border-radius:8px; border:1px solid #334155;">
+        <p style="font-weight:bold; color:#38bdf8; margin-bottom:4px;">${s.studentName} <span style="font-size:11px; color:#94a3b8;">(Roll: ${s.rollNumber})</span></p>
+        <p style="font-size:12px; color:#cbd5e1; margin-bottom:2px;">Class: ${s.studentClass} | School Code: <code>${s.orgCode}</code></p>
+        <p style="font-size:12px; color:#cbd5e1; margin-bottom:8px;">Payment: <span style="color:${s.paymentStatus=='Approved'?'#4ade80':'#f87171'}">${s.paymentStatus}</span> | Score: <strong style="color:#facc15;">${s.score || 0}</strong></p>
+        <button onclick="triggerReExam('${s.id}')" style="background:#7c3aed; color:#fff; border:none; padding:4px 10px; font-size:11px; border-radius:4px; font-weight:bold; cursor:pointer;">🔄 Trigger Re-Exam</button>
+      </div>
+    `;
+  });
+}
+
+window.filterStudentBlocks = function() {
+  const query = document.getElementById("student-search-input").value.trim().toLowerCase();
+  const filtered = allStudentsCache.filter(s => s.studentName.toLowerCase().includes(query) || s.rollNumber.toLowerCase().includes(query));
+  renderStudentBlocks(filtered);
+};
+
+window.triggerReExam = function(studentId) {
+  if(!confirm("Reset this student's exam status to allow Re-Exam?")) return;
+  fetch(`${SERVER_URL}/api/admin/reexam`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ studentId: studentId })
+  }).then(res => res.json()).then(d => {
+    if(d.status === "success") alert("✅ Re-Exam triggered successfully for student!");
+  });
+};
+
+// 6. Class-wise Ranking & Top 6 Tier System
+window.loadClassRankings = function() {
+  const stream = document.getElementById("ranking-stream-select").value;
+  const tbody = document.getElementById("ranking-table-rows");
+  if(!tbody) return;
+
+  // Filter students based on class block (3-7 or 8-12)
+  const targetStudents = allStudentsCache.filter(s => {
+    const clsNum = parseInt(s.studentClass) || 0;
+    if (stream === "3-7") return clsNum >= 3 && clsNum <= 7;
+    if (stream === "8-12") return clsNum >= 8 && clsNum <= 12;
+    return false;
+  });
+
+  // Sort by score descending
+  targetStudents.sort((a, b) => (b.score || 0) - (a.score || 0));
+
+  tbody.innerHTML = targetStudents.length ? "" : "<tr><td colspan='6' style='text-align:center; color:#64748b;'>No student records found in this block.</td></tr>";
+
+  targetStudents.forEach((s, idx) => {
+    const rank = idx + 1;
+    let tierBadge = "<span style='color:#38bdf8;'>💻 Digital Certificate</span>";
+
+    if (rank === 1) tierBadge = "<span style='color:#facc15; font-weight:bold;'>🥇 1st Rank - Gold Medal + Physical Cert</span>";
+    else if (rank === 2) tierBadge = "<span style='color:#e2e8f0; font-weight:bold;'>🥈 2nd Rank - Silver Medal + Physical Cert</span>";
+    else if (rank === 3) tierBadge = "<span style='color:#fb923c; font-weight:bold;'>🥉 3rd Rank - Bronze Medal + Physical Cert</span>";
+    else if (rank >= 4 && rank <= 6) tierBadge = "<span style='color:#4ade80; font-weight:bold;'>📜 Top 6 Rank - Physical Certificate</span>";
+
+    tbody.innerHTML += `
+      <tr style="border-bottom:1px solid #1e293b;">
+        <td style="padding:10px;"><strong>#${rank}</strong></td>
+        <td style="padding:10px;">${s.studentName}</td>
+        <td style="padding:10px;">Class ${s.studentClass}</td>
+        <td style="padding:10px;"><code>${s.orgCode}</code></td>
+        <td style="padding:10px;"><strong style="color:#4ade80;">${s.score || 0}</strong> <span style="color:#94a3b8; font-size:11px;">(${(s.score || 0)}%)</span></td>
+        <td style="padding:10px;">${tierBadge}</td>
+      </tr>
+    `;
+  });
+};
+
 function fetchAdminFinancialRequests() {
   fetch(`${SERVER_URL}/api/admin/financial_requests`)
     .then(res => res.json())
