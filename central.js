@@ -87,7 +87,7 @@ function initializeCentralPanelData() {
         fetchAllCentralData();
         fetchSupportTickets();
 
-        // 🔄 AUTO-REFRESH LIVE SYNC (Har 8 seconds mein data automatically update hoga, bina logout/refresh ke)
+        // 🔄 AUTO-REFRESH LIVE SYNC (Har 8 seconds mein background data auto-update hoga)
         if (!autoRefreshTimer) {
           autoRefreshTimer = setInterval(() => {
             fetchAllCentralData();
@@ -155,7 +155,6 @@ function fetchAllCentralData() {
   });
 }
 
-// 1. MERGED ORGANIZER & COMMISSION SETTLEMENT MANAGER
 function renderMergedOrganizersTable() {
   const tbody = document.getElementById("admin-organizers-rows");
   if(!tbody) return;
@@ -228,7 +227,6 @@ function renderMergedOrganizersTable() {
   });
 }
 
-// 2. LIVE CHAT SUPPORT SYSTEM
 function fetchSupportTickets() {
   fetch(`${SERVER_URL}/api/admin/queries`)
     .then(res => res.json())
@@ -346,7 +344,7 @@ function populateSchoolDropdowns() {
   if(ledgerSelect) ledgerSelect.innerHTML = optionsHtml;
 }
 
-// 3. SCHOOL-WISE DUAL-COLUMN RANKINGS WITH "GOLD MEDAL + CERTIFICATE" BADGE FOR RANK 1
+// 3. SCHOOL-WISE DUAL-COLUMN RANKINGS WITH TIERED REWARD BADGES
 window.loadSchoolRankings = function() {
   const selectedOrg = document.getElementById("ranking-school-select").value;
   const gridContainer = document.getElementById("school-rankings-grid");
@@ -381,6 +379,15 @@ window.loadSchoolRankings = function() {
     let group1 = students.filter(s => { let c = parseInt(s.studentClass, 10); return c >= minClass && c <= midClass; });
     let group2 = students.filter(s => { let c = parseInt(s.studentClass, 10); return c > midClass && c <= maxClass; });
 
+    const getRewardBadge = (index) => {
+      const rank = index + 1;
+      if (rank === 1) return `<br><span style="color:#facc15; font-size:9px; font-weight:bold;">🥇 Gold Medal + Physical Cert</span>`;
+      if (rank === 2) return `<br><span style="color:#e2e8f0; font-size:9px; font-weight:bold;">🥈 Silver Medal + Physical Cert</span>`;
+      if (rank === 3) return `<br><span style="color:#cd7f32; font-size:9px; font-weight:bold;">🥉 Bronze Medal + Physical Cert</span>`;
+      if (rank >= 4 && rank <= 6) return `<br><span style="color:#38bdf8; font-size:9px; font-weight:bold;">📜 Physical Certificate</span>`;
+      return `<br><span style="color:#94a3b8; font-size:9px; font-weight:bold;">📱 Digital Certificate</span>`;
+    };
+
     let card = document.createElement("div");
     card.style.cssText = "background: rgba(2, 6, 23, 0.9); border: 1px solid #334155; border-radius: 10px; padding: 15px;";
 
@@ -391,7 +398,7 @@ window.loadSchoolRankings = function() {
       </div>
       <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
         
-        <!-- COLUMN 1: LOWER CLASSES RANGE -->
+        <!-- COLUMN 1: LOWER CLASSES -->
         <div style="background: #0b0f19; padding: 8px; border-radius: 6px; border: 1px solid #1e293b;">
           <div style="color: #10b981; font-size: 12px; font-weight: bold; text-align: center; margin-bottom: 6px; border-bottom: 1px dashed #334155; padding-bottom: 4px;">
             Classes ${minClass} to ${midClass}
@@ -399,21 +406,18 @@ window.loadSchoolRankings = function() {
           <table style="width: 100%; font-size: 11px; text-align: left; border-collapse: collapse;">
             <tbody>
               ${group1.length === 0 ? `<tr><td colspan="3" style="text-align:center; color:#64748b; padding:8px;">No records</td></tr>` : 
-                group1.slice(0, 6).map((s, idx) => {
-                  let badge = idx === 0 ? `<br><span style="color:#facc15; font-size:9px; font-weight:bold;">🥇 Gold Medal + Certificate</span>` : "";
-                  return `
-                    <tr style="border-bottom: 1px solid #0f172a;">
-                      <td style="padding:4px 3px; color:#facc15; font-weight:bold; vertical-align:top;">#${idx+1}</td>
-                      <td style="padding:4px 3px; color:#fff; vertical-align:top;">${s.studentName} <span style="color:#94a3b8;">(${s.studentClass})</span>${badge}</td>
-                      <td style="padding:4px 3px; text-align:right; color:#38bdf8; font-weight:bold; vertical-align:top;">${s.score || 0}</td>
-                    </tr>
-                  `;
-                }).join('')}
+                group1.map((s, idx) => `
+                  <tr style="border-bottom: 1px solid #0f172a;">
+                    <td style="padding:4px 3px; color:#facc15; font-weight:bold; vertical-align:top;">#${idx+1}</td>
+                    <td style="padding:4px 3px; color:#fff; vertical-align:top;">${s.studentName} <span style="color:#94a3b8;">(${s.studentClass})</span>${getRewardBadge(idx)}</td>
+                    <td style="padding:4px 3px; text-align:right; color:#38bdf8; font-weight:bold; vertical-align:top;">${s.score || 0}</td>
+                  </tr>
+                `).join('')}
             </tbody>
           </table>
         </div>
 
-        <!-- COLUMN 2: HIGHER CLASSES RANGE -->
+        <!-- COLUMN 2: HIGHER CLASSES -->
         <div style="background: #0b0f19; padding: 8px; border-radius: 6px; border: 1px solid #1e293b;">
           <div style="color: #38bdf8; font-size: 12px; font-weight: bold; text-align: center; margin-bottom: 6px; border-bottom: 1px dashed #334155; padding-bottom: 4px;">
             Classes ${midClass + 1} to ${maxClass}
@@ -421,16 +425,13 @@ window.loadSchoolRankings = function() {
           <table style="width: 100%; font-size: 11px; text-align: left; border-collapse: collapse;">
             <tbody>
               ${group2.length === 0 ? `<tr><td colspan="3" style="text-align:center; color:#64748b; padding:8px;">No records</td></tr>` : 
-                group2.slice(0, 6).map((s, idx) => {
-                  let badge = idx === 0 ? `<br><span style="color:#facc15; font-size:9px; font-weight:bold;">🥇 Gold Medal + Certificate</span>` : "";
-                  return `
-                    <tr style="border-bottom: 1px solid #0f172a;">
-                      <td style="padding:4px 3px; color:#facc15; font-weight:bold; vertical-align:top;">#${idx+1}</td>
-                      <td style="padding:4px 3px; color:#fff; vertical-align:top;">${s.studentName} <span style="color:#94a3b8;">(${s.studentClass})</span>${badge}</td>
-                      <td style="padding:4px 3px; text-align:right; color:#38bdf8; font-weight:bold; vertical-align:top;">${s.score || 0}</td>
-                    </tr>
-                  `;
-                }).join('')}
+                group2.map((s, idx) => `
+                  <tr style="border-bottom: 1px solid #0f172a;">
+                    <td style="padding:4px 3px; color:#facc15; font-weight:bold; vertical-align:top;">#${idx+1}</td>
+                    <td style="padding:4px 3px; color:#fff; vertical-align:top;">${s.studentName} <span style="color:#94a3b8;">(${s.studentClass})</span>${getRewardBadge(idx)}</td>
+                    <td style="padding:4px 3px; text-align:right; color:#38bdf8; font-weight:bold; vertical-align:top;">${s.score || 0}</td>
+                  </tr>
+                `).join('')}
             </tbody>
           </table>
         </div>
@@ -441,7 +442,7 @@ window.loadSchoolRankings = function() {
   });
 };
 
-// 4. SCHOOL-WISE STUDENT DETAILS LEDGER & APPROVAL / REJECTION ACTIONS
+// 4. SCHOOL-WISE STUDENT LEDGER & APPROVAL/REJECTION BUTTONS
 window.loadSchoolStudentLedger = function() {
   const selectedOrg = document.getElementById("ledger-school-select").value;
   const tbody = document.getElementById("ledger-student-rows");
@@ -464,7 +465,7 @@ window.loadSchoolStudentLedger = function() {
       utrInfo += `<br><span style="color:#f87171; font-size:11px; font-weight:bold;">Reason: ${s.rejectionReason}</span>`;
     }
 
-    let statusColor = '#f59e0b'; // Pending
+    let statusColor = '#f59e0b';
     if (isApproved) statusColor = '#4ade80';
     if (isRejected) statusColor = '#f87171';
 
@@ -472,7 +473,6 @@ window.loadSchoolStudentLedger = function() {
 
     let actionButtons = `<button onclick="triggerReExam('${s.id}')" style="background:#7c3aed; color:#fff; border:none; padding:4px 8px; font-size:10px; border-radius:4px; font-weight:bold; cursor:pointer; margin-right:4px;">🔄 Re-Exam</button>`;
 
-    // Guaranteeing Approve & Reject buttons for pending online payments
     if (s.paymentMode === 'online' && !isApproved && !isRejected) {
       actionButtons += `<button onclick="approveOnlinePayment('${s.id}')" style="background:#10b981; color:#fff; border:none; padding:4px 6px; font-size:10px; border-radius:4px; font-weight:bold; cursor:pointer; margin-right:4px;">✔️ Approve</button>`;
       actionButtons += `<button onclick="rejectOnlinePayment('${s.id}')" style="background:#dc2626; color:#fff; border:none; padding:4px 6px; font-size:10px; border-radius:4px; font-weight:bold; cursor:pointer;">❌ Reject</button>`;
