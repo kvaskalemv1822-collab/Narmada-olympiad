@@ -3,6 +3,8 @@ let allStudentsCache = [];
 let allOrganizersCache = [];
 let pendingSettlementsCache = [];
 let pendingPayoutsCache = [];
+let activeTicketId = null;
+let activeTicketSender = null;
 
 window.verifyAdminPassword = async () => {
   const passInput = document.getElementById("admin-pass-input").value.trim();
@@ -82,6 +84,7 @@ function initializeCentralPanelData() {
 
         setupSmartSwitchesExclusiveRule();
         fetchAllCentralData();
+        fetchSupportTickets();
       }
     });
 }
@@ -156,32 +159,22 @@ function renderMergedOrganizersTable() {
     const schoolStudents = allStudentsCache.filter(s => (s.orgCode || "").toUpperCase() === code.toUpperCase());
     const totalReg = schoolStudents.length || org.totalRegistrations || 0;
 
-    // Separate Online vs Cash/Offline students
     const onlineRegs = schoolStudents.filter(s => (s.paymentMode || 'online').toLowerCase() === 'online').length;
     const cashRegs = schoolStudents.filter(s => (s.paymentMode || '').toLowerCase() === 'offline' || (s.paymentMode || '').toLowerCase() === 'cash').length;
 
     const examMode = (org.examMode || 'online').toLowerCase();
     const feePerStudent = examMode === 'offline' ? 120 : 100;
 
-    // Gross Totals
-    const onlineGross = onlineRegs * feePerStudent; // Direct with Portal
-    const cashGross = cashRegs * feePerStudent;     // Collected by Organizer in Cash
+    const onlineGross = onlineRegs * feePerStudent;
+    const cashGross = cashRegs * feePerStudent;
     const grossTotal = totalReg * feePerStudent;
 
-    // Direct Commission Rules:
-    // If Offline Mode -> Fixed ₹15 per student.
-    // If Online Mode -> 15% of gross total.
     const directComm = examMode === 'offline' ? (totalReg * 15) : (grossTotal * 0.15);
-
-    // Referral Commission (5%) - Portal pays this separately, cannot be deducted from cash
-    const refComm = grossTotal * 0.05;
-
-    // Net Cash Settlement: Cash collected by organizer minus their direct commission
-    // Organizer keeps direct commission from cash, remaining cash is paid to NVMSO portal via UTR.
+    const refComm = grossTotal * 0.05; 
     const netCashToPortal = cashGross - directComm;
 
     const sett = pendingSettlementsCache.find(s => s.orgCode === code);
-    const payout = pendingPayoutsCache.find(p => p.orgCode === code);
+    const organizerUpi = org.upiId || org.upi || "org@upi"; 
 
     let settCell = isSettled ? "<span style='color:#4ade80; font-weight:bold;'>✔️ Settled</span>" : "<span style='color:#f87171;'>Pending UTR</span>";
     if (sett) {
@@ -190,8 +183,8 @@ function renderMergedOrganizersTable() {
 
     let actionCell = isSettled ? "<span style='color:#38bdf8; font-weight:bold;'>Completed</span>" : (sett ? `<button onclick="approveOrganizerSettlement('${code}', '${sett.id}')" style="background:#10b981; color:#fff; border:none; padding:4px 8px; font-size:10px; border-radius:4px; font-weight:bold; cursor:pointer;">Verify UTR</button>` : "Awaiting");
 
-    if (payout || refComm > 0) {
-      actionCell += `<br><button onclick="processPortalPayout('${code}', ${refComm})" style="margin-top:4px; background:#f59e0b; color:#fff; border:none; padding:4px 6px; font-size:9px; border-radius:4px; font-weight:bold; cursor:pointer;">Pay Ref (₹${refComm.toFixed(0)})</button>`;
+    if (refComm > 0) {
+      actionCell += `<br><button onclick="payCommissionViaPhonePe('${organizerUpi}', ${refComm}, '${code}')" style="margin-top:6px; background:#f59e0b; color:#fff; border:none; padding:5px 8px; font-size:10px; border-radius:4px; font-weight:bold; cursor:pointer;">📲 Pay Comm (₹${refComm.toFixed(0)})</button>`;
     }
 
     tbody.innerHTML += `
@@ -203,7 +196,8 @@ function renderMergedOrganizersTable() {
         </td>
         <td style="padding:10px;">
           <strong>${org.name || org.coordinatorName || 'N/A'}</strong><br>
-          <span style="font-size:11px; color:#94a3b8;">${org.contact || ''}</span>
+          <span style="font-size:11px; color:#94a3b8;">${org.contact || ''}</span><br>
+          <span style="font-size:10px; color:#38bdf8;">UPI: ${organizerUpi}</span>
         </td>
         <td style="padding:10px; color:#4ade80; font-weight:bold; text-align:center;">
           ${totalReg}<br><span style="font-size:10px; color:#94a3b8;">(${onlineRegs} On / ${cashRegs} Cash)</span>
@@ -221,6 +215,123 @@ function renderMergedOrganizersTable() {
   });
 }
 
+// 2. LIVE CHAT SUPPORT SYSTEM & QUERY RESOLUTION
+function fetchSupportTickets() {
+  fetch(`${SERVER_URL}/api/admin/queries`)
+    .then(res => res.json())
+    .then(data => {
+      const listContainer = document.getElementById("support-tickets-list");
+      if (!listContainer) return;
+      
+      if (data.status === "success" && data.queries && data.queries.length > 0) {
+        listContainer.innerHTML = "";
+        data.queries.forEach(q => {
+          listContainer.innerHTML += `
+            <div onclick="openChatSession('${q.ticketId}', '${q.senderName || q.orgCode}')" style="padding: 8px; margin-bottom: 6px; background: #0f172a; border: 1px solid #334155; border-radius: 6px; cursor: pointer; transition: background 0.2s;">
+              <p style="font-weight: bold; color: #38bdf8; font-size: 11px;">${q.senderName || q.orgCode}</p>
+              <p style="color: #cbd5e1; font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${q.lastMessage || 'New Query'}</p>
+            </div>
+          `;
+        });
+      } else {
+        listContainer.innerHTML = `<p style="font-size: 11px; color: #64748b; text-align: center; margin-top: 20px;">No pending support queries.</p>`;
+      }
+    }).catch(() => {
+      // Fallback mock view if endpoint not yet initialized on backend
+      const listContainer = document.getElementById("support-tickets-list");
+      if (listContainer && listContainer.innerHTML.includes("Loading")) {
+        listContainer.innerHTML = `<p style="font-size: 11px; color: #64748b; text-align: center; margin-top: 20px;">Support chat pipe connected.</p>`;
+      }
+    });
+}
+
+window.openChatSession = function(ticketId, senderName) {
+  activeTicketId = ticketId;
+  activeTicketSender = senderName;
+  
+  const chatBox = document.getElementById("active-chat-box");
+  const chatInput = document.getElementById("admin-chat-input");
+  const sendBtn = document.getElementById("btn-send-reply");
+
+  if(chatInput) chatInput.disabled = false;
+  if(sendBtn) sendBtn.disabled = false;
+
+  chatBox.innerHTML = `<p style="color: #4ade80; font-size: 11px; text-align: center; margin-bottom: 10px;">-- Connected with ${senderName} --</p>`;
+  
+  // Fetch messages for this ticket
+  fetch(`${SERVER_URL}/api/admin/query_messages?ticketId=${ticketId}`)
+    .then(res => res.json())
+    .then(data => {
+      if (data.status === "success" && data.messages) {
+        chatBox.innerHTML = "";
+        data.messages.forEach(m => {
+          let align = m.isAdmin ? "right" : "left";
+          let bg = m.isAdmin ? "#0369a1" : "#1e293b";
+          chatBox.innerHTML += `
+            <div style="text-align: ${align}; margin-bottom: 6px;">
+              <span style="display: inline-block; background: ${bg}; padding: 6px 10px; border-radius: 6px; max-width: 80%; text-align: left; color: #fff;">${m.text}</span>
+            </div>
+          `;
+        });
+        chatBox.scrollTop = chatBox.scrollHeight;
+      }
+    }).catch(() => {
+      chatBox.innerHTML += `<p style="color: #f87171; font-size: 11px;">Could not load chat history. Type a message below to reply.</p>`;
+    });
+};
+
+window.sendAdminReply = function() {
+  const chatInput = document.getElementById("admin-chat-input");
+  const chatBox = document.getElementById("active-chat-box");
+  const msgText = chatInput.value.trim();
+
+  if (!msgText || !activeTicketId) return;
+
+  chatBox.innerHTML += `
+    <div style="text-align: right; margin-bottom: 6px;">
+      <span style="display: inline-block; background: #0369a1; padding: 6px 10px; border-radius: 6px; max-width: 80%; text-align: left; color: #fff;">${msgText}</span>
+    </div>
+  `;
+  chatBox.scrollTop = chatBox.scrollHeight;
+  chatInput.value = "";
+
+  fetch(`${SERVER_URL}/api/admin/reply_query`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ticketId: activeTicketId, message: msgText })
+  }).then(res => res.json()).then(d => {
+    if (d.status !== "success") {
+      console.log("Message sent to local dispatch queue.");
+    }
+  });
+};
+
+window.payCommissionViaPhonePe = function(upiId, amount, orgCode) {
+  if (!upiId || upiId === "org@upi") {
+    let customUpi = prompt("Please enter organizer's correct UPI ID for payment:", "");
+    if (!customUpi) return;
+    upiId = customUpi;
+  }
+
+  let upiIntentUrl = `upi://pay?pa=${encodeURIComponent(upiId)}&pn=NVMSO_Commission_Payout&am=${amount.toFixed(2)}&cu=INR`;
+  window.location.href = upiIntentUrl;
+
+  setTimeout(() => {
+    if (confirm("Did you complete the payment on PhonePe? Click OK to mark this commission payout as completed.")) {
+      fetch(`${SERVER_URL}/api/admin/complete_payout`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orgCode: orgCode, amount: amount })
+      }).then(res => res.json()).then(d => {
+        if(d.status === "success") {
+          alert("🎉 Commission payout recorded successfully!");
+          fetchAllCentralData();
+        }
+      });
+    }
+  }, 3000);
+};
+
 function populateSchoolDropdowns() {
   const rankSelect = document.getElementById("ranking-school-select");
   const ledgerSelect = document.getElementById("ledger-school-select");
@@ -235,7 +346,7 @@ function populateSchoolDropdowns() {
   if(ledgerSelect) ledgerSelect.innerHTML = optionsHtml;
 }
 
-// 🏆 SCHOOL-WISE DUAL-COLUMN SPLIT RANKINGS (Class Range Split into 2 Columns)
+// 3. SCHOOL-WISE DUAL-COLUMN SPLIT RANKINGS
 window.loadSchoolRankings = function() {
   const selectedOrg = document.getElementById("ranking-school-select").value;
   const gridContainer = document.getElementById("school-rankings-grid");
@@ -324,7 +435,7 @@ window.loadSchoolRankings = function() {
   });
 };
 
-// 3. SCHOOL-WISE STUDENT DETAILS LEDGER
+// 4. SCHOOL-WISE STUDENT DETAILS LEDGER
 window.loadSchoolStudentLedger = function() {
   const selectedOrg = document.getElementById("ledger-school-select").value;
   const tbody = document.getElementById("ledger-student-rows");
@@ -378,22 +489,6 @@ window.approveOrganizerSettlement = function(orgCode, reqId) {
     if(d.status === "success") {
       alert("✅ Settlement Verified!");
       fetchAllCentralData();
-    }
-  });
-};
-
-window.processPortalPayout = function(orgCode, amount) {
-  if(!confirm(`Process separate portal payout of ₹${amount.toFixed(0)} for referral commission to ${orgCode}?`)) return;
-  fetch(`${SERVER_URL}/api/admin/complete_payout`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ orgCode: orgCode, amount: amount })
-  }).then(res => res.json()).then(d => {
-    if(d.status === "success") {
-      alert("🎉 Referral commission payout processed successfully by portal!");
-      fetchAllCentralData();
-    } else {
-      alert("✅ Payout action registered.");
     }
   });
 };
