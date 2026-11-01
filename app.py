@@ -28,7 +28,6 @@ try:
 except Exception as e:
     print(f"❌ Critical Core Setup Exception Tracker: {str(e)}")
 
-# Google Apps Script Webhook URL for 3-Year Secure Storage Backup
 GOOGLE_SHEET_WEBHOOK_URL = os.environ.get('GOOGLE_SHEETS_WEBHOOK_URL', '')
 
 def backup_data_to_sheets(payload_type, data_body):
@@ -153,18 +152,15 @@ def secure_registration():
         if not org_code or not roll_num or not student_name or not roll_num.isdigit():
             return jsonify({"status": "cyber_attack", "message": "Security Reject: Malformed payload data vectors!"}), 400
 
-        # DOUBLE REGISTRATION BLOCKER
         student_id = f"{org_code}_{roll_num}"
         student_ref = db.collection('students').document(student_id)
         if student_ref.get().exists:
             return jsonify({"status": "cyber_attack", "message": "🚫 Submission Rejected: This Roll Number is already registered under this School Code!"}), 400
 
-        # ONLINE PAYMENT UTR CHECK
         if payment_mode == "online":
             if not utr_number or len(utr_number) != 12 or not utr_number.isdigit() or utr_number in ["123456789012", "000000000000", "999999999999"]:
                 return jsonify({"status": "cyber_attack", "message": "🚫 Fraud Match Detected: Invalid Transaction UTR Number!"}), 400
 
-        # 🔒 DUAL APPROVAL WORKFLOW ROUTING
         initial_status = "Pending Admin Approval" if payment_mode == "online" else "Pending Organizer Approval"
 
         student_payload = {
@@ -187,10 +183,8 @@ def secure_registration():
             "timestamp": firestore.SERVER_TIMESTAMP
         }
         
-        # Save Document
         student_ref.set(student_payload)
 
-        # UPDATE ORGANIZER COUNTERS
         org_ref = db.collection('organizers').document(org_code)
         if org_ref.get().exists:
             org_ref.update({
@@ -198,7 +192,6 @@ def secure_registration():
                 "totalRegistered": firestore.Increment(1)
             })
 
-        # BACKUP TO GOOGLE SHEETS
         backup_data_to_sheets("STUDENT_REGISTRATION", student_payload)
 
         return jsonify({"status": "success", "message": "Registration successful!", "studentId": student_id}), 200
@@ -265,7 +258,6 @@ def admin_get_financial_requests():
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
-# 👑 CENTRAL PANEL ONLINE PAYMENT UTR APPROVAL ROUTER
 @app.route('/api/admin/approve_payment', methods=['POST'])
 def admin_approve_online_payment():
     try:
@@ -287,7 +279,6 @@ def admin_approve_online_payment():
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
-# ❌ CENTRAL PANEL ONLINE PAYMENT UTR REJECTION ROUTER
 @app.route('/api/admin/reject_payment', methods=['POST'])
 def admin_reject_online_payment():
     try:
@@ -471,7 +462,6 @@ def organizer_get_students():
         admin_upi = g_cfg.get('adminUpiId', 'narmada@upi')
         is_result_declared = bool(g_cfg.get('isResultDeclared', False))
 
-        # 🔒 STRICT FINANCIAL CALCULATION (ONLY APPROVED ENTRIES COUNT)
         approved_students = [s for s in students if s.get('paymentStatus') == 'Approved' or s.get('paymentVerified') is True]
         total_approved_regs = len(approved_students)
 
@@ -483,11 +473,13 @@ def organizer_get_students():
 
         gross_fees = total_approved_regs * fee_per_student
 
+        # Commission Calculation: Online -> 15% of gross fees | Offline -> ₹15 per student fixed
         if exam_mode == 'offline':
             direct_comm = total_approved_regs * 15
         else:
             direct_comm = int(gross_fees * 0.15)
 
+        # 5% Referral Commission
         ref_comm = int(gross_fees * 0.05) if org_data.get('refCode') else 0
         net_payable = cash_held - direct_comm
 
@@ -512,7 +504,6 @@ def organizer_get_students():
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
-# 🏫 SCHOOL ORGANIZER CASH APPROVAL ROUTER
 @app.route('/api/organizer/approve_cash', methods=['POST'])
 def organizer_approve_cash_collection():
     try:
@@ -530,7 +521,7 @@ def organizer_approve_cash_collection():
 
         s_data = doc.to_dict()
         if s_data.get('orgCode') != org_code:
-            return jsonify({"status": "error", "message": "Security Violation: Organizer unauthorized to edit this student!"}), 403
+            return jsonify({"status": "error", "message": "Security Violation!"}), 403
 
         student_ref.update({
             "paymentVerified": True,
@@ -583,43 +574,6 @@ def organizer_request_payout():
             "timestamp": firestore.SERVER_TIMESTAMP
         })
         return jsonify({"status": "success", "message": "Payout requested"}), 200
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
-
-# ==========================================================================
-# 6. QUESTION BANK ADMINISTRATOR ROUTERS
-# ==========================================================================
-@app.route('/api/admin/add-question', methods=['POST'])
-def admin_add_question():
-    try:
-        data = request.json or {}
-        class_range = str(data.get('classRange', '')).strip()
-        subject = str(data.get('subject', '')).strip()
-        question_text = str(data.get('questionText', '')).strip()
-        option_a = str(data.get('optionA', '')).strip()
-        option_b = str(data.get('optionB', '')).strip()
-        option_c = str(data.get('optionC', '')).strip()
-        option_d = str(data.get('optionD', '')).strip()
-        correct_option = str(data.get('correctOption', 'A')).strip()
-
-        if not question_text or not option_a or not option_b or not option_c or not option_d:
-            return jsonify({"status": "error", "message": "Question text and all 4 options are mandatory."}), 400
-
-        question_payload = {
-            "classRange": class_range,
-            "subject": subject,
-            "questionText": question_text,
-            "optionA": option_a,
-            "optionB": option_b,
-            "optionC": option_c,
-            "optionD": option_d,
-            "correctOption": correct_option,
-            "timestamp": firestore.SERVER_TIMESTAMP
-        }
-
-        db.collection('questions').add(question_payload)
-
-        return jsonify({"status": "success", "message": "Question added successfully"}), 200
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
