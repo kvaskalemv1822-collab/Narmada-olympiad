@@ -158,17 +158,11 @@ function renderMergedOrganizersTable() {
 
     const allSchoolStudents = allStudentsCache.filter(s => (s.orgCode || "").toUpperCase() === code.toUpperCase());
     
-    // 🔒 SECURITY FILTER: Online registrations are counted ONLY WHEN approved by Admin. Cash is counted normally.
-    const verifiedStudents = allSchoolStudents.filter(s => {
-      const mode = (s.paymentMode || 'online').toLowerCase();
-      if (mode === 'online') {
-        return s.paymentStatus === 'Approved';
-      }
-      return true; 
-    });
+    // 🔒 SECURITY FILTER: Only approved entries are counted in financial stats
+    const verifiedStudents = allSchoolStudents.filter(s => s.paymentStatus === 'Approved' || s.paymentVerified === true);
 
     const totalReg = verifiedStudents.length || 0;
-    const pendingReviewCount = allSchoolStudents.length - totalReg;
+    const pendingReviewCount = allSchoolStudents.filter(s => s.paymentStatus && s.paymentStatus.includes("Pending")).length;
 
     const onlineRegs = verifiedStudents.filter(s => (s.paymentMode || 'online').toLowerCase() === 'online').length;
     const cashRegs = verifiedStudents.filter(s => (s.paymentMode || '').toLowerCase() === 'offline' || (s.paymentMode || '').toLowerCase() === 'cash').length;
@@ -179,7 +173,6 @@ function renderMergedOrganizersTable() {
     const cashGross = cashRegs * feePerStudent;
     const grossTotal = totalReg * feePerStudent;
 
-    // Direct Commission: Offline -> ₹15/student fixed, Online -> 15% of gross
     const directComm = examMode === 'offline' ? (totalReg * 15) : (grossTotal * 0.15);
     const refComm = grossTotal * 0.05; 
     const netCashToPortal = cashGross - directComm;
@@ -198,7 +191,7 @@ function renderMergedOrganizersTable() {
       actionCell += `<br><button onclick="payCommissionViaPhonePe('${organizerUpi}', ${refComm}, '${code}')" style="margin-top:6px; background:#f59e0b; color:#fff; border:none; padding:5px 8px; font-size:10px; border-radius:4px; font-weight:bold; cursor:pointer;">📲 Pay Comm (₹${refComm.toFixed(0)})</button>`;
     }
 
-    let pendingBadge = pendingReviewCount > 0 ? `<br><span style="font-size:9px; color:#f59e0b; font-weight:bold;">(${pendingReviewCount} Pending Review)</span>` : "";
+    let pendingBadge = pendingReviewCount > 0 ? `<br><span style="font-size:9px; color:#f59e0b; font-weight:bold;">(${pendingReviewCount} Pending)</span>` : "";
 
     tbody.innerHTML += `
       <tr style="border-bottom:1px solid #1e293b;">
@@ -446,7 +439,7 @@ window.loadSchoolRankings = function() {
   });
 };
 
-// 4. SCHOOL-WISE STUDENT DETAILS LEDGER & UTR APPROVAL
+// 4. SCHOOL-WISE STUDENT DETAILS LEDGER & APPROVAL / REJECTION ACTIONS
 window.loadSchoolStudentLedger = function() {
   const selectedOrg = document.getElementById("ledger-school-select").value;
   const tbody = document.getElementById("ledger-student-rows");
@@ -460,17 +453,27 @@ window.loadSchoolStudentLedger = function() {
   tbody.innerHTML = students.length ? "" : "<tr><td colspan='5' style='text-align:center; color:#64748b;'>No students registered under this selection.</td></tr>";
 
   students.forEach(s => {
-    const isApproved = s.paymentStatus === "Approved" || s.paymentStatus === "Cash Handover";
+    const isApproved = s.paymentStatus === "Approved" || s.paymentStatus === "Cash Handover" || s.paymentVerified === true;
+    const isRejected = s.paymentStatus === "Rejected";
     const payMode = (s.paymentMode || 'online').toUpperCase();
-    const utrInfo = s.utrNumber ? `<br><code style="color:#facc15; font-size:11px;">UTR: ${s.utrNumber}</code>` : "<br><span style='color:#f87171; font-size:10px;'>No UTR Provided</span>";
     
-    let paymentBadge = `<span style="color:${isApproved ? '#4ade80' : '#f59e0b'}; font-weight:bold;">${s.paymentStatus || 'Pending Verification'} (${payMode})</span>${utrInfo}`;
+    let utrInfo = s.utrNumber ? `<br><code style="color:#facc15; font-size:11px;">UTR: ${s.utrNumber}</code>` : "<br><span style='color:#f87171; font-size:10px;'>No UTR Provided</span>";
+    if (isRejected && s.rejectionReason) {
+      utrInfo += `<br><span style="color:#f87171; font-size:11px; font-weight:bold;">Reason: ${s.rejectionReason}</span>`;
+    }
+
+    let statusColor = '#f59e0b'; // Pending
+    if (isApproved) statusColor = '#4ade80';
+    if (isRejected) statusColor = '#f87171';
+
+    let paymentBadge = `<span style="color:${statusColor}; font-weight:bold;">${s.paymentStatus || 'Pending Verification'} (${payMode})</span>${utrInfo}`;
 
     let actionButtons = `<button onclick="triggerReExam('${s.id}')" style="background:#7c3aed; color:#fff; border:none; padding:4px 8px; font-size:10px; border-radius:4px; font-weight:bold; cursor:pointer; margin-right:4px;">🔄 Re-Exam</button>`;
 
-    // Approve UTR button for online pending payments
-    if (s.paymentMode === 'online' && s.paymentStatus !== "Approved") {
-      actionButtons += `<button onclick="approveOnlinePayment('${s.id}', '${s.orgCode}')" style="background:#10b981; color:#fff; border:none; padding:4px 8px; font-size:10px; border-radius:4px; font-weight:bold; cursor:pointer;">✔️ Approve UTR</button>`;
+    // If online payment is pending, show both Approve and Reject buttons
+    if (s.paymentMode === 'online' && !isApproved && !isRejected) {
+      actionButtons += `<button onclick="approveOnlinePayment('${s.id}')" style="background:#10b981; color:#fff; border:none; padding:4px 6px; font-size:10px; border-radius:4px; font-weight:bold; cursor:pointer; margin-right:4px;">✔️ Approve</button>`;
+      actionButtons += `<button onclick="rejectOnlinePayment('${s.id}')" style="background:#dc2626; color:#fff; border:none; padding:4px 6px; font-size:10px; border-radius:4px; font-weight:bold; cursor:pointer;">❌ Reject</button>`;
     }
 
     tbody.innerHTML += `
@@ -485,18 +488,18 @@ window.loadSchoolStudentLedger = function() {
   });
 };
 
-window.approveOnlinePayment = function(studentId, orgCode) {
-  if (!confirm(`Are you sure you want to approve this student's online payment and UTR?`)) return;
+window.approveOnlinePayment = function(studentId) {
+  if (!confirm(`Are you sure you want to approve this online payment UTR?`)) return;
 
   fetch(`${SERVER_URL}/api/admin/approve_payment`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ studentId: studentId, orgCode: orgCode })
+    body: JSON.stringify({ studentId: studentId })
   })
   .then(res => res.json())
   .then(data => {
     if (data.status === "success") {
-      alert("✅ Online payment approved successfully! Student status updated.");
+      alert("✅ Online payment approved successfully!");
       fetchAllCentralData();
     } else {
       alert("❌ Error: " + (data.message || "Could not approve payment."));
@@ -504,6 +507,29 @@ window.approveOnlinePayment = function(studentId, orgCode) {
   })
   .catch(() => {
     alert("❌ Server connection error while approving payment.");
+  });
+};
+
+window.rejectOnlinePayment = function(studentId) {
+  let reason = prompt("Enter reason for rejecting this UTR (e.g., Fake UTR / Payment not received):", "Fake or Invalid UTR Number");
+  if (!reason) return;
+
+  fetch(`${SERVER_URL}/api/admin/reject_payment`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ studentId: studentId, reason: reason })
+  })
+  .then(res => res.json())
+  .then(data => {
+    if (data.status === "success") {
+      alert("❌ UTR rejected successfully! The reason is now visible to the coordinator.");
+      fetchAllCentralData();
+    } else {
+      alert("❌ Error: " + (data.message || "Could not reject payment."));
+    }
+  })
+  .catch(() => {
+    alert("❌ Server connection error while rejecting payment.");
   });
 };
 
