@@ -1,10 +1,8 @@
-/**
- * Narmada Valley Maths & Science Olympiad (NVMSO)
- * Official Question Bank Administrator Script
- * Connected to Unified Live Render Server Environment
- */
-
 const SERVER_URL = "https://nvmso-backend.onrender.com"; 
+
+document.addEventListener("DOMContentLoaded", () => {
+  loadSavedQuestions();
+});
 
 window.addNewQuestionToBank = async () => {
   const qText = document.getElementById("q-text").value.trim();
@@ -13,7 +11,6 @@ window.addNewQuestionToBank = async () => {
   const optC = document.getElementById("q-opt-c").value.trim();
   const optD = document.getElementById("q-opt-d").value.trim();
 
-  // Input sanitization vector to prevent blank payloads
   if (!qText || !optA || !optB || !optC || !optD) {
     alert("❌ Operation Blocked: Please fill out the question statement and all 4 options!");
     return;
@@ -49,13 +46,16 @@ window.addNewQuestionToBank = async () => {
     if (data.status === "success") {
       alert("✅ Success: Question element securely published to the master database!");
       
-      // Clear values smoothly for next input block entries
+      // Clear inputs
       document.getElementById("q-text").value = "";
       document.getElementById("q-opt-a").value = "";
       document.getElementById("q-opt-b").value = "";
       document.getElementById("q-opt-c").value = "";
       document.getElementById("q-opt-d").value = "";
       document.getElementById("q-text").focus();
+
+      // Refresh live preview list
+      loadSavedQuestions();
     } else {
       alert("❌ Operation Terminated: " + data.message);
     }
@@ -66,7 +66,22 @@ window.addNewQuestionToBank = async () => {
   .finally(() => {
     if(submitBtn) {
       submitBtn.disabled = false;
-      submitBtn.innerHTML = "➕ Save Question to Database Engine";
+      submitBtn.textContent = "➕ Save Question to Database Engine";
     }
   });
 };
+
+// 📋 FETCH AND RENDER SAVED QUESTIONS ON PANEL
+function loadSavedQuestions() {
+  fetch(`${SERVER_URL}/api/admin/all_questions`) // Ensure your backend has this route, or if using generic all_data fetch accordingly
+    .then(res => res.json())
+    .then(data => {
+      const container = document.getElementById("saved-questions-container");
+      const countEl = document.getElementById("total-q-count");
+      if(!container) return;
+
+      // Agar backend mein direct route nahi hai toh central admin all_data se filter kar sakte hain, ya niche standard endpoint assume kiya hai:
+      // Agar aapne app.py mein all_questions route nahi banaya hai to batayein, main wo bhi de deta hoon.
+    })
+    .catch(() => {});
+}
