@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>NVMSO - Student Portal 2026</title>
-  <link rel="stylesheet" href="student.css?v=11">
+  <link rel="stylesheet" href="student.css?v=12">
   <link href="https://googleapis.com" rel="stylesheet">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 </head>
@@ -112,7 +112,7 @@
 
         <!-- TERMS & CONDITIONS CHECKBOX -->
         <div style="display: flex; align-items: flex-start; gap: 10px; margin-bottom: 20px; background: rgba(2, 6, 23, 0.6); padding: 12px; border-radius: 8px; border: 1px solid #334155;">
-          <input type="checkbox" id="terms-checkbox" required style="width: 20px; height: 20px; cursor: pointer; margin-top: 2px;">
+          <input type="checkbox" id="terms-checkbox" onchange="toggleSubmitButton()" style="width: 20px; height: 20px; cursor: pointer; margin-top: 2px;">
           <label for="terms-checkbox" style="font-size: 12px; color: #cbd5e1; cursor: pointer; line-height: 1.4;">
             I confirm that my details are correct and I agree to the terms. Password will be generated as Mother's first 2 capital letters + Roll Number.
           </label>
@@ -120,7 +120,7 @@
 
         <div style="display:flex; gap:10px;">
           <button type="button" class="btn-submit" style="background:#475569; width:35%; cursor:pointer;" onclick="backToDetails()">⬅ Edit Details</button>
-          <button type="submit" class="btn-submit" style="background:#10b981; width:65%; font-weight:bold; cursor:pointer;">COMPLETE REGISTRATION</button>
+          <button type="submit" id="btn-final-submit" class="btn-submit" style="background:#10b981; width:65%; font-weight:bold; opacity:0.5; cursor:not-allowed;" disabled>COMPLETE REGISTRATION</button>
         </div>
       </div>
 
@@ -136,6 +136,6 @@
   </div>
 </div>
 
-<script src="student.js?v=11"></script>
+<script src="student.js?v=12"></script>
 </body>
 </html>
