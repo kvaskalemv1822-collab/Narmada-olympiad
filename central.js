@@ -87,7 +87,7 @@ function initializeCentralPanelData() {
         fetchAllCentralData();
         fetchSupportTickets();
 
-        // 🔄 AUTO-REFRESH LIVE SYNC (Har 8 seconds mein background data auto-update hoga)
+        // 🔄 AUTO-REFRESH LIVE SYNC (Har 8 seconds mein data automatically update hoga)
         if (!autoRefreshTimer) {
           autoRefreshTimer = setInterval(() => {
             fetchAllCentralData();
@@ -155,6 +155,7 @@ function fetchAllCentralData() {
   });
 }
 
+// 1. MERGED ORGANIZER & COMMISSION SETTLEMENT MANAGER
 function renderMergedOrganizersTable() {
   const tbody = document.getElementById("admin-organizers-rows");
   if(!tbody) return;
@@ -227,6 +228,7 @@ function renderMergedOrganizersTable() {
   });
 }
 
+// 2. SUPPORT CHAT WITH SCREENSHOT/PHOTO VIEW SUPPORT
 function fetchSupportTickets() {
   fetch(`${SERVER_URL}/api/admin/queries`)
     .then(res => res.json())
@@ -271,9 +273,13 @@ window.openChatSession = function(ticketId, senderName) {
         data.messages.forEach(m => {
           let align = m.isAdmin ? "right" : "left";
           let bg = m.isAdmin ? "#0369a1" : "#1e293b";
+          let imageHtml = m.imageUrl ? `<br><a href="${m.imageUrl}" target="_blank"><img src="${m.imageUrl}" style="max-width: 140px; max-height: 140px; border-radius: 4px; margin-top: 5px; border: 1px solid #38bdf8;" /></a>` : "";
+
           chatBox.innerHTML += `
-            <div style="text-align: ${align}; margin-bottom: 6px;">
-              <span style="display: inline-block; background: ${bg}; padding: 6px 10px; border-radius: 6px; max-width: 80%; text-align: left; color: #fff;">${m.text}</span>
+            <div style="text-align: ${align}; margin-bottom: 8px;">
+              <span style="display: inline-block; background: ${bg}; padding: 6px 10px; border-radius: 6px; max-width: 80%; text-align: left; color: #fff; font-size: 11px;">
+                ${m.text}${imageHtml}
+              </span>
             </div>
           `;
         });
@@ -285,13 +291,13 @@ window.openChatSession = function(ticketId, senderName) {
 window.sendAdminReply = function() {
   const chatInput = document.getElementById("admin-chat-input");
   const chatBox = document.getElementById("active-chat-box");
-  const msgText = chatInput.value.trim();
+  const msgText = chatInput ? chatInput.value.trim() : "";
 
   if (!msgText || !activeTicketId) return;
 
   chatBox.innerHTML += `
-    <div style="text-align: right; margin-bottom: 6px;">
-      <span style="display: inline-block; background: #0369a1; padding: 6px 10px; border-radius: 6px; max-width: 80%; text-align: left; color: #fff;">${msgText}</span>
+    <div style="text-align: right; margin-bottom: 8px;">
+      <span style="display: inline-block; background: #0369a1; padding: 6px 10px; border-radius: 6px; max-width: 80%; text-align: left; color: #fff; font-size: 11px;">${msgText}</span>
     </div>
   `;
   chatBox.scrollTop = chatBox.scrollHeight;
@@ -344,7 +350,7 @@ function populateSchoolDropdowns() {
   if(ledgerSelect) ledgerSelect.innerHTML = optionsHtml;
 }
 
-// 3. SCHOOL-WISE DUAL-COLUMN RANKINGS WITH TIERED REWARD BADGES
+// 3. SCHOOL-WISE RANKINGS WITH OFFICIAL TIERED REWARD BADGES
 window.loadSchoolRankings = function() {
   const selectedOrg = document.getElementById("ranking-school-select").value;
   const gridContainer = document.getElementById("school-rankings-grid");
@@ -442,7 +448,7 @@ window.loadSchoolRankings = function() {
   });
 };
 
-// 4. SCHOOL-WISE STUDENT LEDGER & APPROVAL/REJECTION BUTTONS
+// 4. SCHOOL STUDENT LEDGER & APPROVAL/REJECTION ACTIONS
 window.loadSchoolStudentLedger = function() {
   const selectedOrg = document.getElementById("ledger-school-select").value;
   const tbody = document.getElementById("ledger-student-rows");
