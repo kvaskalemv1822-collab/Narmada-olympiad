@@ -28,6 +28,7 @@ try:
 except Exception as e:
     print(f"❌ Critical Core Setup Exception Tracker: {str(e)}")
 
+# Google Apps Script Webhook URL for 3-Year Secure Storage Backup
 GOOGLE_SHEET_WEBHOOK_URL = os.environ.get('GOOGLE_SHEETS_WEBHOOK_URL', '')
 
 def backup_data_to_sheets(payload_type, data_body):
@@ -152,15 +153,22 @@ def secure_registration():
         if not org_code or not roll_num or not student_name or not roll_num.isdigit():
             return jsonify({"status": "cyber_attack", "message": "Security Reject: Malformed payload data vectors!"}), 400
 
+        # DOUBLE REGISTRATION BLOCKER
         student_id = f"{org_code}_{roll_num}"
         student_ref = db.collection('students').document(student_id)
         if student_ref.get().exists:
             return jsonify({"status": "cyber_attack", "message": "🚫 Submission Rejected: This Roll Number is already registered under this School Code!"}), 400
 
+        # ONLINE PAYMENT UTR CHECK & DUPLICATE PREVENTION
         if payment_mode == "online":
             if not utr_number or len(utr_number) != 12 or not utr_number.isdigit() or utr_number in ["123456789012", "000000000000", "999999999999"]:
                 return jsonify({"status": "cyber_attack", "message": "🚫 Fraud Match Detected: Invalid Transaction UTR Number!"}), 400
+            
+            existing_utr = db.collection('students').where('utrNumber', '==', utr_number).limit(1).get()
+            if len(list(existing_utr)) > 0:
+                return jsonify({"status": "cyber_attack", "message": "⚠️ This UTR / Transaction Reference has already been used!"}), 400
 
+        # 🔒 DUAL APPROVAL WORKFLOW ROUTING
         initial_status = "Pending Admin Approval" if payment_mode == "online" else "Pending Organizer Approval"
 
         student_payload = {
@@ -258,6 +266,7 @@ def admin_get_financial_requests():
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
+# 👑 CENTRAL PANEL ONLINE PAYMENT UTR APPROVAL ROUTER
 @app.route('/api/admin/approve_payment', methods=['POST'])
 def admin_approve_online_payment():
     try:
@@ -279,6 +288,7 @@ def admin_approve_online_payment():
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
+# ❌ CENTRAL PANEL ONLINE PAYMENT UTR REJECTION ROUTER
 @app.route('/api/admin/reject_payment', methods=['POST'])
 def admin_reject_online_payment():
     try:
@@ -572,6 +582,127 @@ def organizer_request_payout():
             "timestamp": firestore.SERVER_TIMESTAMP
         })
         return jsonify({"status": "success", "message": "Payout requested"}), 200
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+# ==========================================================================
+# 6. SUPPORT CHAT & PHOTO/SCREENSHOT UPLOAD ENDPOINTS
+# ==========================================================================
+@app.route('/api/admin/queries', methods=['GET'])
+def get_queries():
+    try:
+        queries_snapshot = db.collection('supportTickets').stream()
+        queries = [{**doc.to_dict(), "ticketId": doc.id} for doc in queries_snapshot]
+        return jsonify({"status": "success", "queries": queries})
+    except Exception:
+        return jsonify({"status": "success", "queries": []})
+
+@app.route('/api/admin/query_messages', methods=['GET'])
+def get_query_messages():
+    ticket_id = request.args.get('ticketId')
+    try:
+        msgs_snapshot = db.collection('supportTickets').document(ticket_id).collection('messages').order_by('createdAt').stream()
+        messages = [doc.to_dict() for doc in msgs_snapshot]
+        return jsonify({"status": "success", "messages": messages})
+    except Exception:
+        return jsonify({"status": "success", "messages": []})
+
+@app.route('/api/admin/reply_query', methods=['POST'])
+def reply_query():
+    data = request.json or {}
+    ticket_id = data.get('ticketId')
+    message = data.get('message', '')
+    image_url = data.get('imageUrl', '')
+    try:
+        msg_payload = {
+            "text": message,
+            "imageUrl": image_url,
+            "isAdmin": True,
+            "createdAt": firestore.SERVER_TIMESTAMP
+        }
+        db.collection('supportTickets').document(ticket_id).collection('messages').add(msg_payload)
+        db.collection('supportTickets').document(ticket_id).set({"lastMessage": message if message else "[Attachment]"}, merge=True)
+        return jsonify({"status": "success", "message": "Reply sent"})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route('/api/organizer/send_query', methods=['POST'])
+def organizer_send_query():
+    data = request.json or {}
+    org_code = str(data.get('orgCode', '')).strip().upper()
+    sender_name = data.get('senderName', 'Organizer')
+    message = data.get('message', '').strip()
+    image_url = data.get('imageUrl', '')
+    
+    if not org_code or (not message and not image_url):
+        return jsonify({"status": "error", "message": "Missing info"}), 400
+
+    try:
+        ticket_id = f"TICKET_{org_code}"
+        ticket_ref = db.collection('supportTickets').document(ticket_id)
+        
+        ticket_ref.set({
+            "orgCode": org_code,
+            "senderName": sender_name,
+            "lastMessage": message if message else "[Payment Screenshot Attached]",
+            "updatedAt": firestore.SERVER_TIMESTAMP
+        }, merge=True)
+        
+        ticket_ref.collection('messages').add({
+            "text": message,
+            "imageUrl": image_url,
+            "isAdmin": False,
+            "createdAt": firestore.SERVER_TIMESTAMP
+        })
+        return jsonify({"status": "success", "message": "Query sent to Central Command!"})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route('/api/organizer/query_messages', methods=['GET'])
+def organizer_get_query_messages():
+    org_code = request.args.get('orgCode', '').strip().upper()
+    ticket_id = f"TICKET_{org_code}"
+    try:
+        msgs_snapshot = db.collection('supportTickets').document(ticket_id).collection('messages').order_by('createdAt').stream()
+        messages = [doc.to_dict() for doc in msgs_snapshot]
+        return jsonify({"status": "success", "messages": messages})
+    except Exception:
+        return jsonify({"status": "success", "messages": []})
+
+# ==========================================================================
+# 7. QUESTION BANK ADMINISTRATOR ROUTERS
+# ==========================================================================
+@app.route('/api/admin/add-question', methods=['POST'])
+def admin_add_question():
+    try:
+        data = request.json or {}
+        class_range = str(data.get('classRange', '')).strip()
+        subject = str(data.get('subject', '')).strip()
+        question_text = str(data.get('questionText', '')).strip()
+        option_a = str(data.get('optionA', '')).strip()
+        option_b = str(data.get('optionB', '')).strip()
+        option_c = str(data.get('optionC', '')).strip()
+        option_d = str(data.get('optionD', '')).strip()
+        correct_option = str(data.get('correctOption', 'A')).strip()
+
+        if not question_text or not option_a or not option_b or not option_c or not option_d:
+            return jsonify({"status": "error", "message": "Question text and all 4 options are mandatory."}), 400
+
+        question_payload = {
+            "classRange": class_range,
+            "subject": subject,
+            "questionText": question_text,
+            "optionA": option_a,
+            "optionB": option_b,
+            "optionC": option_c,
+            "optionD": option_d,
+            "correctOption": correct_option,
+            "timestamp": firestore.SERVER_TIMESTAMP
+        }
+
+        db.collection('questions').add(question_payload)
+
+        return jsonify({"status": "success", "message": "Question added successfully"}), 200
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
