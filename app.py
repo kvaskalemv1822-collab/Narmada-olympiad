@@ -669,7 +669,7 @@ def organizer_get_query_messages():
         return jsonify({"status": "success", "messages": []})
 
 # ==========================================================================
-# 7. QUESTION BANK ADMINISTRATOR ROUTERS
+# 7. QUESTION BANK ADMINISTRATOR ROUTERS (WITH NEGATIVE MARKING & DELETE)
 # ==========================================================================
 @app.route('/api/admin/add-question', methods=['POST'])
 def admin_add_question():
@@ -677,6 +677,7 @@ def admin_add_question():
         data = request.json or {}
         class_range = str(data.get('classRange', '')).strip()
         subject = str(data.get('subject', '')).strip()
+        negative_marking = float(data.get('negativeMarking', 0))
         question_text = str(data.get('questionText', '')).strip()
         option_a = str(data.get('optionA', '')).strip()
         option_b = str(data.get('optionB', '')).strip()
@@ -690,6 +691,7 @@ def admin_add_question():
         question_payload = {
             "classRange": class_range,
             "subject": subject,
+            "negativeMarking": negative_marking,
             "questionText": question_text,
             "optionA": option_a,
             "optionB": option_b,
@@ -715,6 +717,19 @@ def admin_get_all_questions():
             q_data['id'] = doc.id
             questions.append(q_data)
         return jsonify({"status": "success", "questions": questions}), 200
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route('/api/admin/delete-question', methods=['POST'])
+def admin_delete_question():
+    try:
+        data = request.json or {}
+        q_id = data.get('questionId')
+        if not q_id:
+            return jsonify({"status": "error", "message": "Question ID missing"}), 400
+
+        db.collection('questions').document(q_id).delete()
+        return jsonify({"status": "success", "message": "Question deleted successfully"}), 200
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
