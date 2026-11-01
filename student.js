@@ -3,6 +3,9 @@ let activeUpiString = "";
 let isOrganizerVerified = false;
 let verifiedOrgExamMode = "online";
 let portalConfigData = {};
+let currentExamQuestions = [];
+let studentSessionData = null;
+let examTimerInterval = null;
 
 document.addEventListener("DOMContentLoaded", () => {
   fetchPortalConfig();
@@ -11,7 +14,8 @@ document.addEventListener("DOMContentLoaded", () => {
 function fetchPortalConfig() {
   const statusMsg = document.getElementById("portal-status-msg");
   const btnReg = document.getElementById("nav-btn-reg");
-  const btnLogin = document.getElementById("nav-btn-login");
+  const btnExam = document.getElementById("nav-btn-exam");
+  const btnResult = document.getElementById("nav-btn-result");
 
   fetch(`${SERVER_URL}/api/portal/config`)
     .then(res => res.json())
@@ -26,35 +30,36 @@ function fetchPortalConfig() {
 
         if (isResultDeclared) {
           if (btnReg) btnReg.style.display = "none";
-          if (btnLogin) btnLogin.style.display = "block";
-          btnLogin.textContent = "🏆 View Result / Scorecard";
-          switchTab('login'); 
+          if (btnExam) btnExam.style.display = "none";
+          if (btnResult) btnResult.style.display = "block";
+          switchTab('result'); 
           if (statusMsg) {
             statusMsg.textContent = "🏆 Exam Results Declared! Check your scorecard below.";
             statusMsg.style.color = "#facc15";
           }
+        } else if (isExamActive) {
+          if (btnReg) btnReg.style.display = "none";
+          if (btnExam) btnExam.style.display = "block";
+          if (btnResult) btnResult.style.display = "none";
+          switchTab('exam'); 
+          if (statusMsg) {
+            statusMsg.textContent = "✍️ Online Exam Portal is Active. Login to start.";
+            statusMsg.style.color = "#0284c7";
+          }
         } else if (isRegOpen) {
           if (btnReg) btnReg.style.display = "block";
-          if (btnLogin) btnLogin.style.display = "none";
+          if (btnExam) btnExam.style.display = "none";
+          if (btnResult) btnResult.style.display = "none";
           switchTab('reg'); 
           if (statusMsg) {
             statusMsg.textContent = "🟢 NVMSO Registration is Live & Active.";
             statusMsg.style.color = "#10b981";
           }
-        } else if (isExamActive) {
-          if (btnReg) btnReg.style.display = "none";
-          if (btnLogin) btnLogin.style.display = "block";
-          btnLogin.textContent = "✍️ Take Online Exam";
-          switchTab('login'); 
-          if (statusMsg) {
-            statusMsg.textContent = "✍️ Online Exam Portal is Active.";
-            statusMsg.style.color = "#0275d8";
-          }
         } else {
           if (btnReg) btnReg.style.display = "none";
-          if (btnLogin) btnLogin.style.display = "none";
+          if (btnExam) btnExam.style.display = "none";
+          if (btnResult) btnResult.style.display = "none";
           document.getElementById("registration-view").classList.add("hidden");
-          document.getElementById("login-view").classList.add("hidden");
           if (statusMsg) {
             statusMsg.textContent = "🔴 Portal is currently offline / locked.";
             statusMsg.style.color = "#ef4444";
@@ -136,7 +141,6 @@ window.openDirectUpiApp = function() {
   window.location.href = `upi://pay?pa=${encodeURIComponent(activeUpiString)}&pn=NVMSO&am=${fee}&cu=INR`;
 };
 
-// 📌 Confirm Details & Proceed Button Click Handler
 window.validateAndShowPayment = function() {
   if (!isOrganizerVerified) {
     alert("⚠️ Please enter and verify a valid School Organizer Code first!");
@@ -178,7 +182,6 @@ window.toggleQrDisplay = function() {
   }
 };
 
-// 📌 Checkbox Toggle Handler (Enables/Disables Final Complete Registration Button)
 window.toggleSubmitButton = function() {
   const termsCheckbox = document.getElementById('terms-checkbox');
   const submitBtn = document.getElementById('btn-final-submit');
@@ -195,17 +198,7 @@ window.toggleSubmitButton = function() {
   }
 };
 
-// 📌 Final Registration Form Submission
-document.getElementById('reg-form').addEventListener('submit', function(e) {
-  e.preventDefault();
-  if (!isOrganizerVerified) { alert("Please verify School Organizer Code first!"); return; }
-
-  const termsChecked = document.getElementById('terms-checkbox').checked;
-  if (!termsChecked) {
-    alert("⚠️ Please accept the Terms & Conditions policy before submitting registration.");
-    return;
-  }
-
+window.submitStudentRegistration = function() {
   const payload = {
     orgCode: document.getElementById('org-code').value.toUpperCase(),
     studentName: document.getElementById('std-name').value.trim(),
@@ -242,15 +235,179 @@ document.getElementById('reg-form').addEventListener('submit', function(e) {
   .catch(() => {
     alert("❌ Server connection error. Please try again.");
   });
-});
+};
 
+// ==========================================================================
+// ✍️ ONLINE EXAM LOGIN & EXAMINATION ENGINE
+// ==========================================================================
+window.verifyStudentLoginAndStartExam = function() {
+  const orgCode = document.getElementById("login-org-code").value.trim().toUpperCase();
+  const roll = document.getElementById("login-roll").value.trim();
+  const password = document.getElementById("login-password").value.trim();
+
+  if (!orgCode || !roll || !password) {
+    alert("⚠️ Please enter School Code, Roll Number, and Password.");
+    return;
+  }
+
+  fetch(`${SERVER_URL}/api/student/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ orgCode: orgCode, rollNumber: roll, password: password })
+  })
+  .then(res => res.json())
+  .then(data => {
+    if (data.status === "success") {
+      studentSessionData = data.student;
+      document.getElementById("student-auth-box").classList.add("hidden");
+      document.getElementById("active-exam-container").classList.remove("hidden");
+      document.getElementById("exam-student-info").textContent = `Student: ${studentSessionData.studentName} (Class ${studentSessionData.studentClass})`;
+      
+      loadExamQuestions(studentSessionData.studentClass, studentSessionData.stream);
+      startExamTimer(30 * 60); // 30 Minutes
+    } else {
+      alert("❌ Login Failed: " + (data.message || "Invalid credentials. Password is Mother's first 2 capital letters + Roll No."));
+    }
+  })
+  .catch(() => {
+    alert("❌ Server connection error during login.");
+  });
+};
+
+function loadExamQuestions(studentClass, stream) {
+  fetch(`${SERVER_URL}/api/student/questions?class=${studentClass}&stream=${stream || ''}`)
+    .then(res => res.json())
+    .then(data => {
+      const qContainer = document.getElementById("exam-questions-list");
+      if (!qContainer) return;
+
+      if (data.status === "success" && data.questions && data.questions.length > 0) {
+        currentExamQuestions = data.questions;
+        qContainer.innerHTML = "";
+        
+        currentExamQuestions.forEach((q, idx) => {
+          qContainer.innerHTML += `
+            <div style="background: #0b0f19; border: 1px solid #1e293b; padding: 15px; border-radius: 8px; margin-bottom: 12px; font-size: 13px;">
+              <p style="color: #38bdf8; font-weight: bold; margin-bottom: 8px;">Q${idx+1}. ${q.questionText}</p>
+              <div style="display: flex; flex-direction: column; gap: 6px;">
+                <label style="cursor: pointer; color: #cbd5e1;"><input type="radio" name="q_${q.id}" value="A" style="margin-right:8px;"> A) ${q.optionA}</label>
+                <label style="cursor: pointer; color: #cbd5e1;"><input type="radio" name="q_${q.id}" value="B" style="margin-right:8px;"> B) ${q.optionB}</label>
+                <label style="cursor: pointer; color: #cbd5e1;"><input type="radio" name="q_${q.id}" value="C" style="margin-right:8px;"> C) ${q.optionC}</label>
+                <label style="cursor: pointer; color: #cbd5e1;"><input type="radio" name="q_${q.id}" value="D" style="margin-right:8px;"> D) ${q.optionD}</label>
+              </div>
+            </div>
+          `;
+        });
+      } else {
+        qContainer.innerHTML = `<p style="color: #f87171; text-align: center;">No questions available for this class yet. Contact admin.</p>`;
+      }
+    });
+}
+
+function startExamTimer(durationSeconds) {
+  let timer = durationSeconds;
+  const timerDisplay = document.getElementById("exam-timer-display");
+  
+  examTimerInterval = setInterval(() => {
+    let minutes = Math.floor(timer / 60);
+    let seconds = timer % 60;
+    timerDisplay.textContent = `⏱️ Time Left: ${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
+
+    if (--timer < 0) {
+      clearInterval(examTimerInterval);
+      alert("⏰ Time is up! Submitting your exam automatically.");
+      submitExamAnswers();
+    }
+  }, 1000);
+}
+
+window.submitExamAnswers = function() {
+  if (!confirm("Are you sure you want to submit your exam answers?")) return;
+  if (examTimerInterval) clearInterval(examTimerInterval);
+
+  let answers = {};
+  currentExamQuestions.forEach(q => {
+    const selectedOpt = document.querySelector(`input[name="q_${q.id}"]:checked`);
+    answers[q.id] = selectedOpt ? selectedOpt.value : "";
+  });
+
+  fetch(`${SERVER_URL}/api/student/submit_exam`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      studentId: studentSessionData.studentId || `${studentSessionData.orgCode}_${studentSessionData.rollNumber}`,
+      answers: answers
+    })
+  })
+  .then(res => res.json())
+  .then(data => {
+    if (data.status === "success") {
+      alert(`🎉 Exam Submitted Successfully! Your Score: ${data.score} / ${data.total}`);
+      switchTab('result');
+    } else {
+      alert("❌ Error submitting exam: " + data.message);
+    }
+  });
+};
+
+// ==========================================================================
+// 🏆 RESULT & SCORECARD VIEWER
+// ==========================================================================
+window.fetchStudentResult = function() {
+  const orgCode = document.getElementById("res-org-code").value.trim().toUpperCase();
+  const roll = document.getElementById("res-roll").value.trim();
+  const scorecardBox = document.getElementById("student-scorecard-box");
+
+  if (!orgCode || !roll) {
+    alert("⚠️ Please enter School Code and Roll Number to fetch result.");
+    return;
+  }
+
+  fetch(`${SERVER_URL}/api/student/result`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ orgCode: orgCode, rollNumber: roll })
+  })
+  .then(res => res.json())
+  .then(data => {
+    scorecardBox.style.display = "block";
+    if (data.status === "success") {
+      const resData = data.result;
+      scorecardBox.innerHTML = `
+        <div style="background: #0b0f19; border: 1px solid #10b981; padding: 15px; border-radius: 8px;">
+          <h4 style="color: #4ade80; margin-bottom: 8px;">✅ Official Scorecard Found</h4>
+          <p><strong>Student Name:</strong> ${resData.studentName}</p>
+          <p><strong>Class:</strong> ${resData.studentClass} | <strong>Roll No:</strong> ${resData.rollNumber}</p>
+          <p><strong>School Code:</strong> ${resData.orgCode}</p>
+          <hr style="border-color:#334155; margin:10px 0;">
+          <p style="font-size: 15px; color: #facc15;"><strong>Total Score:</strong> ${resData.score} Marks</p>
+          <p style="font-size: 13px; color: #38bdf8;"><strong>Percentage:</strong> ${resData.percentage || 0}%</p>
+        </div>
+      `;
+    } else {
+      scorecardBox.innerHTML = `<p style="color: #f87171; text-align: center;">❌ ${data.message || "Result not declared yet or invalid roll number."}</p>`;
+    }
+  });
+};
+
+// ==========================================================================
+// UTILITY TAB SWITCHING & HANDLERS
+// ==========================================================================
 window.switchTab = (tabName) => {
+  const regView = document.getElementById("registration-view");
+  const examView = document.getElementById("exam-login-view");
+  const resultView = document.getElementById("result-view");
+
+  if (regView) regView.classList.add("hidden");
+  if (examView) examView.classList.add("hidden");
+  if (resultView) resultView.classList.add("hidden");
+
   if (tabName === 'reg') {
-    document.getElementById("registration-view").classList.remove("hidden");
-    document.getElementById("login-view").classList.add("hidden");
-  } else {
-    document.getElementById("registration-view").classList.add("hidden");
-    document.getElementById("login-view").classList.remove("hidden");
+    if (regView) regView.classList.remove("hidden");
+  } else if (tabName === 'exam') {
+    if (examView) examView.classList.remove("hidden");
+  } else if (tabName === 'result') {
+    if (resultView) resultView.classList.remove("hidden");
   }
 };
 
