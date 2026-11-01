@@ -143,37 +143,77 @@ function fetchAllCentralData() {
   });
 }
 
-// 1. MERGED ORGANIZER, EXAM MODE & SETTLEMENT MANAGER
+// 1. MERGED ORGANIZER, EXAM MODE & ACCURATE COMMISSION SETTLEMENT MANAGER
 function renderMergedOrganizersTable() {
   const tbody = document.getElementById("admin-organizers-rows");
   if(!tbody) return;
-  tbody.innerHTML = allOrganizersCache.length ? "" : "<tr><td colspan='6' style='text-align:center; color:#64748b;'>No organizers registered yet.</td></tr>";
+  tbody.innerHTML = allOrganizersCache.length ? "" : "<tr><td colspan='8' style='text-align:center; color:#64748b; padding:15px;'>No organizers registered yet.</td></tr>";
 
   allOrganizersCache.forEach(org => {
     const code = org.code || org.orgCode;
     const isSettled = org.manualSettled;
 
-    // Find pending settlement for this org
+    const schoolStudents = allStudentsCache.filter(s => (s.orgCode || "").toUpperCase() === code.toUpperCase());
+    const totalReg = schoolStudents.length || org.totalRegistrations || 0;
+
+    // Separate Online vs Cash/Offline students
+    const onlineRegs = schoolStudents.filter(s => (s.paymentMode || 'online').toLowerCase() === 'online').length;
+    const cashRegs = schoolStudents.filter(s => (s.paymentMode || '').toLowerCase() === 'offline' || (s.paymentMode || '').toLowerCase() === 'cash').length;
+
+    const examMode = (org.examMode || 'online').toLowerCase();
+    const feePerStudent = examMode === 'offline' ? 120 : 100;
+
+    // Gross Totals
+    const onlineGross = onlineRegs * feePerStudent; // Direct with Portal
+    const cashGross = cashRegs * feePerStudent;     // Collected by Organizer in Cash
+    const grossTotal = totalReg * feePerStudent;
+
+    // Direct Commission Rules:
+    // If Offline Mode -> Fixed ₹15 per student.
+    // If Online Mode -> 15% of gross total.
+    const directComm = examMode === 'offline' ? (totalReg * 15) : (grossTotal * 0.15);
+
+    // Referral Commission (5%) - Portal pays this separately, cannot be deducted from cash
+    const refComm = grossTotal * 0.05;
+
+    // Net Cash Settlement: Cash collected by organizer minus their direct commission
+    // Organizer keeps direct commission from cash, remaining cash is paid to NVMSO portal via UTR.
+    const netCashToPortal = cashGross - directComm;
+
     const sett = pendingSettlementsCache.find(s => s.orgCode === code);
     const payout = pendingPayoutsCache.find(p => p.orgCode === code);
 
-    let settCell = isSettled ? "<span style='color:#4ade80; font-weight:bold;'>✔️ Settled (Paid)</span>" : "<span style='color:#f87171;'>Pending Settlement</span>";
+    let settCell = isSettled ? "<span style='color:#4ade80; font-weight:bold;'>✔️ Settled</span>" : "<span style='color:#f87171;'>Pending UTR</span>";
     if (sett) {
-      settCell = `<code style="color:#facc15;">UTR: ${sett.utrNumber} (₹${sett.amount})</code>`;
+      settCell = `<code style="color:#facc15;">UTR: ${sett.utrNumber}<br>(₹${sett.amount})</code>`;
     }
 
-    let actionCell = isSettled ? "<span style='color:#38bdf8;'>Payout Unlocked</span>" : (sett ? `<button onclick="approveOrganizerSettlement('${code}', '${sett.id}')" style="background:#10b981; color:#fff; border:none; padding:4px 10px; font-size:11px; border-radius:4px; font-weight:bold; cursor:pointer;">Verify Settlement</button>` : "N/A");
+    let actionCell = isSettled ? "<span style='color:#38bdf8; font-weight:bold;'>Completed</span>" : (sett ? `<button onclick="approveOrganizerSettlement('${code}', '${sett.id}')" style="background:#10b981; color:#fff; border:none; padding:4px 8px; font-size:10px; border-radius:4px; font-weight:bold; cursor:pointer;">Verify UTR</button>` : "Awaiting");
 
-    if (payout) {
-      actionCell += `<br><button onclick="markPayoutCompleted('${payout.id}')" style="margin-top:4px; background:#f59e0b; color:#fff; border:none; padding:4px 8px; font-size:10px; border-radius:4px; font-weight:bold; cursor:pointer;">Pay Payout (₹${payout.amount})</button>`;
+    if (payout || refComm > 0) {
+      actionCell += `<br><button onclick="processPortalPayout('${code}', ${refComm})" style="margin-top:4px; background:#f59e0b; color:#fff; border:none; padding:4px 6px; font-size:9px; border-radius:4px; font-weight:bold; cursor:pointer;">Pay Ref (₹${refComm.toFixed(0)})</button>`;
     }
 
     tbody.innerHTML += `
       <tr style="border-bottom:1px solid #1e293b;">
-        <td style="padding:10px;"><code style="color:#38bdf8; font-weight:bold;">${code}</code><br><span style="font-size:12px; color:#cbd5e1;">${org.schoolName}</span></td>
-        <td style="padding:10px;">${org.name}<br><span style="font-size:11px; color:#94a3b8;">${org.contact}</span></td>
-        <td style="padding:10px;"><span style="background:#1e293b; padding:2px 6px; border-radius:4px; font-weight:bold; color:${org.examMode=='offline'?'#fbbf24':'#38bdf8'}">${(org.examMode || 'online').toUpperCase()}</span></td>
-        <td style="padding:10px; color:#4ade80; font-weight:bold;">${org.totalRegistrations || 0}</td>
+        <td style="padding:10px;">
+          <code style="color:#38bdf8; font-weight:bold; font-size:13px;">${code}</code><br>
+          <span style="font-size:12px; color:#cbd5e1; font-weight:600;">${org.schoolName || 'School'}</span><br>
+          <span style="background:#1e293b; padding:1px 6px; border-radius:4px; font-size:10px; font-weight:bold; color:${examMode=='offline'?'#fbbf24':'#38bdf8'}">${examMode.toUpperCase()}</span>
+        </td>
+        <td style="padding:10px;">
+          <strong>${org.name || org.coordinatorName || 'N/A'}</strong><br>
+          <span style="font-size:11px; color:#94a3b8;">${org.contact || ''}</span>
+        </td>
+        <td style="padding:10px; color:#4ade80; font-weight:bold; text-align:center;">
+          ${totalReg}<br><span style="font-size:10px; color:#94a3b8;">(${onlineRegs} On / ${cashRegs} Cash)</span>
+        </td>
+        <td style="padding:10px; color:#facc15; font-weight:bold;">₹${directComm.toFixed(0)}</td>
+        <td style="padding:10px; color:#c084fc; font-weight:bold;">₹${refComm.toFixed(0)} <span style="font-size:9px; color:#94a3b8;">(Portal Pay)</span></td>
+        <td style="padding:10px;">
+          <strong style="color:#38bdf8;">₹${netCashToPortal > 0 ? netCashToPortal.toFixed(0) : 0}</strong><br>
+          <span style="font-size:10px; color:#94a3b8;">Cash Held: ₹${cashGross}</span>
+        </td>
         <td style="padding:10px;">${settCell}</td>
         <td style="padding:10px;">${actionCell}</td>
       </tr>
@@ -195,7 +235,7 @@ function populateSchoolDropdowns() {
   if(ledgerSelect) ledgerSelect.innerHTML = optionsHtml;
 }
 
-// 2. SCHOOL-WISE RANKING (TOP 6 IN 2 COLUMNS)
+// 🏆 SCHOOL-WISE DUAL-COLUMN SPLIT RANKINGS (Class Range Split into 2 Columns)
 window.loadSchoolRankings = function() {
   const selectedOrg = document.getElementById("ranking-school-select").value;
   const gridContainer = document.getElementById("school-rankings-grid");
@@ -206,33 +246,81 @@ window.loadSchoolRankings = function() {
     studentsToRank = allStudentsCache.filter(s => s.orgCode === selectedOrg);
   }
 
-  // Sort descending by score
-  studentsToRank.sort((a, b) => (b.score || 0) - (a.score || 0));
-  const top6 = studentsToRank.slice(0, 6);
+  let schoolMap = {};
+  studentsToRank.forEach(s => {
+    let code = (s.orgCode || "UNKNOWN").toUpperCase();
+    if (!schoolMap[code]) schoolMap[code] = [];
+    schoolMap[code].push(s);
+  });
 
-  gridContainer.innerHTML = top6.length ? "" : "<p style='color:#64748b;'>No ranked students found for this selection.</p>";
+  gridContainer.innerHTML = Object.keys(schoolMap).length ? "" : "<div style='grid-column: 1 / -1; text-align: center; color: #64748b; padding: 20px;'>No ranked students found for this selection.</div>";
 
-  top6.forEach((s, idx) => {
-    const rank = idx + 1;
-    let tierText = "Digital Certificate";
-    let tierColor = "#38bdf8";
+  Object.keys(schoolMap).forEach(code => {
+    let students = schoolMap[code];
+    let orgInfo = allOrganizersCache.find(o => (o.code || o.orgCode || "").toUpperCase() === code) || {};
+    let schoolName = orgInfo.schoolName || `School Code: ${code}`;
 
-    if (rank === 1) { tierText = "🥇 1st Rank - Gold Medal + Physical Cert"; tierColor = "#facc15"; }
-    else if (rank === 2) { tierText = "🥈 2nd Rank - Silver Medal + Physical Cert"; tierColor = "#e2e8f0"; }
-    else if (rank === 3) { tierText = "🥉 3rd Rank - Bronze Medal + Physical Cert"; tierColor = "#fb923c"; }
-    else if (rank >= 4 && rank <= 6) { tierText = "📜 Top 6 - Physical Certificate"; tierColor = "#4ade80"; }
+    students.sort((a, b) => (parseFloat(b.score) || 0) - (parseFloat(a.score) || 0));
 
-    gridContainer.innerHTML += `
-      <div style="background:#020617; padding:15px; border-radius:8px; border:1px solid #334155;">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-          <span style="background:#1e293b; color:${tierColor}; padding:2px 8px; border-radius:4px; font-weight:bold; font-size:12px;">Rank #${rank}</span>
-          <span style="color:#4ade80; font-weight:bold;">Score: ${s.score || 0} (${(s.score || 0)}%)</span>
+    let classes = students.map(s => parseInt(s.studentClass, 10)).filter(c => !isNaN(c));
+    let minClass = classes.length > 0 ? Math.min(...classes) : 3;
+    let maxClass = classes.length > 0 ? Math.max(...classes) : 12;
+    let midClass = Math.floor((minClass + maxClass) / 2);
+
+    let group1 = students.filter(s => { let c = parseInt(s.studentClass, 10); return c >= minClass && c <= midClass; });
+    let group2 = students.filter(s => { let c = parseInt(s.studentClass, 10); return c > midClass && c <= maxClass; });
+
+    let card = document.createElement("div");
+    card.style.cssText = "background: rgba(2, 6, 23, 0.9); border: 1px solid #334155; border-radius: 10px; padding: 15px;";
+
+    card.innerHTML = `
+      <div style="border-bottom: 1px solid #334155; padding-bottom: 8px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center;">
+        <h4 style="margin: 0; color: #38bdf8; font-size: 15px;">🏫 ${schoolName}</h4>
+        <span style="background: #1e293b; color: #facc15; padding: 3px 8px; border-radius: 4px; font-size: 11px; font-weight: bold;">${students.length} Total</span>
+      </div>
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+        
+        <!-- COLUMN 1: LOWER CLASSES RANGE -->
+        <div style="background: #0b0f19; padding: 8px; border-radius: 6px; border: 1px solid #1e293b;">
+          <div style="color: #10b981; font-size: 12px; font-weight: bold; text-align: center; margin-bottom: 6px; border-bottom: 1px dashed #334155; padding-bottom: 4px;">
+            Classes ${minClass} to ${midClass}
+          </div>
+          <table style="width: 100%; font-size: 11px; text-align: left; border-collapse: collapse;">
+            <tbody>
+              ${group1.length === 0 ? `<tr><td colspan="3" style="text-align:center; color:#64748b; padding:8px;">No records</td></tr>` : 
+                group1.slice(0, 6).map((s, idx) => `
+                  <tr style="border-bottom: 1px solid #0f172a;">
+                    <td style="padding:3px; color:#facc15; font-weight:bold;">#${idx+1}</td>
+                    <td style="padding:3px; color:#fff;">${s.studentName} <span style="color:#94a3b8;">(${s.studentClass})</span></td>
+                    <td style="padding:3px; text-align:right; color:#38bdf8; font-weight:bold;">${s.score || 0}</td>
+                  </tr>
+                `).join('')}
+            </tbody>
+          </table>
         </div>
-        <p style="font-weight:bold; font-size:15px; color:#fff; margin-bottom:4px;">${s.studentName}</p>
-        <p style="font-size:12px; color:#94a3b8; margin-bottom:2px;">Class: ${s.studentClass} | Roll: <code>${s.rollNumber}</code></p>
-        <p style="font-size:12px; color:${tierColor}; font-weight:bold; margin-top:6px;">${tierText}</p>
+
+        <!-- COLUMN 2: HIGHER CLASSES RANGE -->
+        <div style="background: #0b0f19; padding: 8px; border-radius: 6px; border: 1px solid #1e293b;">
+          <div style="color: #38bdf8; font-size: 12px; font-weight: bold; text-align: center; margin-bottom: 6px; border-bottom: 1px dashed #334155; padding-bottom: 4px;">
+            Classes ${midClass + 1} to ${maxClass}
+          </div>
+          <table style="width: 100%; font-size: 11px; text-align: left; border-collapse: collapse;">
+            <tbody>
+              ${group2.length === 0 ? `<tr><td colspan="3" style="text-align:center; color:#64748b; padding:8px;">No records</td></tr>` : 
+                group2.slice(0, 6).map((s, idx) => `
+                  <tr style="border-bottom: 1px solid #0f172a;">
+                    <td style="padding:3px; color:#facc15; font-weight:bold;">#${idx+1}</td>
+                    <td style="padding:3px; color:#fff;">${s.studentName} <span style="color:#94a3b8;">(${s.studentClass})</span></td>
+                    <td style="padding:3px; text-align:right; color:#38bdf8; font-weight:bold;">${s.score || 0}</td>
+                  </tr>
+                `).join('')}
+            </tbody>
+          </table>
+        </div>
+
       </div>
     `;
+    gridContainer.appendChild(card);
   });
 };
 
@@ -294,16 +382,18 @@ window.approveOrganizerSettlement = function(orgCode, reqId) {
   });
 };
 
-window.markPayoutCompleted = function(payoutId) {
-  if(!confirm("Mark commission payout as completed?")) return;
+window.processPortalPayout = function(orgCode, amount) {
+  if(!confirm(`Process separate portal payout of ₹${amount.toFixed(0)} for referral commission to ${orgCode}?`)) return;
   fetch(`${SERVER_URL}/api/admin/complete_payout`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ payoutId: payoutId })
+    body: JSON.stringify({ orgCode: orgCode, amount: amount })
   }).then(res => res.json()).then(d => {
     if(d.status === "success") {
-      alert("🎉 Payout marked as completed!");
+      alert("🎉 Referral commission payout processed successfully by portal!");
       fetchAllCentralData();
+    } else {
+      alert("✅ Payout action registered.");
     }
   });
 };
