@@ -9,6 +9,28 @@ let examTimerInterval = null;
 
 document.addEventListener("DOMContentLoaded", () => {
   fetchPortalConfig();
+  
+  // 💡 ROLL NUMBER RESTRICTION: Allow only numbers
+  const rollInput = document.getElementById("std-roll");
+  if (rollInput) {
+    rollInput.addEventListener("input", function() {
+      this.value = this.value.replace(/[^0-9]/g, '');
+    });
+  }
+
+  const loginRollInput = document.getElementById("login-roll");
+  if (loginRollInput) {
+    loginRollInput.addEventListener("input", function() {
+      this.value = this.value.replace(/[^0-9]/g, '');
+    });
+  }
+
+  const resRollInput = document.getElementById("res-roll");
+  if (resRollInput) {
+    resRollInput.addEventListener("input", function() {
+      this.value = this.value.replace(/[^0-9]/g, '');
+    });
+  }
 });
 
 function fetchPortalConfig() {
@@ -22,7 +44,7 @@ function fetchPortalConfig() {
     .then(data => {
       if (data.status === "success") {
         portalConfigData = data.config;
-        activeUpiString = portalConfigData.upiId || "narmada@upi";
+        activeUpiString = portalConfigData.adminUpiId || portalConfigData.upiId || "narmada@upi";
 
         const isRegOpen = !!portalConfigData.isRegistrationOpen;
         const isExamActive = !!portalConfigData.isExamActive;
@@ -238,7 +260,7 @@ window.submitStudentRegistration = function() {
 };
 
 // ==========================================================================
-// ✍️ ONLINE EXAM LOGIN & EXAMINATION ENGINE
+// ✍️ ONLINE EXAM LOGIN & EXAMINATION ENGINE (CLASS-WISE FILTERED)
 // ==========================================================================
 window.verifyStudentLoginAndStartExam = function() {
   const orgCode = document.getElementById("login-org-code").value.trim().toUpperCase();
@@ -282,13 +304,34 @@ function loadExamQuestions(studentClass, stream) {
       if (!qContainer) return;
 
       if (data.status === "success" && data.questions && data.questions.length > 0) {
-        currentExamQuestions = data.questions;
+        // 💡 STRICT CLASS-WISE FILTERING ON CLIENT SIDE
+        let classNum = parseInt(studentClass, 10);
+        let filteredQuestions = data.questions.filter(q => {
+          let range = q.classRange || "";
+          if (range === "3-5" && classNum >= 3 && classNum <= 5) return true;
+          if (range === "6-8" && classNum >= 6 && classNum <= 8) return true;
+          if (range === "9-10" && classNum >= 9 && classNum <= 10) return true;
+          if (range.includes("11-12") && classNum >= 11) {
+            if (range.includes("Maths") && stream === "Maths") return true;
+            if (range.includes("Science") && stream === "Science") return true;
+            if (!range.includes("Maths") && !range.includes("Science")) return true;
+          }
+          return false;
+        });
+
+        // Fallback if strict range format differs slightly in backend
+        if (filteredQuestions.length === 0) {
+          filteredQuestions = data.questions;
+        }
+
+        currentExamQuestions = filteredQuestions;
         qContainer.innerHTML = "";
         
         currentExamQuestions.forEach((q, idx) => {
+          let negBadge = q.negativeMarking ? `<span style="color:#f87171; float:right; font-size:11px;">Negative: -${q.negativeMarking}</span>` : "";
           qContainer.innerHTML += `
             <div style="background: #0b0f19; border: 1px solid #1e293b; padding: 15px; border-radius: 8px; margin-bottom: 12px; font-size: 13px;">
-              <p style="color: #38bdf8; font-weight: bold; margin-bottom: 8px;">Q${idx+1}. ${q.questionText}</p>
+              <p style="color: #38bdf8; font-weight: bold; margin-bottom: 8px;">Q${idx+1}. ${q.questionText} ${negBadge}</p>
               <div style="display: flex; flex-direction: column; gap: 6px;">
                 <label style="cursor: pointer; color: #cbd5e1;"><input type="radio" name="q_${q.id}" value="A" style="margin-right:8px;"> A) ${q.optionA}</label>
                 <label style="cursor: pointer; color: #cbd5e1;"><input type="radio" name="q_${q.id}" value="B" style="margin-right:8px;"> B) ${q.optionB}</label>
@@ -299,7 +342,7 @@ function loadExamQuestions(studentClass, stream) {
           `;
         });
       } else {
-        qContainer.innerHTML = `<p style="color: #f87171; text-align: center;">No questions available for this class yet. Contact admin.</p>`;
+        qContainer.innerHTML = `<p style="color: #f87171; text-align: center;">No questions available for Class ${studentClass} yet. Contact admin.</p>`;
       }
     });
 }
