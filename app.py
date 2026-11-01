@@ -473,13 +473,11 @@ def organizer_get_students():
 
         gross_fees = total_approved_regs * fee_per_student
 
-        # Commission Calculation: Online -> 15% of gross fees | Offline -> ₹15 per student fixed
         if exam_mode == 'offline':
             direct_comm = total_approved_regs * 15
         else:
             direct_comm = int(gross_fees * 0.15)
 
-        # 5% Referral Commission
         ref_comm = int(gross_fees * 0.05) if org_data.get('refCode') else 0
         net_payable = cash_held - direct_comm
 
