@@ -272,7 +272,6 @@ window.verifyStudentLoginAndStartExam = function() {
     if (data.status === "success") {
       studentSessionData = data.student;
       
-      // Hide login box and show Student Details Preview Card before exam starts
       document.getElementById("student-auth-box").classList.add("hidden");
       
       let previewBox = document.getElementById("student-details-preview-box");
@@ -285,13 +284,13 @@ window.verifyStudentLoginAndStartExam = function() {
       
       previewBox.style.display = "block";
       previewBox.innerHTML = `
-        <h3 style="color: #38bdf8; margin-bottom: 15px;">📋 Student Details Verification</h3>
-        <p style="text-align: left; margin-bottom: 8px;"><strong>Student Name:</strong> ${studentSessionData.studentName}</p>
-        <p style="text-align: left; margin-bottom: 8px;"><strong>Class:</strong> ${studentSessionData.studentClass}</p>
-        <p style="text-align: left; margin-bottom: 8px;"><strong>Roll No:</strong> ${studentSessionData.rollNumber}</p>
-        <p style="text-align: left; margin-bottom: 8px;"><strong>Father's Name:</strong> ${studentSessionData.fatherName || 'N/A'}</p>
-        <p style="text-align: left; margin-bottom: 15px;"><strong>School Name:</strong> <span style="font-weight: bold; color: #facc15;">${studentSessionData.schoolName || studentSessionData.orgCode}</span></p>
-        <button onclick="launchActualExam()" class="btn-submit" style="background: #10b981;">🚀 Start Exam Now</button>
+        <h3 style="color: #1e3c72; margin-bottom: 15px;">📋 Student Details Verification</h3>
+        <p style="text-align: left; margin-bottom: 5px;"><strong>Student Name:</strong> ${studentSessionData.studentName}</p>
+        <p style="text-align: left; margin-bottom: 5px;"><strong>Class:</strong> ${studentSessionData.studentClass}</p>
+        <p style="text-align: left; margin-bottom: 5px;"><strong>Roll No:</strong> ${studentSessionData.rollNumber}</p>
+        <p style="text-align: left; margin-bottom: 5px;"><strong>Father's Name:</strong> ${studentSessionData.fatherName || 'N/A'}</p>
+        <p style="text-align: left; margin-bottom: 15px;"><strong>School Name:</strong> <span style="font-weight: bold; font-size: 14px;">${studentSessionData.schoolName || studentSessionData.orgCode}</span></p>
+        <button onclick="launchActualExam()" class="btn-submit" style="background: #1e3c72;">🚀 Start Exam Now</button>
       `;
     } else {
       alert("❌ Login Failed: " + (data.message || "Invalid credentials. Password is Mother's first 2 capital letters + Roll No."));
@@ -343,9 +342,9 @@ function loadExamQuestions(studentClass, stream) {
         qContainer.innerHTML = "";
         
         currentExamQuestions.forEach((q, idx) => {
-          let negBadge = q.negativeMarking ? `<span style="color:#f87171; float:right; font-size:11px;">Negative: -${q.negativeMarking}</span>` : "";
+          let negBadge = q.negativeMarking ? `<span style="color:#d9534f; float:right; font-size:11px;">Negative: -${q.negativeMarking}</span>` : "";
           qContainer.innerHTML += `
-            <div style="background: #fff; border: 1px solid #ccc; padding: 15px; border-radius: 8px; margin-bottom: 12px; font-size: 13px; color: #333;">
+            <div style="background: #ffffff; border: 1px solid #ccc; padding: 15px; border-radius: 8px; margin-bottom: 12px; font-size: 13px; color: #333;">
               <p style="color: #1e3c72; font-weight: bold; margin-bottom: 8px;">Q${idx+1}. ${q.questionText} ${negBadge}</p>
               <div style="display: flex; flex-direction: column; gap: 6px;">
                 <label style="cursor: pointer; color: #444;"><input type="radio" name="q_${q.id}" value="A" style="margin-right:8px;"> A) ${q.optionA}</label>
@@ -432,20 +431,22 @@ window.fetchStudentResult = function() {
     if (data.status === "success") {
       const resData = data.result;
       scorecardBox.innerHTML = `
-        <div id="printable-scorecard" class="score-card" style="text-align: left; padding: 20px;">
-          <h4 style="color: #4ade80; margin-bottom: 10px; text-align: center;">✅ Official Olympiad Scorecard & Certificate</h4>
-          <p style="margin-bottom: 5px;"><strong>Student Name:</strong> ${resData.studentName}</p>
-          <p style="margin-bottom: 5px;"><strong>Class:</strong> ${resData.studentClass} | <strong>Roll No:</strong> ${resData.rollNumber}</p>
-          <p style="margin-bottom: 5px;"><strong>School Code:</strong> ${resData.orgCode}</p>
-          <hr style="border-color:#334155; margin:12px 0;">
-          <p style="font-size: 16px; color: #facc15; text-align: center; margin-bottom: 5px;"><strong>Total Score:</strong> ${resData.score} Marks</p>
-          <p style="font-size: 14px; color: #38bdf8; text-align: center; margin-bottom: 15px;"><strong>Percentage:</strong> ${resData.percentage || 0}%</p>
+        <div id="printable-scorecard" style="padding: 25px; color: #333; text-align: left;">
+          <h4 style="color: #1e3c72; margin-bottom: 12px; text-align: center;">✅ Official Olympiad Scorecard & Certificate</h4>
+          <p style="margin-bottom: 6px;"><strong>Student Name:</strong> ${resData.studentName}</p>
+          <p style="margin-bottom: 6px;"><strong>Class:</strong> ${resData.studentClass}</p>
+          <p style="margin-bottom: 6px;"><strong>Roll No:</strong> ${resData.rollNumber}</p>
+          <p style="margin-bottom: 6px;"><strong>Father's Name:</strong> ${resData.fatherName || 'N/A'}</p>
+          <p style="margin-bottom: 12px;"><strong>School Name:</strong> <span style="font-weight: bold; font-size: 14px;">${resData.schoolName || resData.orgCode}</span></p>
+          <hr style="border-color:#ccc; margin:12px 0;">
+          <p style="font-size: 16px; color: #1e3c72; text-align: center; margin-bottom: 6px;"><strong>Total Score:</strong> ${resData.score} Marks</p>
+          <p style="font-size: 14px; color: #d9534f; text-align: center; margin-bottom: 20px;"><strong>Percentage:</strong> ${resData.percentage || 0}%</p>
           
-          <button onclick="window.print()" class="btn-submit no-print" style="background: #0284c7;">🖨️ Print / Save Full Layout Certificate</button>
+          <button onclick="window.print()" class="btn-submit no-print" style="background: #1e3c72;">🖨️ Print / Save Full Layout Certificate</button>
         </div>
       `;
     } else {
-      scorecardBox.innerHTML = `<p style="color: #d9534f; text-align: center;">❌ ${data.message || "Result not declared yet or invalid roll number."}</p>`;
+      scorecardBox.innerHTML = `<p style="color: #d9534f; text-align: center; padding: 20px;">❌ ${data.message || "Result not declared yet or invalid roll number."}</p>`;
     }
   });
 };
