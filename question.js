@@ -2,7 +2,38 @@ const SERVER_URL = "https://nvmso-backend.onrender.com";
 
 document.addEventListener("DOMContentLoaded", () => {
   loadSavedQuestions();
+  loadExamConfig();
 });
+
+function loadExamConfig() {
+  fetch(`${SERVER_URL}/api/portal/config`)
+    .then(res => res.json())
+    .then(data => {
+      if (data.status === "success" && data.config) {
+        if (document.getElementById("config-exam-duration")) {
+          document.getElementById("config-exam-duration").value = data.config.examDuration || 30;
+        }
+      }
+    }).catch(() => {});
+}
+
+window.saveExamDurationConfig = function() {
+  const duration = parseInt(document.getElementById("config-exam-duration").value) || 30;
+  
+  fetch(`${SERVER_URL}/api/admin/update_config`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ examDuration: duration })
+  })
+  .then(res => res.json())
+  .then(data => {
+    if (data.status === "success") {
+      alert("✅ Exam Duration updated successfully!");
+    } else {
+      alert("❌ Error updating duration.");
+    }
+  });
+};
 
 window.addNewQuestionToBank = async () => {
   const qText = document.getElementById("q-text").value.trim();
@@ -27,7 +58,7 @@ window.addNewQuestionToBank = async () => {
     correctOption: document.getElementById("q-correct-opt").value
   };
 
-  const submitBtn = document.querySelector(".control-box button");
+  const submitBtn = document.querySelector(".control-box button[onclick='addNewQuestionToBank()']");
   if(submitBtn) {
     submitBtn.disabled = true;
     submitBtn.textContent = "Syncing Question Element with Cloud Frame...";
@@ -38,10 +69,7 @@ window.addNewQuestionToBank = async () => {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload)
   })
-  .then(res => {
-    if (!res.ok) throw new Error("Server transmission error.");
-    return res.json();
-  })
+  .then(res => res.json())
   .then(data => {
     if (data.status === "success") {
       alert("✅ Success: Question element securely published to the master database!");
@@ -61,7 +89,7 @@ window.addNewQuestionToBank = async () => {
     }
   })
   .catch(() => {
-    alert("❌ Error: Connection trace dropped or unauthorized script runtime.");
+    alert("❌ Error: Connection trace dropped.");
   })
   .finally(() => {
     if(submitBtn) {
@@ -71,17 +99,41 @@ window.addNewQuestionToBank = async () => {
   });
 };
 
-// 📋 FETCH AND RENDER SAVED QUESTIONS ON PANEL
 function loadSavedQuestions() {
-  fetch(`${SERVER_URL}/api/admin/all_questions`) // Ensure your backend has this route, or if using generic all_data fetch accordingly
+  fetch(`${SERVER_URL}/api/admin/all_questions`)
     .then(res => res.json())
     .then(data => {
       const container = document.getElementById("saved-questions-container");
       const countEl = document.getElementById("total-q-count");
       if(!container) return;
 
-      // Agar backend mein direct route nahi hai toh central admin all_data se filter kar sakte hain, ya niche standard endpoint assume kiya hai:
-      // Agar aapne app.py mein all_questions route nahi banaya hai to batayein, main wo bhi de deta hoon.
-    })
-    .catch(() => {});
+      if (data.status === "success" && data.questions && data.questions.length > 0) {
+        if(countEl) countEl.textContent = data.questions.length;
+        container.innerHTML = "";
+        
+        data.questions.forEach((q, idx) => {
+          container.innerHTML += `
+            <div style="background:#020617; border:1px solid #1e293b; padding:12px; border-radius:8px; margin-bottom:10px; font-size:12px;">
+              <div style="display:flex; justify-content:space-between; color:#38bdf8; margin-bottom:4px;">
+                <strong>#${idx + 1} | Class: ${q.classRange} (${q.subject})</strong>
+                <span style="color:#facc15; font-weight:bold;">Correct: ${q.correctOption}</span>
+              </div>
+              <p style="color:#fff; margin:4px 0 8px 0; font-weight:600;">${q.questionText}</p>
+              <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px; color:#94a3b8;">
+                <div>A) ${q.optionA}</div>
+                <div>B) ${q.optionB}</div>
+                <div>C) ${q.optionC}</div>
+                <div>D) ${q.optionD}</div>
+              </div>
+            </div>
+          `;
+        });
+      } else {
+        if(countEl) countEl.textContent = 0;
+        container.innerHTML = `<p style="color: #64748b; font-size: 13px; text-align: center;">No questions added to database yet.</p>`;
+      }
+    }).catch(() => {
+      const container = document.getElementById("saved-questions-container");
+      if(container) container.innerHTML = `<p style="color: #f87171; font-size: 13px; text-align: center;">Could not load questions.</p>`;
+    });
 }
