@@ -94,7 +94,6 @@ def update_master_portal_settings():
         
         if 'onlineFee' in data: update_payload['onlineFee'] = int(data.get('onlineFee'))
         if 'offlineFee' in data: update_payload['offlineFee'] = int(data.get('offlineFee'))
-        if 'examDuration' in data: update_payload['examDuration'] = int(data.get('examDuration'))
         if 'isRegistrationOpen' in data: update_payload['isRegistrationOpen'] = bool(data.get('isRegistrationOpen'))
         if 'isExamActive' in data: update_payload['isExamActive'] = bool(data.get('isExamActive'))
         if 'isResultDeclared' in data: update_payload['isResultDeclared'] = bool(data.get('isResultDeclared'))
@@ -463,6 +462,7 @@ def organizer_get_students():
         org_doc = db.collection('organizers').document(org_code).get()
         org_data = org_doc.to_dict() if org_doc.exists else {}
         is_settled = bool(org_data.get('manualSettled', False))
+        ref_code = str(org_data.get('refCode', '')).strip()
 
         config_doc = db.collection('settings').document('portal_config').get()
         g_cfg = config_doc.to_dict() if config_doc.exists else {}
@@ -472,21 +472,29 @@ def organizer_get_students():
         approved_students = [s for s in students if s.get('paymentStatus') == 'Approved' or s.get('paymentVerified') is True]
         total_approved_regs = len(approved_students)
 
-        exam_mode = org_data.get('examMode', 'online')
+        exam_mode = (org_data.get('examMode') or 'online').lower()
         fee_per_student = g_cfg.get('offlineFee', 120) if exam_mode == 'offline' else g_cfg.get('onlineFee', 100)
         
-        cash_approved = [s for s in approved_students if s.get('paymentMode') == 'offline']
+        cash_approved = [s for s in approved_students if (s.get('paymentMode') or '').lower() == 'offline']
         cash_held = len(cash_approved) * fee_per_student
 
         gross_fees = total_approved_regs * fee_per_student
 
+        # 💡 CORRECTED COMMISSION LOGIC
         if exam_mode == 'offline':
-            direct_comm = total_approved_regs * 15
+            direct_comm = total_approved_regs * 15  # ₹15 per student for offline
         else:
-            direct_comm = int(gross_fees * 0.15)
+            direct_comm = int(gross_fees * 0.15)    # 15% of total fees for online
 
-        ref_comm = int(gross_fees * 0.05) if org_data.get('refCode') else 0
-        net_payable = cash_held - direct_comm
+        # 💡 STRICT REFERRAL COMMISSION (Only if valid code exists)
+        has_valid_ref = ref_code and ref_code != "NONE"
+        ref_comm = int(gross_fees * 0.05) if has_valid_ref else 0
+
+        # 💡 ZERO RESET IF SETTLED
+        if is_settled:
+            net_payable = 0
+        else:
+            net_payable = max(0, cash_held - direct_comm)
 
         financials = {
             "totalRegistrations": len(students),
@@ -495,7 +503,7 @@ def organizer_get_students():
             "cashHeld": cash_held,
             "directCommission": direct_comm,
             "referralCommission": ref_comm,
-            "netPayableToNvms": max(0, net_payable)
+            "netPayableToNvms": net_payable
         }
 
         return jsonify({
@@ -514,12 +522,6 @@ def organizer_approve_cash_collection():
     try:
         data = request.json or {}
         student_id = data.get('studentId')
-        org_code = str(data.get('orgCode', '')).strip().upper()
-
-        if not student_id:
-            # Fallback if orgCode is missing in body
-            student_id = data.get('studentId')
-
         if not student_id:
             return jsonify({"status": "error", "message": "Student ID missing"}), 400
 
