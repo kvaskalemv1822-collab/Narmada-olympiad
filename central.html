@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>NVMSO - Central Command Panel 2026</title>
-  <link rel="stylesheet" href="central.css?v=13">
+  <link rel="stylesheet" href="central.css?v=15">
   <link href="https://googleapis.com" rel="stylesheet">
   <style>
     .nvms-logo-title span:nth-child(1) { color: #38bdf8; }
@@ -14,25 +14,25 @@
     .nvms-logo-title span:nth-child(5) { color: #c084fc; }
   </style>
 </head>
-<body style="background:#0b0f19; color:#fff; padding:15px;">
+<body>
 
-<!-- ADMIN LOGIN SCREEN -->
-<div id="admin-login-screen" class="login-wrapper" style="display: flex; justify-content: center; align-items: center; min-height: 100vh;">
-  <div class="login-card" style="width: 100%; max-width: 420px; background: rgba(15, 23, 42, 0.95); border: 1px solid #334155; padding: 30px 25px; border-radius: 16px; box-shadow: 0 20px 40px rgba(0,0,0,0.6); text-align: center;">
+<!-- ADMIN LOGIN SCREEN (CYBER SECURITY MATRIX) -->
+<div id="admin-login-screen" class="login-wrapper">
+  <div class="login-card" style="width: 100%; max-width: 420px; text-align: center;">
     <h1 class="nvms-logo-title" style="margin: 0 0 4px 0; font-size: 32px; font-weight: 900; letter-spacing: 2px;">
       <span>N</span><span>V</span><span>M</span><span>S</span><span>O</span>
     </h1>
     <div style="font-size: 16px; font-weight: 700; color: #38bdf8; margin-bottom: 6px; letter-spacing: 1px;">Central Command</div>
-    <div class="login-header-sub" style="font-size: 12px; color: #94a3b8; margin-bottom: 25px;">Narmada Valley Maths & Science Olympiad 2026</div>
+    <div class="login-header-sub">Narmada Valley Maths & Science Olympiad 2026</div>
 
     <div id="login-security-alert" style="color: #f87171; font-size: 12px; font-weight: bold; margin-bottom: 12px; display: none; background: rgba(248,113,113,0.1); padding: 8px; border-radius: 6px; border: 1px solid #f87171;"></div>
     
     <form id="admin-login-form" onsubmit="event.preventDefault(); verifyAdminPassword();" style="text-align: left;">
       <div style="margin-bottom: 18px;">
-        <label style="display: block; color: #cbd5e1; font-size: 13px; font-weight: 600; margin-bottom: 6px;">Enter Master Admin Password:</label>
-        <input type="password" id="admin-pass-input" placeholder="Enter secure password" style="width: 100%; padding: 12px; background: #020617; color: #ffffff; border: 1px solid #475569; border-radius: 8px; font-size: 14px; outline: none;" required>
+        <label>Enter Master Admin Password:</label>
+        <input type="password" id="admin-pass-input" placeholder="Enter secure password" required>
       </div>
-      <button type="submit" id="btn-admin-auth" class="btn-primary" style="width: 100%; padding: 12px; background: #0284c7; color: white; border: none; border-radius: 8px; font-weight: 700; font-size: 14px; cursor: pointer; text-transform: uppercase;">Authenticate Panel</button>
+      <button type="submit" id="btn-admin-auth" class="btn-primary" style="width: 100%;">Authenticate Panel</button>
     </form>
   </div>
 </div>
@@ -51,44 +51,44 @@
 </div>
 
 <!-- MAIN CENTRAL MASTER CONTROL WORKSPACE -->
-<div id="admin-main-container" class="container hidden" style="max-width: 1100px; margin: 0 auto; background: rgba(15, 23, 42, 0.95); border: 1px solid #1e293b; padding: 25px; border-radius: 16px;">
+<div id="admin-main-container" class="container hidden">
   
   <!-- CENTERED HEADER -->
   <div style="text-align: center; border-bottom: 1px solid #374151; padding-bottom: 15px; margin-bottom: 20px;">
     <h1 class="nvms-logo-title" style="margin: 0; font-size: 28px; font-weight: 900; letter-spacing: 2px;">
       ⚡ <span>N</span><span>V</span><span>M</span><span>S</span><span>O</span> CENTRAL MASTER PANEL
     </h1>
-    <div class="admin-subtitle" style="margin: 4px 0 0 0; color: #94a3b8;">Narmada Valley Maths & Science Olympiad 2026</div>
+    <div class="admin-subtitle">Narmada Valley Maths & Science Olympiad 2026</div>
     <div style="margin-top: 12px; display: flex; justify-content: center; gap: 10px;">
-      <a href="question.html" class="btn-primary" style="padding: 8px 14px; background: #7c3aed; text-decoration: none; font-size: 12px; font-weight: bold; border-radius: 6px;">📚 MANAGE QUESTION BANK</a>
-      <button onclick="logoutAdminSession()" style="background: #dc2626; color: #fff; padding: 8px 14px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 12px;">🔴 DISCONNECT</button>
+      <a href="question.html" class="btn-primary" style="padding: 8px 14px; background: #7c3aed; text-decoration: none; font-size: 12px; font-weight: bold;">📚 MANAGE QUESTION BANK</a>
+      <button onclick="logoutAdminSession()" style="background: #dc2626; color: #fff; padding: 8px 14px; font-size: 12px;">🔴 DISCONNECT</button>
     </div>
   </div>
 
   <!-- BROADCAST BANNER CONFIGURATOR -->
-  <div class="card-box" style="margin-bottom:20px; border: 1px solid #f59e0b; background:#0f172a; padding:20px; border-radius:12px;">
+  <div class="card-box" style="border: 1px solid #f59e0b;">
     <h3 style="color:#f59e0b; text-align:left; margin-bottom:10px;">📢 Dynamic Alert Notification Banner (Notice Broadcast)</h3>
     <div style="margin-bottom:12px;">
-      <input type="text" id="admin-broadcast-input" placeholder="Type custom ticker message text to display across coordinator dashboards..." style="width:100%; padding:12px; background:#020617; color:#fff; border:1px solid #475569; border-radius:6px;">
+      <input type="text" id="admin-broadcast-input" placeholder="Type custom ticker message text to display across coordinator dashboards...">
     </div>
-    <button onclick="saveGlobalConfig()" class="btn-primary" style="background:#f59e0b; padding:10px 20px; width:auto;">Publish Live Notification Ticker</button>
+    <button onclick="saveGlobalConfig()" class="btn-primary" style="background:#f59e0b; width:auto;">Publish Live Notification Ticker</button>
   </div>
 
   <!-- PHASE INTERLOCK & FEE CONFIGURATIONS -->
-  <div class="card-box" style="margin-bottom:20px; border: 1px solid #38bdf8; background:#0f172a; padding:20px; border-radius:12px;">
+  <div class="card-box" style="border: 1px solid #38bdf8;">
     <h3 style="color:#38bdf8; text-align:left; margin-bottom:12px;">🎛️ Dynamic Portal Phase Commander & Fee Matrices</h3>
     
     <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap:15px; background:#020617; padding:18px; border-radius:8px; border:1px solid #334155; margin-bottom:15px;">
       <div style="display:flex; align-items:center; gap:12px;">
-        <input type="checkbox" id="cfg-reg-active" style="width:22px; height:22px; cursor:pointer;">
+        <input type="checkbox" id="cfg-reg-active">
         <label style="margin-bottom:0; color:#4ade80; font-size:14px; cursor:pointer;">🟢 Turn ON Candidate Registrations</label>
       </div>
       <div style="display:flex; align-items:center; gap:12px;">
-        <input type="checkbox" id="cfg-exam-active" style="width:22px; height:22px; cursor:pointer;">
+        <input type="checkbox" id="cfg-exam-active">
         <label style="margin-bottom:0; color:#38bdf8; font-size:14px; cursor:pointer;">✍️ Turn ON Examination Desk Link</label>
       </div>
       <div style="display:flex; align-items:center; gap:12px;">
-        <input type="checkbox" id="cfg-result-allowed" style="width:22px; height:22px; cursor:pointer;">
+        <input type="checkbox" id="cfg-result-allowed">
         <label style="margin-bottom:0; color:#facc15; font-size:14px; cursor:pointer;">🏆 Turn ON Scorecards / Declaration</label>
       </div>
     </div>
@@ -98,51 +98,48 @@
       <div><label>Offline Desk Fee (₹):</label><input type="number" id="cfg-offline-fee" value="120"></div>
       <div><label>Exam Duration (Minutes):</label><input type="number" id="cfg-duration" value="30"></div>
     </div>
-    <button onclick="saveGlobalConfig()" class="btn-primary" style="background:#10b981; padding:10px 20px; width:auto;">💾 Save Master Parameters</button>
+    <button onclick="saveGlobalConfig()" class="btn-primary" style="background:#10b981; width:auto;">💾 Save Master Parameters</button>
   </div>
 
-  <!-- 1. MERGED: ASSOCIATED SCHOOL ORGANIZERS, EXAM MODE & SETTLEMENTS -->
-  <div class="card-box" style="margin-bottom:20px; border: 1px solid #38bdf8; background:#0f172a; padding:20px; border-radius:12px;">
+  <!-- 1. ASSOCIATED SCHOOL ORGANIZERS, EXAM MODE & SETTLEMENTS -->
+  <div class="card-box" style="border: 1px solid #38bdf8;">
     <h3 style="color:#38bdf8; text-align:left; margin-bottom:12px;">🏫 Associated School Organizers, Exam Modes & Settlement Manager</h3>
     <div style="overflow-x: auto;">
       <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 13px;">
         <thead>
           <tr style="border-bottom: 2px solid #334155; color: #94a3b8;">
-            <th style="padding:10px;">Org Code / School</th>
+            <th style="padding:10px;">Org Code, School & Mode</th>
             <th style="padding:10px;">Coordinator</th>
-            <th style="padding:10px;">Exam Mode</th>
-            <th style="padding:10px;">Registrations</th>
-            <th style="padding:10px;">Settlement UTR Proof</th>
+            <th style="padding:10px;">Reg (Online/Cash)</th>
+            <th style="padding:10px;">Direct Comm.</th>
+            <th style="padding:10px;">Referral Comm. (5%)</th>
+            <th style="padding:10px;">Net Cash Settlement</th>
+            <th style="padding:10px;">UTR / Status</th>
             <th style="padding:10px;">Action / Payout</th>
           </tr>
         </thead>
-        <tbody id="admin-organizers-rows" style="color: #f8fafc;">
-          <!-- Merged organizer & settlement rows -->
-        </tbody>
+        <tbody id="admin-organizers-rows" style="color: #f8fafc;"></tbody>
       </table>
     </div>
   </div>
 
-  <!-- 2. SCHOOL-WISE RANKING (TOP 6 IN 2 COLUMNS) -->
-  <div class="card-box" style="margin-bottom:20px; border: 1px solid #facc15; background:#0f172a; padding:20px; border-radius:12px;">
-    <h3 style="color:#facc15; text-align:left; margin-bottom:12px;">🏆 School-Wise Top 6 Rankings (2-Column Grid View)</h3>
+  <!-- 2. SCHOOL-WISE RANKING (DUAL-COLUMN SPLIT GRID) -->
+  <div class="card-box" style="border: 1px solid #facc15;">
+    <h3 style="color:#facc15; text-align:left; margin-bottom:12px;">🏆 School-Wise Dual-Column Split Rankings</h3>
     <div style="margin-bottom:15px;">
-      <select id="ranking-school-select" onchange="loadSchoolRankings()" style="padding:10px; background:#020617; color:#fff; border:1px solid #475569; border-radius:6px; min-width: 250px;">
-        <!-- Populated dynamically with schools -->
+      <select id="ranking-school-select" onchange="loadSchoolRankings()" style="min-width: 250px;">
+        <option value="ALL">🏫 All Schools Combined</option>
       </select>
     </div>
-    <!-- 2 Column Grid for Top 6 Rankings -->
-    <div id="school-rankings-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 15px;">
-      <!-- Populated via central.js -->
-    </div>
+    <div id="school-rankings-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 15px;"></div>
   </div>
 
   <!-- 3. SCHOOL-WISE STUDENT DETAILS LEDGER -->
-  <div class="card-box" style="margin-bottom:20px; border: 1px solid #10b981; background:#0f172a; padding:20px; border-radius:12px;">
+  <div class="card-box" style="border: 1px solid #10b981;">
     <h3 style="color:#10b981; text-align:left; margin-bottom:12px;">📋 School-Wise Student Details Ledger & Actions</h3>
     <div style="margin-bottom:15px;">
-      <select id="ledger-school-select" onchange="loadSchoolStudentLedger()" style="padding:10px; background:#020617; color:#fff; border:1px solid #475569; border-radius:6px; min-width: 250px;">
-        <!-- Populated dynamically -->
+      <select id="ledger-school-select" onchange="loadSchoolStudentLedger()" style="min-width: 250px;">
+        <option value="ALL">📋 All Schools Ledger</option>
       </select>
     </div>
     <div style="overflow-x: auto;">
@@ -156,15 +153,13 @@
             <th style="padding:10px;">Action</th>
           </tr>
         </thead>
-        <tbody id="ledger-student-rows" style="color: #f8fafc;">
-          <!-- Populated via central.js -->
-        </tbody>
+        <tbody id="ledger-student-rows" style="color: #f8fafc;"></tbody>
       </table>
     </div>
   </div>
 
 </div>
 
-<script src="central.js?v=13"></script>
+<script src="central.js?v=15"></script>
 </body>
 </html>
