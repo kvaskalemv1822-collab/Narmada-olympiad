@@ -157,7 +157,6 @@ window.validateAndShowPayment = function() {
     return;
   }
 
-  // Hide Details Section, Show Payment Section Smoothly
   document.getElementById('details-section').style.display = 'none';
   document.getElementById('payment-section').style.display = 'block';
   renderDynamicUPIQR();
@@ -176,6 +175,23 @@ window.toggleQrDisplay = function() {
     qrDiv.style.display = 'flex';
   } else {
     qrDiv.style.display = 'none';
+  }
+};
+
+// 📌 Checkbox Toggle Handler (Enables/Disables Final Complete Registration Button)
+window.toggleSubmitButton = function() {
+  const termsCheckbox = document.getElementById('terms-checkbox');
+  const submitBtn = document.getElementById('btn-final-submit');
+  if (!termsCheckbox || !submitBtn) return;
+
+  if (termsCheckbox.checked) {
+    submitBtn.disabled = false;
+    submitBtn.style.opacity = "1";
+    submitBtn.style.cursor = "pointer";
+  } else {
+    submitBtn.disabled = true;
+    submitBtn.style.opacity = "0.5";
+    submitBtn.style.cursor = "not-allowed";
   }
 };
 
@@ -218,6 +234,7 @@ document.getElementById('reg-form').addEventListener('submit', function(e) {
       isOrganizerVerified = false;
       document.getElementById("school-name-display").innerText = "";
       document.getElementById("display-student-exam-mode").innerText = "Exam Conduct Mode: ENTER ORGANIZER CODE FIRST";
+      toggleSubmitButton();
     } else {
       alert("❌ Error: " + data.message);
     }
