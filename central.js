@@ -5,6 +5,7 @@ let pendingSettlementsCache = [];
 let pendingPayoutsCache = [];
 let activeTicketId = null;
 let activeTicketSender = null;
+let autoRefreshTimer = null;
 
 window.verifyAdminPassword = async () => {
   const passInput = document.getElementById("admin-pass-input").value.trim();
@@ -85,6 +86,14 @@ function initializeCentralPanelData() {
         setupSmartSwitchesExclusiveRule();
         fetchAllCentralData();
         fetchSupportTickets();
+
+        // 🔄 AUTO-REFRESH LIVE SYNC (Har 8 seconds mein data automatically update hoga, bina logout/refresh ke)
+        if (!autoRefreshTimer) {
+          autoRefreshTimer = setInterval(() => {
+            fetchAllCentralData();
+            fetchSupportTickets();
+          }, 8000);
+        }
       }
     });
 }
@@ -146,7 +155,7 @@ function fetchAllCentralData() {
   });
 }
 
-// 1. MERGED ORGANIZER, EXAM MODE & SECURE COMMISSION SETTLEMENT MANAGER
+// 1. MERGED ORGANIZER & COMMISSION SETTLEMENT MANAGER
 function renderMergedOrganizersTable() {
   const tbody = document.getElementById("admin-organizers-rows");
   if(!tbody) return;
@@ -157,8 +166,6 @@ function renderMergedOrganizersTable() {
     const isSettled = org.manualSettled;
 
     const allSchoolStudents = allStudentsCache.filter(s => (s.orgCode || "").toUpperCase() === code.toUpperCase());
-    
-    // 🔒 SECURITY FILTER: Only approved entries are counted in financial stats
     const verifiedStudents = allSchoolStudents.filter(s => s.paymentStatus === 'Approved' || s.paymentVerified === true);
 
     const totalReg = verifiedStudents.length || 0;
@@ -221,7 +228,7 @@ function renderMergedOrganizersTable() {
   });
 }
 
-// 2. LIVE CHAT SUPPORT SYSTEM & QUERY RESOLUTION
+// 2. LIVE CHAT SUPPORT SYSTEM
 function fetchSupportTickets() {
   fetch(`${SERVER_URL}/api/admin/queries`)
     .then(res => res.json())
@@ -242,12 +249,7 @@ function fetchSupportTickets() {
       } else {
         listContainer.innerHTML = `<p style="font-size: 11px; color: #64748b; text-align: center; margin-top: 20px;">No pending support queries.</p>`;
       }
-    }).catch(() => {
-      const listContainer = document.getElementById("support-tickets-list");
-      if (listContainer && listContainer.innerHTML.includes("Loading")) {
-        listContainer.innerHTML = `<p style="font-size: 11px; color: #64748b; text-align: center; margin-top: 20px;">Support chat pipe connected.</p>`;
-      }
-    });
+    }).catch(() => {});
 }
 
 window.openChatSession = function(ticketId, senderName) {
@@ -279,9 +281,7 @@ window.openChatSession = function(ticketId, senderName) {
         });
         chatBox.scrollTop = chatBox.scrollHeight;
       }
-    }).catch(() => {
-      chatBox.innerHTML += `<p style="color: #f87171; font-size: 11px;">Could not load chat history. Type a message below to reply.</p>`;
-    });
+    }).catch(() => {});
 };
 
 window.sendAdminReply = function() {
@@ -303,11 +303,7 @@ window.sendAdminReply = function() {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ ticketId: activeTicketId, message: msgText })
-  }).then(res => res.json()).then(d => {
-    if (d.status !== "success") {
-      console.log("Message sent to local dispatch queue.");
-    }
-  });
+  }).then(res => res.json());
 };
 
 window.payCommissionViaPhonePe = function(upiId, amount, orgCode) {
@@ -350,7 +346,7 @@ function populateSchoolDropdowns() {
   if(ledgerSelect) ledgerSelect.innerHTML = optionsHtml;
 }
 
-// 3. SCHOOL-WISE DUAL-COLUMN SPLIT RANKINGS
+// 3. SCHOOL-WISE DUAL-COLUMN RANKINGS WITH "GOLD MEDAL + CERTIFICATE" BADGE FOR RANK 1
 window.loadSchoolRankings = function() {
   const selectedOrg = document.getElementById("ranking-school-select").value;
   const gridContainer = document.getElementById("school-rankings-grid");
@@ -403,13 +399,16 @@ window.loadSchoolRankings = function() {
           <table style="width: 100%; font-size: 11px; text-align: left; border-collapse: collapse;">
             <tbody>
               ${group1.length === 0 ? `<tr><td colspan="3" style="text-align:center; color:#64748b; padding:8px;">No records</td></tr>` : 
-                group1.slice(0, 6).map((s, idx) => `
-                  <tr style="border-bottom: 1px solid #0f172a;">
-                    <td style="padding:3px; color:#facc15; font-weight:bold;">#${idx+1}</td>
-                    <td style="padding:3px; color:#fff;">${s.studentName} <span style="color:#94a3b8;">(${s.studentClass})</span></td>
-                    <td style="padding:3px; text-align:right; color:#38bdf8; font-weight:bold;">${s.score || 0}</td>
-                  </tr>
-                `).join('')}
+                group1.slice(0, 6).map((s, idx) => {
+                  let badge = idx === 0 ? `<br><span style="color:#facc15; font-size:9px; font-weight:bold;">🥇 Gold Medal + Certificate</span>` : "";
+                  return `
+                    <tr style="border-bottom: 1px solid #0f172a;">
+                      <td style="padding:4px 3px; color:#facc15; font-weight:bold; vertical-align:top;">#${idx+1}</td>
+                      <td style="padding:4px 3px; color:#fff; vertical-align:top;">${s.studentName} <span style="color:#94a3b8;">(${s.studentClass})</span>${badge}</td>
+                      <td style="padding:4px 3px; text-align:right; color:#38bdf8; font-weight:bold; vertical-align:top;">${s.score || 0}</td>
+                    </tr>
+                  `;
+                }).join('')}
             </tbody>
           </table>
         </div>
@@ -422,13 +421,16 @@ window.loadSchoolRankings = function() {
           <table style="width: 100%; font-size: 11px; text-align: left; border-collapse: collapse;">
             <tbody>
               ${group2.length === 0 ? `<tr><td colspan="3" style="text-align:center; color:#64748b; padding:8px;">No records</td></tr>` : 
-                group2.slice(0, 6).map((s, idx) => `
-                  <tr style="border-bottom: 1px solid #0f172a;">
-                    <td style="padding:3px; color:#facc15; font-weight:bold;">#${idx+1}</td>
-                    <td style="padding:3px; color:#fff;">${s.studentName} <span style="color:#94a3b8;">(${s.studentClass})</span></td>
-                    <td style="padding:3px; text-align:right; color:#38bdf8; font-weight:bold;">${s.score || 0}</td>
-                  </tr>
-                `).join('')}
+                group2.slice(0, 6).map((s, idx) => {
+                  let badge = idx === 0 ? `<br><span style="color:#facc15; font-size:9px; font-weight:bold;">🥇 Gold Medal + Certificate</span>` : "";
+                  return `
+                    <tr style="border-bottom: 1px solid #0f172a;">
+                      <td style="padding:4px 3px; color:#facc15; font-weight:bold; vertical-align:top;">#${idx+1}</td>
+                      <td style="padding:4px 3px; color:#fff; vertical-align:top;">${s.studentName} <span style="color:#94a3b8;">(${s.studentClass})</span>${badge}</td>
+                      <td style="padding:4px 3px; text-align:right; color:#38bdf8; font-weight:bold; vertical-align:top;">${s.score || 0}</td>
+                    </tr>
+                  `;
+                }).join('')}
             </tbody>
           </table>
         </div>
@@ -470,7 +472,7 @@ window.loadSchoolStudentLedger = function() {
 
     let actionButtons = `<button onclick="triggerReExam('${s.id}')" style="background:#7c3aed; color:#fff; border:none; padding:4px 8px; font-size:10px; border-radius:4px; font-weight:bold; cursor:pointer; margin-right:4px;">🔄 Re-Exam</button>`;
 
-    // If online payment is pending, show both Approve and Reject buttons
+    // Guaranteeing Approve & Reject buttons for pending online payments
     if (s.paymentMode === 'online' && !isApproved && !isRejected) {
       actionButtons += `<button onclick="approveOnlinePayment('${s.id}')" style="background:#10b981; color:#fff; border:none; padding:4px 6px; font-size:10px; border-radius:4px; font-weight:bold; cursor:pointer; margin-right:4px;">✔️ Approve</button>`;
       actionButtons += `<button onclick="rejectOnlinePayment('${s.id}')" style="background:#dc2626; color:#fff; border:none; padding:4px 6px; font-size:10px; border-radius:4px; font-weight:bold; cursor:pointer;">❌ Reject</button>`;
