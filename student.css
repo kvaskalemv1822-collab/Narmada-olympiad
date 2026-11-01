@@ -1,158 +1,207 @@
-* { 
-  box-sizing: border-box; 
-  font-family: 'Plus Jakarta Sans', sans-serif; 
-  margin: 0; 
-  padding: 0; 
+/* ==========================================================================
+   NVMSO STUDENT PORTAL - DARK THEME & FULL-SCREEN RESPONSIVE CSS
+   ========================================================================== */
+* {
+  box-sizing: border-box;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  margin: 0;
+  padding: 0;
 }
 
-body { 
-  background-color: #f4f7f6; 
-  color: #333; 
-  padding: 15px; 
+body {
+  background-color: #020617;
+  color: #f8fafc;
+  padding: 10px;
   min-height: 100vh;
+  width: 100vw;
+  overflow-x: hidden;
   -webkit-tap-highlight-color: transparent;
 }
 
-.container { 
-  max-width: 850px; 
-  margin: 0 auto; 
-  background: #ffffff; 
-  padding: 20px; 
-  border-radius: 12px; 
-  box-shadow: 0 4px 15px rgba(0,0,0,0.1); 
+.container {
+  width: 100% !important;
+  max-width: 100% !important;
+  margin: 0 auto;
+  background: rgba(15, 23, 42, 0.95);
+  border: 1px solid #1e293b;
+  padding: 20px;
+  border-radius: 12px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
 }
 
-h1 { 
-  text-align: center; 
-  color: #1e3c72; 
-  margin-bottom: 5px; 
-  font-size: 24px;
+h1 {
+  text-align: center;
+  color: #38bdf8;
+  margin-bottom: 5px;
+  font-size: 22px;
+  font-weight: 800;
 }
 
-.subtitle { 
-  text-align: center; 
-  color: #d9534f; 
-  margin-bottom: 15px; 
-  font-weight: bold; 
-  font-size: 13px;
+.subtitle {
+  text-align: center;
+  color: #94a3b8;
+  margin-bottom: 15px;
+  font-weight: 600;
+  font-size: 12px;
 }
 
-.status-msg { 
-  text-align: center; 
-  padding: 12px; 
-  border-radius: 8px; 
-  font-weight: bold; 
-  margin-bottom: 20px; 
-  font-size: 15px;
-  background: rgba(0, 0, 0, 0.03);
-}
-
-.tab-nav { 
-  display: flex; 
-  justify-content: center; 
-  gap: 10px; 
-  margin-bottom: 20px; 
-}
-
-.tab-btn { 
-  flex: 1;
-  padding: 12px; 
-  background: #6c757d; 
-  color: white; 
-  border: none; 
-  border-radius: 6px; 
-  cursor: pointer; 
+.status-msg {
+  text-align: center;
+  padding: 10px;
+  border-radius: 8px;
   font-weight: bold;
-  font-size: 14px;
-  transition: all 0.3s ease;
+  margin-bottom: 15px;
+  font-size: 13px;
+  background: #0b0f19;
+  border: 1px solid #334155;
+}
+
+.tab-nav {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin-bottom: 20px;
+  background: #0b0f19;
+  padding: 6px;
+  border-radius: 8px;
+  border: 1px solid #334155;
+}
+
+.tab-btn {
+  flex: 1;
+  padding: 10px;
+  background: #1e293b;
+  color: #94a3b8;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: bold;
+  font-size: 12px;
+  transition: all 0.2s ease;
   text-align: center;
 }
 
-.tab-btn.active-tab { 
-  background: #1e3c72; 
+.tab-btn.active-tab {
+  background: #0284c7;
+  color: #ffffff;
 }
 
-.form-group { 
-  margin-bottom: 15px; 
+.form-group {
+  margin-bottom: 14px;
   text-align: left;
 }
 
-label { 
-  display: block; 
-  margin-bottom: 5px; 
-  font-weight: bold; 
-  color: #444;
-  font-size: 13px;
+label {
+  display: block;
+  margin-bottom: 5px;
+  font-weight: 600;
+  color: #cbd5e1;
+  font-size: 12px;
 }
 
-input, select, textarea { 
-  width: 100%; 
-  padding: 12px; 
-  border: 1px solid #ccc; 
-  border-radius: 6px; 
-  font-size: 15px; 
+input, select, textarea {
+  width: 100%;
+  padding: 11px;
+  background: #020617;
+  color: #ffffff;
+  border: 1px solid #475569;
+  border-radius: 8px;
+  font-size: 14px;
   outline: none;
-  background-color: #ffffff;
+  transition: border-color 0.2s ease;
 }
 
-input:focus, select:focus {
-  border-color: #1e3c72;
+input:focus, select:focus, textarea:focus {
+  border-color: #38bdf8;
 }
 
 .grid-2 {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 15px;
+  gap: 12px;
 }
 
-.btn-submit { 
-  width: 100%; 
-  padding: 14px; 
-  background: #1e3c72; 
-  color: white; 
-  border: none; 
-  border-radius: 6px; 
-  font-weight: bold; 
-  cursor: pointer; 
-  margin-top: 10px; 
-  font-size: 16px;
+.btn-submit {
+  width: 100%;
+  padding: 12px;
+  background: linear-gradient(135deg, #0284c7, #0369a1);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-weight: bold;
+  cursor: pointer;
+  margin-top: 5px;
+  font-size: 14px;
   text-transform: uppercase;
+  transition: opacity 0.2s;
 }
 
-.hidden { display: none !important; }
-
-.highlight-text { 
-  display: block; 
-  margin-top: 8px; 
-  padding: 12px; 
-  background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%); 
-  color: #ffffff; 
-  font-size: 16px; 
-  font-weight: bold; 
-  border-radius: 8px; 
-  text-align: center; 
+.btn-submit:hover {
+  opacity: 0.9;
 }
 
-.qr-box { 
-  text-align: center; 
-  padding: 15px; 
-  border: 2px dashed #0275d8; 
-  border-radius: 8px; 
-  background: #f8f9fa; 
-  margin: 10px 0; 
+.hidden { 
+  display: none !important; 
 }
 
-.score-card { 
-  background: #0f172a; 
-  color: white; 
-  padding: 25px; 
-  border-radius: 8px; 
-  margin: 15px 0; 
+.highlight-text {
+  display: block;
+  margin-top: 8px;
+  padding: 10px;
+  background: #1e293b;
+  color: #38bdf8;
+  font-size: 13px;
+  font-weight: bold;
+  border-radius: 6px;
   text-align: center;
+  border: 1px solid #334155;
+}
+
+.qr-box {
+  text-align: center;
+  padding: 12px;
+  border: 2px dashed #0284c7;
+  border-radius: 8px;
+  background: #0b0f19;
+  margin: 10px 0;
+}
+
+.score-card {
+  background: #0f172a;
+  color: white;
+  padding: 20px;
+  border-radius: 10px;
+  margin: 15px 0;
+  text-align: center;
+  border: 1px solid #334155;
+}
+
+/* CLEAR & READABLE TERMS & CONDITIONS BOX */
+div[style*="terms-checkbox"], div:has(#terms-checkbox) {
+  background: rgba(15, 23, 42, 0.95) !important;
+  border: 1px solid #38bdf8 !important;
+  padding: 12px !important;
+  border-radius: 8px !important;
+}
+
+#terms-checkbox + label {
+  color: #f8fafc !important;
+  font-size: 12px !important;
+  font-weight: 500 !important;
+  line-height: 1.4 !important;
 }
 
 @media (max-width: 600px) {
-  .grid-2 { grid-template-columns: 1fr; }
-  .container { padding: 15px; }
-  h1 { font-size: 20px; }
+  body {
+    padding: 5px;
+  }
+  .container {
+    padding: 12px;
+  }
+  .grid-2 { 
+    grid-template-columns: 1fr; 
+  }
+  h1 { 
+    font-size: 18px; 
+  }
 }
