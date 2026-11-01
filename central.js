@@ -7,6 +7,17 @@ let activeTicketId = null;
 let activeTicketSender = null;
 let autoRefreshTimer = null;
 
+// 🔄 PERSISTENT SESSION CHECK ON PAGE LOAD
+document.addEventListener("DOMContentLoaded", () => {
+  if (sessionStorage.getItem("nvmso_admin_logged") === "true") {
+    const loginScreen = document.getElementById("admin-login-screen");
+    const mainContainer = document.getElementById("admin-main-container");
+    if (loginScreen) loginScreen.classList.add("hidden");
+    if (mainContainer) mainContainer.classList.remove("hidden");
+    initializeCentralPanelData();
+  }
+});
+
 window.verifyAdminPassword = async () => {
   const passInput = document.getElementById("admin-pass-input").value.trim();
   const alertBox = document.getElementById("login-security-alert");
@@ -20,6 +31,7 @@ window.verifyAdminPassword = async () => {
   })
   .then(res => {
     if (res.status === 200) {
+      sessionStorage.setItem("nvmso_admin_logged", "true");
       if (alertBox) alertBox.style.display = "none";
       triggerGrandWelcome(); 
       initializeCentralPanelData(); 
@@ -76,7 +88,6 @@ function initializeCentralPanelData() {
         const config = data.config;
         if (document.getElementById("cfg-online-fee")) document.getElementById("cfg-online-fee").value = config.onlineFee || 100;
         if (document.getElementById("cfg-offline-fee")) document.getElementById("cfg-offline-fee").value = config.offlineFee || 120;
-        if (document.getElementById("cfg-duration")) document.getElementById("cfg-duration").value = config.examDuration || 30;
         
         if (document.getElementById("cfg-reg-active")) document.getElementById("cfg-reg-active").checked = !!config.isRegistrationOpen;
         if (document.getElementById("cfg-exam-active")) document.getElementById("cfg-exam-active").checked = !!config.isExamActive;
@@ -87,7 +98,7 @@ function initializeCentralPanelData() {
         fetchAllCentralData();
         fetchSupportTickets();
 
-        // 🔄 AUTO-REFRESH LIVE SYNC (Har 8 seconds mein data automatically update hoga)
+        // 🔄 AUTO-REFRESH LIVE SYNC (8s poll)
         if (!autoRefreshTimer) {
           autoRefreshTimer = setInterval(() => {
             fetchAllCentralData();
@@ -114,7 +125,6 @@ window.saveGlobalConfig = async () => {
   const payload = {
     onlineFee: Number(document.getElementById("cfg-online-fee").value),
     offlineFee: Number(document.getElementById("cfg-offline-fee").value),
-    examDuration: Number(document.getElementById("cfg-duration").value),
     isRegistrationOpen: document.getElementById("cfg-reg-active").checked,
     isExamActive: document.getElementById("cfg-exam-active").checked,
     isResultDeclared: document.getElementById("cfg-result-allowed").checked,
@@ -155,7 +165,7 @@ function fetchAllCentralData() {
   });
 }
 
-// 1. MERGED ORGANIZER & COMMISSION SETTLEMENT MANAGER
+// 1. ORGANIZER FINANCIAL LEDGER MATRIX
 function renderMergedOrganizersTable() {
   const tbody = document.getElementById("admin-organizers-rows");
   if(!tbody) return;
@@ -180,15 +190,19 @@ function renderMergedOrganizersTable() {
     const cashGross = cashRegs * feePerStudent;
     const grossTotal = totalReg * feePerStudent;
 
+    // 💡 COMMISSION CALCULATIONS (Offline = ₹15/student, Online = 15%)
     const directComm = examMode === 'offline' ? (totalReg * 15) : (grossTotal * 0.15);
-    const refComm = grossTotal * 0.05; 
-    const netCashToPortal = cashGross - directComm;
+    const hasReferral = org.refCode && org.refCode.trim().length > 0 && org.refCode.toUpperCase() !== "NONE";
+    const refComm = hasReferral ? (grossTotal * 0.05) : 0; 
+    
+    // 💡 RESET NET PAYABLE TO ₹0 IF SETTLED
+    const netCashToPortal = isSettled ? 0 : Math.max(0, cashGross - directComm);
 
     const sett = pendingSettlementsCache.find(s => s.orgCode === code);
     const organizerUpi = org.upiId || org.upi || "org@upi"; 
 
-    let settCell = isSettled ? "<span style='color:#4ade80; font-weight:bold;'>✔️ Settled</span>" : "<span style='color:#f87171;'>Pending UTR</span>";
-    if (sett) {
+    let settCell = isSettled ? "<span style='color:#4ade80; font-weight:bold;'>✔️ Settled (₹0 Due)</span>" : "<span style='color:#f87171;'>Pending Settlement</span>";
+    if (!isSettled && sett) {
       settCell = `<code style="color:#facc15;">UTR: ${sett.utrNumber}<br>(₹${sett.amount})</code>`;
     }
 
@@ -209,16 +223,15 @@ function renderMergedOrganizersTable() {
         </td>
         <td style="padding:10px;">
           <strong>${org.name || org.coordinatorName || 'N/A'}</strong><br>
-          <span style="font-size:11px; color:#94a3b8;">${org.contact || ''}</span><br>
-          <span style="font-size:10px; color:#38bdf8;">UPI: ${organizerUpi}</span>
+          <span style="font-size:11px; color:#94a3b8;">${org.contact || ''}</span>
         </td>
         <td style="padding:10px; color:#4ade80; font-weight:bold; text-align:center;">
           ${totalReg} ${pendingBadge}<br><span style="font-size:10px; color:#94a3b8;">(${onlineRegs} On / ${cashRegs} Cash)</span>
         </td>
         <td style="padding:10px; color:#facc15; font-weight:bold;">₹${directComm.toFixed(0)}</td>
-        <td style="padding:10px; color:#c084fc; font-weight:bold;">₹${refComm.toFixed(0)} <span style="font-size:9px; color:#94a3b8;">(Portal Pay)</span></td>
+        <td style="padding:10px; color:#c084fc; font-weight:bold;">₹${refComm.toFixed(0)}</td>
         <td style="padding:10px;">
-          <strong style="color:#38bdf8;">₹${netCashToPortal > 0 ? netCashToPortal.toFixed(0) : 0}</strong><br>
+          <strong style="color:${netCashToPortal > 0 ? '#f87171' : '#4ade80'}; font-size:14px;">₹${netCashToPortal.toFixed(0)}</strong><br>
           <span style="font-size:10px; color:#94a3b8;">Cash Held: ₹${cashGross}</span>
         </td>
         <td style="padding:10px;">${settCell}</td>
@@ -228,7 +241,6 @@ function renderMergedOrganizersTable() {
   });
 }
 
-// 2. SUPPORT CHAT WITH SCREENSHOT/PHOTO VIEW SUPPORT
 function fetchSupportTickets() {
   fetch(`${SERVER_URL}/api/admin/queries`)
     .then(res => res.json())
@@ -240,7 +252,7 @@ function fetchSupportTickets() {
         listContainer.innerHTML = "";
         data.queries.forEach(q => {
           listContainer.innerHTML += `
-            <div onclick="openChatSession('${q.ticketId}', '${q.senderName || q.orgCode}')" style="padding: 8px; margin-bottom: 6px; background: #0f172a; border: 1px solid #334155; border-radius: 6px; cursor: pointer; transition: background 0.2s;">
+            <div onclick="openChatSession('${q.ticketId}', '${q.senderName || q.orgCode}')" style="padding: 8px; margin-bottom: 6px; background: #0f172a; border: 1px solid #334155; border-radius: 6px; cursor: pointer;">
               <p style="font-weight: bold; color: #38bdf8; font-size: 11px;">${q.senderName || q.orgCode}</p>
               <p style="color: #cbd5e1; font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${q.lastMessage || 'New Query'}</p>
             </div>
@@ -350,7 +362,6 @@ function populateSchoolDropdowns() {
   if(ledgerSelect) ledgerSelect.innerHTML = optionsHtml;
 }
 
-// 3. SCHOOL-WISE RANKINGS WITH OFFICIAL TIERED REWARD BADGES
 window.loadSchoolRankings = function() {
   const selectedOrg = document.getElementById("ranking-school-select").value;
   const gridContainer = document.getElementById("school-rankings-grid");
@@ -403,8 +414,6 @@ window.loadSchoolRankings = function() {
         <span style="background: #1e293b; color: #facc15; padding: 3px 8px; border-radius: 4px; font-size: 11px; font-weight: bold;">${students.length} Total</span>
       </div>
       <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-        
-        <!-- COLUMN 1: LOWER CLASSES -->
         <div style="background: #0b0f19; padding: 8px; border-radius: 6px; border: 1px solid #1e293b;">
           <div style="color: #10b981; font-size: 12px; font-weight: bold; text-align: center; margin-bottom: 6px; border-bottom: 1px dashed #334155; padding-bottom: 4px;">
             Classes ${minClass} to ${midClass}
@@ -422,8 +431,6 @@ window.loadSchoolRankings = function() {
             </tbody>
           </table>
         </div>
-
-        <!-- COLUMN 2: HIGHER CLASSES -->
         <div style="background: #0b0f19; padding: 8px; border-radius: 6px; border: 1px solid #1e293b;">
           <div style="color: #38bdf8; font-size: 12px; font-weight: bold; text-align: center; margin-bottom: 6px; border-bottom: 1px dashed #334155; padding-bottom: 4px;">
             Classes ${midClass + 1} to ${maxClass}
@@ -441,14 +448,12 @@ window.loadSchoolRankings = function() {
             </tbody>
           </table>
         </div>
-
       </div>
     `;
     gridContainer.appendChild(card);
   });
 };
 
-// 4. SCHOOL STUDENT LEDGER & APPROVAL/REJECTION ACTIONS
 window.loadSchoolStudentLedger = function() {
   const selectedOrg = document.getElementById("ledger-school-select").value;
   const tbody = document.getElementById("ledger-student-rows");
@@ -509,12 +514,7 @@ window.approveOnlinePayment = function(studentId) {
     if (data.status === "success") {
       alert("✅ Online payment approved successfully!");
       fetchAllCentralData();
-    } else {
-      alert("❌ Error: " + (data.message || "Could not approve payment."));
     }
-  })
-  .catch(() => {
-    alert("❌ Server connection error while approving payment.");
   });
 };
 
@@ -530,14 +530,9 @@ window.rejectOnlinePayment = function(studentId) {
   .then(res => res.json())
   .then(data => {
     if (data.status === "success") {
-      alert("❌ UTR rejected successfully! The reason is now visible to the coordinator.");
+      alert("❌ UTR rejected successfully!");
       fetchAllCentralData();
-    } else {
-      alert("❌ Error: " + (data.message || "Could not reject payment."));
     }
-  })
-  .catch(() => {
-    alert("❌ Server connection error while rejecting payment.");
   });
 };
 
@@ -553,17 +548,20 @@ window.triggerReExam = function(studentId) {
 };
 
 window.approveOrganizerSettlement = function(orgCode, reqId) {
-  if(!confirm(`Confirm settlement approval for ${orgCode}?`)) return;
+  if(!confirm(`Confirm settlement approval for ${orgCode}? This will reset their Net Payable balance to ₹0.`)) return;
   fetch(`${SERVER_URL}/api/admin/approve_settlement`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ orgCode: orgCode, requestId: reqId })
   }).then(res => res.json()).then(d => {
     if(d.status === "success") {
-      alert("✅ Settlement Verified!");
+      alert("✅ Settlement Verified & Account Reset to ₹0 Payable!");
       fetchAllCentralData();
     }
   });
 };
 
-window.logoutAdminSession = () => { location.reload(); };
+window.logoutAdminSession = () => { 
+  sessionStorage.removeItem("nvmso_admin_logged"); 
+  location.reload(); 
+};
