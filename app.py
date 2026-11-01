@@ -165,8 +165,6 @@ def secure_registration():
                 return jsonify({"status": "cyber_attack", "message": "🚫 Fraud Match Detected: Invalid Transaction UTR Number!"}), 400
 
         # 🔒 DUAL APPROVAL WORKFLOW ROUTING
-        # Online Payment -> Pending Admin Approval (Central Panel)
-        # Offline Cash Payment -> Pending Organizer Approval (School Coordinator)
         initial_status = "Pending Admin Approval" if payment_mode == "online" else "Pending Organizer Approval"
 
         student_payload = {
@@ -286,6 +284,31 @@ def admin_approve_online_payment():
             "paymentStatus": "Approved"
         })
         return jsonify({"status": "success", "message": "Online payment UTR approved by Admin"}), 200
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+# ❌ CENTRAL PANEL ONLINE PAYMENT UTR REJECTION ROUTER
+@app.route('/api/admin/reject_payment', methods=['POST'])
+def admin_reject_online_payment():
+    try:
+        data = request.json or {}
+        student_id = data.get('studentId')
+        reason = str(data.get('reason', 'Invalid UTR / Payment not received')).strip()
+        
+        if not student_id:
+            return jsonify({"status": "error", "message": "Student ID missing"}), 400
+
+        student_ref = db.collection('students').document(student_id)
+        doc = student_ref.get()
+        if not doc.exists:
+            return jsonify({"status": "error", "message": "Student not found"}), 404
+
+        student_ref.update({
+            "paymentVerified": False,
+            "paymentStatus": "Rejected",
+            "rejectionReason": reason
+        })
+        return jsonify({"status": "success", "message": "Online payment UTR rejected successfully!"}), 200
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
@@ -455,22 +478,17 @@ def organizer_get_students():
         exam_mode = org_data.get('examMode', 'online')
         fee_per_student = g_cfg.get('offlineFee', 120) if exam_mode == 'offline' else g_cfg.get('onlineFee', 100)
         
-        # Cash vs Online approved counts
         cash_approved = [s for s in approved_students if s.get('paymentMode') == 'offline']
         cash_held = len(cash_approved) * fee_per_student
 
         gross_fees = total_approved_regs * fee_per_student
 
-        # Direct Commission: Offline -> ₹15/student fixed | Online -> 15% of gross fees
         if exam_mode == 'offline':
             direct_comm = total_approved_regs * 15
         else:
             direct_comm = int(gross_fees * 0.15)
 
-        # 5% Referral Commission (Paid separately by portal via payout)
         ref_comm = int(gross_fees * 0.05) if org_data.get('refCode') else 0
-        
-        # Net Payable to NVMSO from Cash Held by Organizer
         net_payable = cash_held - direct_comm
 
         financials = {
