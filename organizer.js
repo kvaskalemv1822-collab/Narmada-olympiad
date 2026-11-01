@@ -9,10 +9,8 @@ let autoRefreshTimer = null;
 document.addEventListener("DOMContentLoaded", () => {
   fetchGlobalConfigAndNotice();
   
-  // Check if session already active in localStorage
   const savedOrgCode = localStorage.getItem("nvmso_org_code");
   if (savedOrgCode) {
-    // Auto-login simulation if code exists
     fetch(`${SERVER_URL}/api/organizer/login`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -115,7 +113,6 @@ function loadDashboardView() {
   document.getElementById("org-exam-mode-select").value = currentOrg.examMode || "online";
   document.getElementById("current-applicable-fee").textContent = (currentOrg.examMode === "offline") ? (portalConfig.offlineFee || 120) : (portalConfig.onlineFee || 100);
 
-  // 🔄 8-SECOND AUTO-REFRESH LIVE SYNC
   if (!autoRefreshTimer) {
     autoRefreshTimer = setInterval(() => {
       fetchRegisteredStudentsList();
@@ -139,6 +136,7 @@ window.updateExamMode = function(val) {
       currentOrg.examMode = val;
       document.getElementById("current-applicable-fee").textContent = val === "offline" ? (portalConfig.offlineFee || 120) : (portalConfig.onlineFee || 100);
       alert(`✅ Configuration Updated: Mode saved as ${val.toUpperCase()} successfully!`);
+      fetchRegisteredStudentsList();
     }
   });
 };
@@ -179,7 +177,7 @@ function fetchRegisteredStudentsList() {
       const statusTextEl = document.getElementById("settlement-status-text");
       if (statusTextEl) {
         if (isAccountSettled) {
-          statusTextEl.textContent = "🟢 Settlement Confirmed: Net amount paid to NVMS.";
+          statusTextEl.textContent = "🟢 Settlement Confirmed: Net amount paid & balance reset to ₹0.";
           statusTextEl.style.color = "#4ade80";
         } else {
           statusTextEl.textContent = "🔒 Settlement Pending: Pay net amount to NVMS to unlock commission payouts.";
@@ -196,7 +194,7 @@ function fetchRegisteredStudentsList() {
         if(document.getElementById("fin-net-payable")) document.getElementById("fin-net-payable").textContent = `₹${currentNetPayable}`;
         
         const amountInput = document.getElementById("settlement-amount-input");
-        if(amountInput && !amountInput.value) {
+        if(amountInput) {
           amountInput.value = currentNetPayable;
         }
       }
@@ -264,7 +262,6 @@ window.approveStudentCashEntry = function(studentId) {
   });
 };
 
-// 💬 DIRECT ADMIN CHAT & SCREENSHOT SUPPORT
 function fetchOrganizerChatMessages() {
   if (!currentOrg) return;
   const orgCodeKey = currentOrg.code || currentOrg.orgCode;
@@ -340,7 +337,7 @@ window.sendOrganizerQuery = function() {
 
 window.payNetPayableToNvms = function() {
   if (currentNetPayable <= 0) {
-    alert("⚠️ No net amount payable to NVMS right now.");
+    alert("⚠️ No net amount payable to NVMS right now (Balance is ₹0).");
     return;
   }
   const orgCode = currentOrg.code || currentOrg.orgCode;
@@ -368,6 +365,7 @@ window.submitSettlementProof = function() {
     if(data.status === "success") {
       alert("✅ Settlement payment proof submitted successfully!");
       document.getElementById("settlement-utr-input").value = "";
+      fetchRegisteredStudentsList();
     } else {
       alert("❌ Error: " + data.message);
     }
@@ -375,11 +373,6 @@ window.submitSettlementProof = function() {
 };
 
 window.requestCommissionPayout = function() {
-  if (!isAccountSettled) {
-    alert("🔒 Locked: You must pay the net amount to NVMS first before requesting a commission payout!");
-    return;
-  }
-
   const upiId = document.getElementById("payout-upi-input").value.trim();
   const commStr = document.getElementById("fin-ref-comm").textContent;
   const amount = parseFloat(commStr.replace('₹', '')) || 0;
