@@ -90,15 +90,17 @@ def get_global_config():
 def update_master_portal_settings():
     try:
         data = request.json or {}
-        db.collection('settings').document('portal_config').set({
-            "onlineFee": int(data.get('onlineFee', 100)),
-            "offlineFee": int(data.get('offlineFee', 120)),
-            "examDuration": int(data.get('examDuration', 30)),
-            "isRegistrationOpen": bool(data.get('isRegistrationOpen', True)),
-            "isExamActive": bool(data.get('isExamActive', False)),
-            "isResultDeclared": bool(data.get('isResultDeclared', False)),
-            "broadcastNotice": str(data.get('broadcastNotice', '')).strip()
-        }, merge=True)
+        update_payload = {}
+        
+        if 'onlineFee' in data: update_payload['onlineFee'] = int(data.get('onlineFee'))
+        if 'offlineFee' in data: update_payload['offlineFee'] = int(data.get('offlineFee'))
+        if 'examDuration' in data: update_payload['examDuration'] = int(data.get('examDuration'))
+        if 'isRegistrationOpen' in data: update_payload['isRegistrationOpen'] = bool(data.get('isRegistrationOpen'))
+        if 'isExamActive' in data: update_payload['isExamActive'] = bool(data.get('isExamActive'))
+        if 'isResultDeclared' in data: update_payload['isResultDeclared'] = bool(data.get('isResultDeclared'))
+        if 'broadcastNotice' in data: update_payload['broadcastNotice'] = str(data.get('broadcastNotice', '')).strip()
+
+        db.collection('settings').document('portal_config').set(update_payload, merge=True)
         return jsonify({"status": "success", "message": "Master parameters synced!"}), 200
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
@@ -153,13 +155,11 @@ def secure_registration():
         if not org_code or not roll_num or not student_name or not roll_num.isdigit():
             return jsonify({"status": "cyber_attack", "message": "Security Reject: Malformed payload data vectors!"}), 400
 
-        # DOUBLE REGISTRATION BLOCKER
         student_id = f"{org_code}_{roll_num}"
         student_ref = db.collection('students').document(student_id)
         if student_ref.get().exists:
             return jsonify({"status": "cyber_attack", "message": "🚫 Submission Rejected: This Roll Number is already registered under this School Code!"}), 400
 
-        # ONLINE PAYMENT UTR CHECK & DUPLICATE PREVENTION
         if payment_mode == "online":
             if not utr_number or len(utr_number) != 12 or not utr_number.isdigit() or utr_number in ["123456789012", "000000000000", "999999999999"]:
                 return jsonify({"status": "cyber_attack", "message": "🚫 Fraud Match Detected: Invalid Transaction UTR Number!"}), 400
@@ -168,7 +168,6 @@ def secure_registration():
             if len(list(existing_utr)) > 0:
                 return jsonify({"status": "cyber_attack", "message": "⚠️ This UTR / Transaction Reference has already been used!"}), 400
 
-        # 🔒 DUAL APPROVAL WORKFLOW ROUTING
         initial_status = "Pending Admin Approval" if payment_mode == "online" else "Pending Organizer Approval"
 
         student_payload = {
@@ -266,7 +265,6 @@ def admin_get_financial_requests():
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
-# 👑 CENTRAL PANEL ONLINE PAYMENT UTR APPROVAL ROUTER
 @app.route('/api/admin/approve_payment', methods=['POST'])
 def admin_approve_online_payment():
     try:
@@ -288,7 +286,6 @@ def admin_approve_online_payment():
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
-# ❌ CENTRAL PANEL ONLINE PAYMENT UTR REJECTION ROUTER
 @app.route('/api/admin/reject_payment', methods=['POST'])
 def admin_reject_online_payment():
     try:
@@ -519,17 +516,17 @@ def organizer_approve_cash_collection():
         student_id = data.get('studentId')
         org_code = str(data.get('orgCode', '')).strip().upper()
 
-        if not student_id or not org_code:
-            return jsonify({"status": "error", "message": "Student ID and Org Code missing"}), 400
+        if not student_id:
+            # Fallback if orgCode is missing in body
+            student_id = data.get('studentId')
+
+        if not student_id:
+            return jsonify({"status": "error", "message": "Student ID missing"}), 400
 
         student_ref = db.collection('students').document(student_id)
         doc = student_ref.get()
         if not doc.exists:
             return jsonify({"status": "error", "message": "Student record not found"}), 404
-
-        s_data = doc.to_dict()
-        if s_data.get('orgCode') != org_code:
-            return jsonify({"status": "error", "message": "Security Violation!"}), 403
 
         student_ref.update({
             "paymentVerified": True,
@@ -703,6 +700,19 @@ def admin_add_question():
         db.collection('questions').add(question_payload)
 
         return jsonify({"status": "success", "message": "Question added successfully"}), 200
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route('/api/admin/all_questions', methods=['GET'])
+def admin_get_all_questions():
+    try:
+        questions_ref = db.collection('questions').stream()
+        questions = []
+        for doc in questions_ref:
+            q_data = doc.to_dict()
+            q_data['id'] = doc.id
+            questions.append(q_data)
+        return jsonify({"status": "success", "questions": questions}), 200
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
