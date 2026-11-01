@@ -145,7 +145,6 @@ def secure_registration():
         payment_mode = str(data.get('paymentMode', 'online')).lower()
         utr_number = str(data.get('utrNumber', '')).strip()
 
-        # Additional Candidate Metadata
         mother_name = str(data.get('motherName', '')).strip()
         father_name = str(data.get('fatherName', '')).strip()
         stream = str(data.get('stream', '')).strip()
@@ -160,12 +159,15 @@ def secure_registration():
         if student_ref.get().exists:
             return jsonify({"status": "cyber_attack", "message": "🚫 Submission Rejected: This Roll Number is already registered under this School Code!"}), 400
 
+        # ONLINE PAYMENT UTR CHECK
         if payment_mode == "online":
             if not utr_number or len(utr_number) != 12 or not utr_number.isdigit() or utr_number in ["123456789012", "000000000000", "999999999999"]:
                 return jsonify({"status": "cyber_attack", "message": "🚫 Fraud Match Detected: Invalid Transaction UTR Number!"}), 400
 
-        # CASH PAYMENT PENDING LOGIC
-        is_cash = (payment_mode == "offline")
+        # 🔒 DUAL APPROVAL WORKFLOW ROUTING
+        # Online Payment -> Pending Admin Approval (Central Panel)
+        # Offline Cash Payment -> Pending Organizer Approval (School Coordinator)
+        initial_status = "Pending Admin Approval" if payment_mode == "online" else "Pending Organizer Approval"
 
         student_payload = {
             "studentId": student_id,
@@ -180,7 +182,7 @@ def secure_registration():
             "contactNumber": contact_number,
             "paymentMode": payment_mode,
             "utrNumber": utr_number,
-            "paymentStatus": "Pending Verification" if is_cash else "Pending Verification", # Online & Offline both start as pending until verified
+            "paymentStatus": initial_status,
             "paymentVerified": False,
             "score": 0,
             "percentage": 0,
@@ -262,6 +264,28 @@ def admin_get_financial_requests():
             "settlements": settlements,
             "payouts": payouts
         }), 200
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+# 👑 CENTRAL PANEL ONLINE PAYMENT UTR APPROVAL ROUTER
+@app.route('/api/admin/approve_payment', methods=['POST'])
+def admin_approve_online_payment():
+    try:
+        data = request.json or {}
+        student_id = data.get('studentId')
+        if not student_id:
+            return jsonify({"status": "error", "message": "Student ID missing"}), 400
+
+        student_ref = db.collection('students').document(student_id)
+        doc = student_ref.get()
+        if not doc.exists:
+            return jsonify({"status": "error", "message": "Student not found"}), 404
+
+        student_ref.update({
+            "paymentVerified": True,
+            "paymentStatus": "Approved"
+        })
+        return jsonify({"status": "success", "message": "Online payment UTR approved by Admin"}), 200
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
@@ -413,10 +437,6 @@ def organizer_get_students():
                     seen_ids.add(doc.id)
                     s_data = doc.to_dict()
                     s_data['id'] = doc.id
-                    if s_data.get('paymentVerified', False):
-                        s_data['paymentStatus'] = "Approved"
-                    else:
-                        s_data['paymentStatus'] = s_data.get('paymentStatus', 'Pending Verification')
                     students.append(s_data)
 
         org_doc = db.collection('organizers').document(org_code).get()
@@ -428,21 +448,39 @@ def organizer_get_students():
         admin_upi = g_cfg.get('adminUpiId', 'narmada@upi')
         is_result_declared = bool(g_cfg.get('isResultDeclared', False))
 
-        total_regs = len(students)
+        # 🔒 STRICT FINANCIAL CALCULATION (ONLY APPROVED ENTRIES COUNT)
+        approved_students = [s for s in students if s.get('paymentStatus') == 'Approved' or s.get('paymentVerified') is True]
+        total_approved_regs = len(approved_students)
+
         exam_mode = org_data.get('examMode', 'online')
         fee_per_student = g_cfg.get('offlineFee', 120) if exam_mode == 'offline' else g_cfg.get('onlineFee', 100)
-        total_fees = total_regs * fee_per_student
         
-        direct_comm = int(total_fees * 0.15) 
-        ref_comm = 0
-        net_payable = total_fees - direct_comm - ref_comm
+        # Cash vs Online approved counts
+        cash_approved = [s for s in approved_students if s.get('paymentMode') == 'offline']
+        cash_held = len(cash_approved) * fee_per_student
+
+        gross_fees = total_approved_regs * fee_per_student
+
+        # Direct Commission: Offline -> ₹15/student fixed | Online -> 15% of gross fees
+        if exam_mode == 'offline':
+            direct_comm = total_approved_regs * 15
+        else:
+            direct_comm = int(gross_fees * 0.15)
+
+        # 5% Referral Commission (Paid separately by portal via payout)
+        ref_comm = int(gross_fees * 0.05) if org_data.get('refCode') else 0
+        
+        # Net Payable to NVMSO from Cash Held by Organizer
+        net_payable = cash_held - direct_comm
 
         financials = {
-            "totalRegistrations": total_regs,
-            "totalFees": total_fees,
+            "totalRegistrations": len(students),
+            "approvedRegistrations": total_approved_regs,
+            "totalFees": gross_fees,
+            "cashHeld": cash_held,
             "directCommission": direct_comm,
             "referralCommission": ref_comm,
-            "netPayableToNvms": net_payable
+            "netPayableToNvms": max(0, net_payable)
         }
 
         return jsonify({
@@ -456,19 +494,31 @@ def organizer_get_students():
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
-@app.route('/api/organizer/approve_payment', methods=['POST'])
-def organizer_approve_payment():
+# 🏫 SCHOOL ORGANIZER CASH APPROVAL ROUTER
+@app.route('/api/organizer/approve_cash', methods=['POST'])
+def organizer_approve_cash_collection():
     try:
         data = request.json or {}
         student_id = data.get('studentId')
-        if not student_id:
-            return jsonify({"status": "error", "message": "Student ID missing"}), 400
+        org_code = str(data.get('orgCode', '')).strip().upper()
 
-        db.collection('students').document(student_id).update({
+        if not student_id or not org_code:
+            return jsonify({"status": "error", "message": "Student ID and Org Code missing"}), 400
+
+        student_ref = db.collection('students').document(student_id)
+        doc = student_ref.get()
+        if not doc.exists:
+            return jsonify({"status": "error", "message": "Student record not found"}), 404
+
+        s_data = doc.to_dict()
+        if s_data.get('orgCode') != org_code:
+            return jsonify({"status": "error", "message": "Security Violation: Organizer unauthorized to edit this student!"}), 403
+
+        student_ref.update({
             "paymentVerified": True,
             "paymentStatus": "Approved"
         })
-        return jsonify({"status": "success", "message": "Payment approved"}), 200
+        return jsonify({"status": "success", "message": "Cash collection approved by organizer successfully!"}), 200
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
