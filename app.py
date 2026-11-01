@@ -206,11 +206,16 @@ def student_login():
         s_data = student_doc.to_dict()
         mother_name = s_data.get('motherName', '').strip()
         
-        # Password format: Mother's first 2 capital letters + Roll Number
         expected_password = (mother_name[:2].upper() + roll_number) if len(mother_name) >= 2 else roll_number
 
         if input_password != expected_password:
             return jsonify({"status": "error", "message": "Invalid password! Password format is Mother's first 2 capital letters + Roll No."}), 401
+
+        org_doc = db.collection('organizers').document(org_code).get()
+        if org_doc.exists:
+            s_data['schoolName'] = org_doc.to_dict().get('schoolName', org_code)
+        else:
+            s_data['schoolName'] = org_code
 
         s_data['id'] = student_doc.id
         return jsonify({"status": "success", "student": s_data}), 200
@@ -235,7 +240,7 @@ def student_submit_exam():
     try:
         data = request.json or {}
         student_id = data.get('studentId')
-        answers = data.get('answers', {}) # {questionId: selectedOption}
+        answers = data.get('answers', {})
 
         if not student_id:
             return jsonify({"status": "error", "message": "Student ID missing"}), 400
@@ -248,7 +253,7 @@ def student_submit_exam():
         questions_ref = db.collection('questions').stream()
         questions_map = {q.id: q.to_dict() for q in questions_ref}
 
-        total_marks = len(questions_map) * 1  # 1 mark per question
+        total_marks = len(questions_map) * 1  
         obtained_score = 0.0
 
         for q_id, selected_opt in answers.items():
@@ -299,6 +304,12 @@ def student_get_result():
 
         s_data = student_doc.to_dict()
         
+        org_doc = db.collection('organizers').document(org_code).get()
+        if org_doc.exists:
+            s_data['schoolName'] = org_doc.to_dict().get('schoolName', org_code)
+        else:
+            s_data['schoolName'] = org_code
+
         config_doc = db.collection('settings').document('portal_config').get()
         g_cfg = config_doc.to_dict() if config_doc.exists else {}
         if not g_cfg.get('isResultDeclared', False):
