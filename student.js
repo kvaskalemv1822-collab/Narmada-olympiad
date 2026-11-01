@@ -10,7 +10,6 @@ let examTimerInterval = null;
 document.addEventListener("DOMContentLoaded", () => {
   fetchPortalConfig();
   
-  // 💡 ROLL NUMBER RESTRICTION: Allow only numbers
   const rollInput = document.getElementById("std-roll");
   if (rollInput) {
     rollInput.addEventListener("input", function() {
@@ -33,16 +32,12 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 });
 
-// ==========================================================================
-// 🔄 STRICT CONFIG & PHASE VISIBILITY CONTROLLER
-// ==========================================================================
 function fetchPortalConfig() {
   const statusMsg = document.getElementById("portal-status-msg");
   const regView = document.getElementById("registration-view");
   const examView = document.getElementById("exam-login-view");
   const resultView = document.getElementById("result-view");
 
-  // Pehle sabhi views ko hide kar do taaki overlap na ho
   if (regView) regView.classList.add("hidden");
   if (examView) examView.classList.add("hidden");
   if (resultView) resultView.classList.add("hidden");
@@ -58,7 +53,6 @@ function fetchPortalConfig() {
         const isExamActive = !!portalConfigData.isExamActive;
         const isResultDeclared = !!portalConfigData.isResultDeclared;
 
-        // Jo phase active ho, sirf wahi dikhna chahiye
         if (isResultDeclared) {
           if (resultView) resultView.classList.remove("hidden");
           if (statusMsg) {
@@ -256,7 +250,7 @@ window.submitStudentRegistration = function() {
 };
 
 // ==========================================================================
-// ✍️ ONLINE EXAM LOGIN & ASSESSMENT ENGINE (CLASS-WISE FILTERED)
+// ✍️ EXAM LOGIN & STUDENT DETAILS PREVIEW BEFORE STARTING EXAM
 // ==========================================================================
 window.verifyStudentLoginAndStartExam = function() {
   const orgCode = document.getElementById("login-org-code").value.trim().toUpperCase();
@@ -277,12 +271,28 @@ window.verifyStudentLoginAndStartExam = function() {
   .then(data => {
     if (data.status === "success") {
       studentSessionData = data.student;
-      document.getElementById("student-auth-box").classList.add("hidden");
-      document.getElementById("active-exam-container").classList.remove("hidden");
-      document.getElementById("exam-student-info").textContent = `Student: ${studentSessionData.studentName} (Class ${studentSessionData.studentClass})`;
       
-      loadExamQuestions(studentSessionData.studentClass, studentSessionData.stream);
-      startExamTimer(30 * 60); // 30 Minutes
+      // Hide login box and show Student Details Preview Card before exam starts
+      document.getElementById("student-auth-box").classList.add("hidden");
+      
+      let previewBox = document.getElementById("student-details-preview-box");
+      if (!previewBox) {
+        previewBox = document.createElement("div");
+        previewBox.id = "student-details-preview-box";
+        previewBox.className = "score-card";
+        document.getElementById("exam-login-view").appendChild(previewBox);
+      }
+      
+      previewBox.style.display = "block";
+      previewBox.innerHTML = `
+        <h3 style="color: #38bdf8; margin-bottom: 15px;">📋 Student Details Verification</h3>
+        <p style="text-align: left; margin-bottom: 8px;"><strong>Student Name:</strong> ${studentSessionData.studentName}</p>
+        <p style="text-align: left; margin-bottom: 8px;"><strong>Class:</strong> ${studentSessionData.studentClass}</p>
+        <p style="text-align: left; margin-bottom: 8px;"><strong>Roll No:</strong> ${studentSessionData.rollNumber}</p>
+        <p style="text-align: left; margin-bottom: 8px;"><strong>Father's Name:</strong> ${studentSessionData.fatherName || 'N/A'}</p>
+        <p style="text-align: left; margin-bottom: 15px;"><strong>School Name:</strong> <span style="font-weight: bold; color: #facc15;">${studentSessionData.schoolName || studentSessionData.orgCode}</span></p>
+        <button onclick="launchActualExam()" class="btn-submit" style="background: #10b981;">🚀 Start Exam Now</button>
+      `;
     } else {
       alert("❌ Login Failed: " + (data.message || "Invalid credentials. Password is Mother's first 2 capital letters + Roll No."));
     }
@@ -290,6 +300,17 @@ window.verifyStudentLoginAndStartExam = function() {
   .catch(() => {
     alert("❌ Server connection error during login.");
   });
+};
+
+window.launchActualExam = function() {
+  const previewBox = document.getElementById("student-details-preview-box");
+  if (previewBox) previewBox.style.display = "none";
+
+  document.getElementById("active-exam-container").classList.remove("hidden");
+  document.getElementById("exam-student-info").textContent = `Student: ${studentSessionData.studentName} (Class ${studentSessionData.studentClass})`;
+  
+  loadExamQuestions(studentSessionData.studentClass, studentSessionData.stream);
+  startExamTimer(30 * 60); // 30 Minutes
 };
 
 function loadExamQuestions(studentClass, stream) {
@@ -300,7 +321,6 @@ function loadExamQuestions(studentClass, stream) {
       if (!qContainer) return;
 
       if (data.status === "success" && data.questions && data.questions.length > 0) {
-        // 💡 STRICT CLASS-WISE FILTERING ON CLIENT SIDE
         let classNum = parseInt(studentClass, 10);
         let filteredQuestions = data.questions.filter(q => {
           let range = q.classRange || "";
@@ -325,19 +345,19 @@ function loadExamQuestions(studentClass, stream) {
         currentExamQuestions.forEach((q, idx) => {
           let negBadge = q.negativeMarking ? `<span style="color:#f87171; float:right; font-size:11px;">Negative: -${q.negativeMarking}</span>` : "";
           qContainer.innerHTML += `
-            <div style="background: #0b0f19; border: 1px solid #1e293b; padding: 15px; border-radius: 8px; margin-bottom: 12px; font-size: 13px;">
-              <p style="color: #38bdf8; font-weight: bold; margin-bottom: 8px;">Q${idx+1}. ${q.questionText} ${negBadge}</p>
+            <div style="background: #fff; border: 1px solid #ccc; padding: 15px; border-radius: 8px; margin-bottom: 12px; font-size: 13px; color: #333;">
+              <p style="color: #1e3c72; font-weight: bold; margin-bottom: 8px;">Q${idx+1}. ${q.questionText} ${negBadge}</p>
               <div style="display: flex; flex-direction: column; gap: 6px;">
-                <label style="cursor: pointer; color: #cbd5e1;"><input type="radio" name="q_${q.id}" value="A" style="margin-right:8px;"> A) ${q.optionA}</label>
-                <label style="cursor: pointer; color: #cbd5e1;"><input type="radio" name="q_${q.id}" value="B" style="margin-right:8px;"> B) ${q.optionB}</label>
-                <label style="cursor: pointer; color: #cbd5e1;"><input type="radio" name="q_${q.id}" value="C" style="margin-right:8px;"> C) ${q.optionC}</label>
-                <label style="cursor: pointer; color: #cbd5e1;"><input type="radio" name="q_${q.id}" value="D" style="margin-right:8px;"> D) ${q.optionD}</label>
+                <label style="cursor: pointer; color: #444;"><input type="radio" name="q_${q.id}" value="A" style="margin-right:8px;"> A) ${q.optionA}</label>
+                <label style="cursor: pointer; color: #444;"><input type="radio" name="q_${q.id}" value="B" style="margin-right:8px;"> B) ${q.optionB}</label>
+                <label style="cursor: pointer; color: #444;"><input type="radio" name="q_${q.id}" value="C" style="margin-right:8px;"> C) ${q.optionC}</label>
+                <label style="cursor: pointer; color: #444;"><input type="radio" name="q_${q.id}" value="D" style="margin-right:8px;"> D) ${q.optionD}</label>
               </div>
             </div>
           `;
         });
       } else {
-        qContainer.innerHTML = `<p style="color: #f87171; text-align: center;">No questions available for Class ${studentClass} yet. Contact admin.</p>`;
+        qContainer.innerHTML = `<p style="color: #d9534f; text-align: center;">No questions available for Class ${studentClass} yet. Contact admin.</p>`;
       }
     });
 }
@@ -389,7 +409,7 @@ window.submitExamAnswers = function() {
 };
 
 // ==========================================================================
-// 🏆 RESULT & SCORECARD VIEWER (WITH FULL PRINT LAYOUT SUPPORT)
+// 🏆 RESULT & SCORECARD VIEWER (WITH WORKING PRINT CERTIFICATE LAYOUT)
 // ==========================================================================
 window.fetchStudentResult = function() {
   const orgCode = document.getElementById("res-org-code").value.trim().toUpperCase();
@@ -412,20 +432,20 @@ window.fetchStudentResult = function() {
     if (data.status === "success") {
       const resData = data.result;
       scorecardBox.innerHTML = `
-        <div id="printable-scorecard" style="background: #0b0f19; border: 1px solid #10b981; padding: 20px; border-radius: 8px;">
+        <div id="printable-scorecard" class="score-card" style="text-align: left; padding: 20px;">
           <h4 style="color: #4ade80; margin-bottom: 10px; text-align: center;">✅ Official Olympiad Scorecard & Certificate</h4>
-          <p><strong>Student Name:</strong> ${resData.studentName}</p>
-          <p><strong>Class:</strong> ${resData.studentClass} | <strong>Roll No:</strong> ${resData.rollNumber}</p>
-          <p><strong>School Code:</strong> ${resData.orgCode}</p>
+          <p style="margin-bottom: 5px;"><strong>Student Name:</strong> ${resData.studentName}</p>
+          <p style="margin-bottom: 5px;"><strong>Class:</strong> ${resData.studentClass} | <strong>Roll No:</strong> ${resData.rollNumber}</p>
+          <p style="margin-bottom: 5px;"><strong>School Code:</strong> ${resData.orgCode}</p>
           <hr style="border-color:#334155; margin:12px 0;">
-          <p style="font-size: 16px; color: #facc15; text-align: center;"><strong>Total Score:</strong> ${resData.score} Marks</p>
-          <p style="font-size: 14px; color: #38bdf8; text-align: center;"><strong>Percentage:</strong> ${resData.percentage || 0}%</p>
+          <p style="font-size: 16px; color: #facc15; text-align: center; margin-bottom: 5px;"><strong>Total Score:</strong> ${resData.score} Marks</p>
+          <p style="font-size: 14px; color: #38bdf8; text-align: center; margin-bottom: 15px;"><strong>Percentage:</strong> ${resData.percentage || 0}%</p>
           
-          <button onclick="window.print()" class="btn-submit no-print" style="background: #0284c7; margin-top: 15px;">🖨️ Print / Save Full Layout Certificate</button>
+          <button onclick="window.print()" class="btn-submit no-print" style="background: #0284c7;">🖨️ Print / Save Full Layout Certificate</button>
         </div>
       `;
     } else {
-      scorecardBox.innerHTML = `<p style="color: #f87171; text-align: center;">❌ ${data.message || "Result not declared yet or invalid roll number."}</p>`;
+      scorecardBox.innerHTML = `<p style="color: #d9534f; text-align: center;">❌ ${data.message || "Result not declared yet or invalid roll number."}</p>`;
     }
   });
 };
