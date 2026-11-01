@@ -33,11 +33,19 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 });
 
+// ==========================================================================
+// 🔄 STRICT CONFIG & PHASE VISIBILITY CONTROLLER
+// ==========================================================================
 function fetchPortalConfig() {
   const statusMsg = document.getElementById("portal-status-msg");
-  const btnReg = document.getElementById("nav-btn-reg");
-  const btnExam = document.getElementById("nav-btn-exam");
-  const btnResult = document.getElementById("nav-btn-result");
+  const regView = document.getElementById("registration-view");
+  const examView = document.getElementById("exam-login-view");
+  const resultView = document.getElementById("result-view");
+
+  // Pehle sabhi views ko hide kar do taaki overlap na ho
+  if (regView) regView.classList.add("hidden");
+  if (examView) examView.classList.add("hidden");
+  if (resultView) resultView.classList.add("hidden");
 
   fetch(`${SERVER_URL}/api/portal/config`)
     .then(res => res.json())
@@ -50,40 +58,28 @@ function fetchPortalConfig() {
         const isExamActive = !!portalConfigData.isExamActive;
         const isResultDeclared = !!portalConfigData.isResultDeclared;
 
+        // Jo phase active ho, sirf wahi dikhna chahiye
         if (isResultDeclared) {
-          if (btnReg) btnReg.style.display = "none";
-          if (btnExam) btnExam.style.display = "none";
-          if (btnResult) btnResult.style.display = "block";
-          switchTab('result'); 
+          if (resultView) resultView.classList.remove("hidden");
           if (statusMsg) {
             statusMsg.textContent = "🏆 Exam Results Declared! Check your scorecard below.";
             statusMsg.style.color = "#facc15";
           }
         } else if (isExamActive) {
-          if (btnReg) btnReg.style.display = "none";
-          if (btnExam) btnExam.style.display = "block";
-          if (btnResult) btnResult.style.display = "none";
-          switchTab('exam'); 
+          if (examView) examView.classList.remove("hidden");
           if (statusMsg) {
             statusMsg.textContent = "✍️ Online Exam Portal is Active. Login to start.";
             statusMsg.style.color = "#0284c7";
           }
         } else if (isRegOpen) {
-          if (btnReg) btnReg.style.display = "block";
-          if (btnExam) btnExam.style.display = "none";
-          if (btnResult) btnResult.style.display = "none";
-          switchTab('reg'); 
+          if (regView) regView.classList.remove("hidden");
           if (statusMsg) {
             statusMsg.textContent = "🟢 NVMSO Registration is Live & Active.";
             statusMsg.style.color = "#10b981";
           }
         } else {
-          if (btnReg) btnReg.style.display = "none";
-          if (btnExam) btnExam.style.display = "none";
-          if (btnResult) btnResult.style.display = "none";
-          document.getElementById("registration-view").classList.add("hidden");
           if (statusMsg) {
-            statusMsg.textContent = "🔴 Portal is currently offline / locked.";
+            statusMsg.textContent = "🔴 Portal is currently offline / locked by Central Admin.";
             statusMsg.style.color = "#ef4444";
           }
         }
@@ -260,7 +256,7 @@ window.submitStudentRegistration = function() {
 };
 
 // ==========================================================================
-// ✍️ ONLINE EXAM LOGIN & EXAMINATION ENGINE (CLASS-WISE FILTERED)
+// ✍️ ONLINE EXAM LOGIN & ASSESSMENT ENGINE (CLASS-WISE FILTERED)
 // ==========================================================================
 window.verifyStudentLoginAndStartExam = function() {
   const orgCode = document.getElementById("login-org-code").value.trim().toUpperCase();
@@ -319,7 +315,6 @@ function loadExamQuestions(studentClass, stream) {
           return false;
         });
 
-        // Fallback if strict range format differs slightly in backend
         if (filteredQuestions.length === 0) {
           filteredQuestions = data.questions;
         }
@@ -386,7 +381,7 @@ window.submitExamAnswers = function() {
   .then(data => {
     if (data.status === "success") {
       alert(`🎉 Exam Submitted Successfully! Your Score: ${data.score} / ${data.total}`);
-      switchTab('result');
+      window.location.reload();
     } else {
       alert("❌ Error submitting exam: " + data.message);
     }
@@ -394,7 +389,7 @@ window.submitExamAnswers = function() {
 };
 
 // ==========================================================================
-// 🏆 RESULT & SCORECARD VIEWER
+// 🏆 RESULT & SCORECARD VIEWER (WITH FULL PRINT LAYOUT SUPPORT)
 // ==========================================================================
 window.fetchStudentResult = function() {
   const orgCode = document.getElementById("res-org-code").value.trim().toUpperCase();
@@ -417,41 +412,22 @@ window.fetchStudentResult = function() {
     if (data.status === "success") {
       const resData = data.result;
       scorecardBox.innerHTML = `
-        <div style="background: #0b0f19; border: 1px solid #10b981; padding: 15px; border-radius: 8px;">
-          <h4 style="color: #4ade80; margin-bottom: 8px;">✅ Official Scorecard Found</h4>
+        <div id="printable-scorecard" style="background: #0b0f19; border: 1px solid #10b981; padding: 20px; border-radius: 8px;">
+          <h4 style="color: #4ade80; margin-bottom: 10px; text-align: center;">✅ Official Olympiad Scorecard & Certificate</h4>
           <p><strong>Student Name:</strong> ${resData.studentName}</p>
           <p><strong>Class:</strong> ${resData.studentClass} | <strong>Roll No:</strong> ${resData.rollNumber}</p>
           <p><strong>School Code:</strong> ${resData.orgCode}</p>
-          <hr style="border-color:#334155; margin:10px 0;">
-          <p style="font-size: 15px; color: #facc15;"><strong>Total Score:</strong> ${resData.score} Marks</p>
-          <p style="font-size: 13px; color: #38bdf8;"><strong>Percentage:</strong> ${resData.percentage || 0}%</p>
+          <hr style="border-color:#334155; margin:12px 0;">
+          <p style="font-size: 16px; color: #facc15; text-align: center;"><strong>Total Score:</strong> ${resData.score} Marks</p>
+          <p style="font-size: 14px; color: #38bdf8; text-align: center;"><strong>Percentage:</strong> ${resData.percentage || 0}%</p>
+          
+          <button onclick="window.print()" class="btn-submit no-print" style="background: #0284c7; margin-top: 15px;">🖨️ Print / Save Full Layout Certificate</button>
         </div>
       `;
     } else {
       scorecardBox.innerHTML = `<p style="color: #f87171; text-align: center;">❌ ${data.message || "Result not declared yet or invalid roll number."}</p>`;
     }
   });
-};
-
-// ==========================================================================
-// UTILITY TAB SWITCHING & HANDLERS
-// ==========================================================================
-window.switchTab = (tabName) => {
-  const regView = document.getElementById("registration-view");
-  const examView = document.getElementById("exam-login-view");
-  const resultView = document.getElementById("result-view");
-
-  if (regView) regView.classList.add("hidden");
-  if (examView) examView.classList.add("hidden");
-  if (resultView) resultView.classList.add("hidden");
-
-  if (tabName === 'reg') {
-    if (regView) regView.classList.remove("hidden");
-  } else if (tabName === 'exam') {
-    if (examView) examView.classList.remove("hidden");
-  } else if (tabName === 'result') {
-    if (resultView) resultView.classList.remove("hidden");
-  }
 };
 
 window.handlePaymentModeChange = (mode) => {
