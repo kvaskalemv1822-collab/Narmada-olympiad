@@ -146,7 +146,7 @@ function fetchAllCentralData() {
   });
 }
 
-// 1. MERGED ORGANIZER, EXAM MODE & ACCURATE COMMISSION SETTLEMENT MANAGER
+// 1. MERGED ORGANIZER, EXAM MODE & SECURE COMMISSION SETTLEMENT MANAGER
 function renderMergedOrganizersTable() {
   const tbody = document.getElementById("admin-organizers-rows");
   if(!tbody) return;
@@ -156,19 +156,30 @@ function renderMergedOrganizersTable() {
     const code = org.code || org.orgCode;
     const isSettled = org.manualSettled;
 
-    const schoolStudents = allStudentsCache.filter(s => (s.orgCode || "").toUpperCase() === code.toUpperCase());
-    const totalReg = schoolStudents.length || org.totalRegistrations || 0;
+    const allSchoolStudents = allStudentsCache.filter(s => (s.orgCode || "").toUpperCase() === code.toUpperCase());
+    
+    // 🔒 SECURITY FILTER: Online registrations are counted ONLY WHEN approved by Admin. Cash is counted normally.
+    const verifiedStudents = allSchoolStudents.filter(s => {
+      const mode = (s.paymentMode || 'online').toLowerCase();
+      if (mode === 'online') {
+        return s.paymentStatus === 'Approved';
+      }
+      return true; 
+    });
 
-    const onlineRegs = schoolStudents.filter(s => (s.paymentMode || 'online').toLowerCase() === 'online').length;
-    const cashRegs = schoolStudents.filter(s => (s.paymentMode || '').toLowerCase() === 'offline' || (s.paymentMode || '').toLowerCase() === 'cash').length;
+    const totalReg = verifiedStudents.length || 0;
+    const pendingReviewCount = allSchoolStudents.length - totalReg;
+
+    const onlineRegs = verifiedStudents.filter(s => (s.paymentMode || 'online').toLowerCase() === 'online').length;
+    const cashRegs = verifiedStudents.filter(s => (s.paymentMode || '').toLowerCase() === 'offline' || (s.paymentMode || '').toLowerCase() === 'cash').length;
 
     const examMode = (org.examMode || 'online').toLowerCase();
     const feePerStudent = examMode === 'offline' ? 120 : 100;
 
-    const onlineGross = onlineRegs * feePerStudent;
     const cashGross = cashRegs * feePerStudent;
     const grossTotal = totalReg * feePerStudent;
 
+    // Direct Commission: Offline -> ₹15/student fixed, Online -> 15% of gross
     const directComm = examMode === 'offline' ? (totalReg * 15) : (grossTotal * 0.15);
     const refComm = grossTotal * 0.05; 
     const netCashToPortal = cashGross - directComm;
@@ -187,6 +198,8 @@ function renderMergedOrganizersTable() {
       actionCell += `<br><button onclick="payCommissionViaPhonePe('${organizerUpi}', ${refComm}, '${code}')" style="margin-top:6px; background:#f59e0b; color:#fff; border:none; padding:5px 8px; font-size:10px; border-radius:4px; font-weight:bold; cursor:pointer;">📲 Pay Comm (₹${refComm.toFixed(0)})</button>`;
     }
 
+    let pendingBadge = pendingReviewCount > 0 ? `<br><span style="font-size:9px; color:#f59e0b; font-weight:bold;">(${pendingReviewCount} Pending Review)</span>` : "";
+
     tbody.innerHTML += `
       <tr style="border-bottom:1px solid #1e293b;">
         <td style="padding:10px;">
@@ -200,7 +213,7 @@ function renderMergedOrganizersTable() {
           <span style="font-size:10px; color:#38bdf8;">UPI: ${organizerUpi}</span>
         </td>
         <td style="padding:10px; color:#4ade80; font-weight:bold; text-align:center;">
-          ${totalReg}<br><span style="font-size:10px; color:#94a3b8;">(${onlineRegs} On / ${cashRegs} Cash)</span>
+          ${totalReg} ${pendingBadge}<br><span style="font-size:10px; color:#94a3b8;">(${onlineRegs} On / ${cashRegs} Cash)</span>
         </td>
         <td style="padding:10px; color:#facc15; font-weight:bold;">₹${directComm.toFixed(0)}</td>
         <td style="padding:10px; color:#c084fc; font-weight:bold;">₹${refComm.toFixed(0)} <span style="font-size:9px; color:#94a3b8;">(Portal Pay)</span></td>
@@ -237,7 +250,6 @@ function fetchSupportTickets() {
         listContainer.innerHTML = `<p style="font-size: 11px; color: #64748b; text-align: center; margin-top: 20px;">No pending support queries.</p>`;
       }
     }).catch(() => {
-      // Fallback mock view if endpoint not yet initialized on backend
       const listContainer = document.getElementById("support-tickets-list");
       if (listContainer && listContainer.innerHTML.includes("Loading")) {
         listContainer.innerHTML = `<p style="font-size: 11px; color: #64748b; text-align: center; margin-top: 20px;">Support chat pipe connected.</p>`;
@@ -258,7 +270,6 @@ window.openChatSession = function(ticketId, senderName) {
 
   chatBox.innerHTML = `<p style="color: #4ade80; font-size: 11px; text-align: center; margin-bottom: 10px;">-- Connected with ${senderName} --</p>`;
   
-  // Fetch messages for this ticket
   fetch(`${SERVER_URL}/api/admin/query_messages?ticketId=${ticketId}`)
     .then(res => res.json())
     .then(data => {
@@ -435,7 +446,7 @@ window.loadSchoolRankings = function() {
   });
 };
 
-// 4. SCHOOL-WISE STUDENT DETAILS LEDGER
+// 4. SCHOOL-WISE STUDENT DETAILS LEDGER & UTR APPROVAL
 window.loadSchoolStudentLedger = function() {
   const selectedOrg = document.getElementById("ledger-school-select").value;
   const tbody = document.getElementById("ledger-student-rows");
@@ -449,10 +460,18 @@ window.loadSchoolStudentLedger = function() {
   tbody.innerHTML = students.length ? "" : "<tr><td colspan='5' style='text-align:center; color:#64748b;'>No students registered under this selection.</td></tr>";
 
   students.forEach(s => {
-    const isApproved = s.paymentStatus === "Approved";
+    const isApproved = s.paymentStatus === "Approved" || s.paymentStatus === "Cash Handover";
     const payMode = (s.paymentMode || 'online').toUpperCase();
-    const utrInfo = s.utrNumber ? `<br><code style="color:#facc15; font-size:11px;">UTR: ${s.utrNumber}</code>` : "";
-    const paymentBadge = `<span style="color:${isApproved?'#4ade80':'#f87171'}; font-weight:bold;">${s.paymentStatus} (${payMode})</span>${utrInfo}`;
+    const utrInfo = s.utrNumber ? `<br><code style="color:#facc15; font-size:11px;">UTR: ${s.utrNumber}</code>` : "<br><span style='color:#f87171; font-size:10px;'>No UTR Provided</span>";
+    
+    let paymentBadge = `<span style="color:${isApproved ? '#4ade80' : '#f59e0b'}; font-weight:bold;">${s.paymentStatus || 'Pending Verification'} (${payMode})</span>${utrInfo}`;
+
+    let actionButtons = `<button onclick="triggerReExam('${s.id}')" style="background:#7c3aed; color:#fff; border:none; padding:4px 8px; font-size:10px; border-radius:4px; font-weight:bold; cursor:pointer; margin-right:4px;">🔄 Re-Exam</button>`;
+
+    // Approve UTR button for online pending payments
+    if (s.paymentMode === 'online' && s.paymentStatus !== "Approved") {
+      actionButtons += `<button onclick="approveOnlinePayment('${s.id}', '${s.orgCode}')" style="background:#10b981; color:#fff; border:none; padding:4px 8px; font-size:10px; border-radius:4px; font-weight:bold; cursor:pointer;">✔️ Approve UTR</button>`;
+    }
 
     tbody.innerHTML += `
       <tr style="border-bottom:1px solid #1e293b;">
@@ -460,11 +479,31 @@ window.loadSchoolStudentLedger = function() {
         <td style="padding:10px;">Class ${s.studentClass}</td>
         <td style="padding:10px;">${paymentBadge}</td>
         <td style="padding:10px;"><strong style="color:#4ade80;">${s.score || 0}</strong> <span style="color:#38bdf8; font-size:11px;">(${(s.score || 0)}%)</span></td>
-        <td style="padding:10px;">
-          <button onclick="triggerReExam('${s.id}')" style="background:#7c3aed; color:#fff; border:none; padding:4px 10px; font-size:11px; border-radius:4px; font-weight:bold; cursor:pointer;">🔄 Re-Exam</button>
-        </td>
+        <td style="padding:10px;">${actionButtons}</td>
       </tr>
     `;
+  });
+};
+
+window.approveOnlinePayment = function(studentId, orgCode) {
+  if (!confirm(`Are you sure you want to approve this student's online payment and UTR?`)) return;
+
+  fetch(`${SERVER_URL}/api/admin/approve_payment`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ studentId: studentId, orgCode: orgCode })
+  })
+  .then(res => res.json())
+  .then(data => {
+    if (data.status === "success") {
+      alert("✅ Online payment approved successfully! Student status updated.");
+      fetchAllCentralData();
+    } else {
+      alert("❌ Error: " + (data.message || "Could not approve payment."));
+    }
+  })
+  .catch(() => {
+    alert("❌ Server connection error while approving payment.");
   });
 };
 
