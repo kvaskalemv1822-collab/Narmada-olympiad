@@ -5,29 +5,28 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>NVMSO - Question Bank Manager</title>
   <link rel="stylesheet" href="central.css?v=8">
-  <link href="https://googleapis.com" rel="stylesheet">
 </head>
 <body style="background: #0b0f19; padding: 15px; color:#fff;">
 
-<div id="question-main-container" class="container">
+<div id="question-main-container" class="container" style="max-width: 900px; margin: 0 auto;">
   <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #374151; padding-bottom: 15px; margin-bottom: 20px;">
     <div>
-      <h1>📚 Exam Question Bank Manager</h1>
-      <div class="director-title">Formulate and Manage Live Competitive Papers</div>
+      <h1 style="font-size: 22px; margin:0;">📚 Exam Question Bank Manager</h1>
+      <div style="font-size: 12px; color: #94a3b8;">Formulate and Manage Live Competitive Papers</div>
     </div>
     <div>
-      <a href="central.html" class="btn-primary" style="text-decoration: none; background: #4b5563; font-size: 13px;">⬅ Back to Control Room</a>
+      <a href="central.html" class="btn-primary" style="text-decoration: none; background: #4b5563; font-size: 12px; padding: 8px 12px;">⬅ Back to Control Room</a>
     </div>
   </div>
 
   <!-- QUESTION MANAGER INPUT VECTOR CONTAINER -->
-  <div class="control-box" style="border: 1px solid #c084fc; background: rgba(15, 23, 42, 0.85); padding: 25px; border-radius: 12px;">
-    <h3 style="color:#c084fc; margin-bottom: 15px;">✍️ Add New Exam Question Element</h3>
+  <div class="control-box" style="border: 1px solid #c084fc; background: rgba(15, 23, 42, 0.85); padding: 20px; border-radius: 12px; margin-bottom: 20px;">
+    <h3 style="color:#c084fc; margin-top:0; margin-bottom: 15px;">✍️ Add New Exam Question Element</h3>
     
     <div style="display:grid; grid-template-columns:1fr 1fr; gap:15px; margin-bottom: 15px;">
       <div>
-        <label>Select Target Class Range:</label>
-        <select id="q-class-select">
+        <label style="font-size:12px; color:#94a3b8;">Select Target Class Range:</label>
+        <select id="q-class-select" style="width:150px; padding:8px; background:#020617; color:#fff; border:1px solid #475569; border-radius:6px;">
           <option value="3-5">Class 3rd to 5th</option>
           <option value="6-8" selected>Class 6th to 8th</option>
           <option value="9-10">Class 9th to 10th</option>
@@ -36,8 +35,8 @@
         </select>
       </div>
       <div>
-        <label>Subject Category / Topic:</label>
-        <select id="q-subject-select">
+        <label style="font-size:12px; color:#94a3b8;">Subject Category / Topic:</label>
+        <select id="q-subject-select" style="width:150px; padding:8px; background:#020617; color:#fff; border:1px solid #475569; border-radius:6px;">
           <option value="Maths">Mathematics</option>
           <option value="Science">Science Column</option>
           <option value="GK">General Knowledge / Logic</option>
@@ -46,20 +45,20 @@
     </div>
 
     <div style="margin-bottom: 15px;">
-      <label>Question Statement (Supports Hindi/English Text):</label>
-      <textarea id="q-text" rows="4" placeholder="Type or paste the exam question statement here..."></textarea>
+      <label style="font-size:12px; color:#94a3b8;">Question Statement:</label>
+      <textarea id="q-text" rows="3" placeholder="Type or paste the exam question statement here..." style="width:100%; padding:10px; background:#020617; color:#fff; border:1px solid #475569; border-radius:6px;"></textarea>
     </div>
 
     <div style="display:grid; grid-template-columns:1fr 1fr; gap:15px; margin-bottom: 15px;">
-      <div><label>Option A Input:</label><input type="text" id="q-opt-a" placeholder="Enter option A statement" required></div>
-      <div><label>Option B Input:</label><input type="text" id="q-opt-b" placeholder="Enter option B statement" required></div>
-      <div><label>Option C Input:</label><input type="text" id="q-opt-c" placeholder="Enter option C statement" required></div>
-      <div><label>Option D Input:</label><input type="text" id="q-opt-d" placeholder="Enter option D statement" required></div>
+      <div><label style="font-size:11px; color:#94a3b8;">Option A:</label><input type="text" id="q-opt-a" placeholder="Option A" style="width:100%; padding:8px; background:#020617; color:#fff; border:1px solid #475569; border-radius:6px;"></div>
+      <div><label style="font-size:11px; color:#94a3b8;">Option B:</label><input type="text" id="q-opt-b" placeholder="Option B" style="width:100%; padding:8px; background:#020617; color:#fff; border:1px solid #475569; border-radius:6px;"></div>
+      <div><label style="font-size:11px; color:#94a3b8;">Option C:</label><input type="text" id="q-opt-c" placeholder="Option C" style="width:100%; padding:8px; background:#020617; color:#fff; border:1px solid #475569; border-radius:6px;"></div>
+      <div><label style="font-size:11px; color:#94a3b8;">Option D:</label><input type="text" id="q-opt-d" placeholder="Option D" style="width:100%; padding:8px; background:#020617; color:#fff; border:1px solid #475569; border-radius:6px;"></div>
     </div>
 
     <div style="margin-bottom: 20px; max-width: 250px;">
-      <label>Correct Answer Key Matrix:</label>
-      <select id="q-correct-opt" style="border-color: #a855f7;">
+      <label style="font-size:12px; color:#94a3b8;">Correct Answer Key:</label>
+      <select id="q-correct-opt" style="width:150px; padding:8px; background:#020617; color:#fff; border:1px solid #a855f7; border-radius:6px;">
         <option value="A">Option A</option>
         <option value="B">Option B</option>
         <option value="C">Option C</option>
@@ -67,10 +66,18 @@
       </select>
     </div>
 
-    <button type="button" class="btn-primary" style="width:100%; background:linear-gradient(135deg, #7c3aed 0%, #c084fc 100%); padding: 14px;" onclick="addNewQuestionToBank()">➕ Save Question to Database Engine</button>
+    <button type="button" class="btn-primary" style="width:100%; background:linear-gradient(135deg, #7c3aed 0%, #c084fc 100%); padding: 12px; border:none; border-radius:6px; font-weight:bold; cursor:pointer;" onclick="addNewQuestionToBank()">➕ Save Question to Database Engine</button>
+  </div>
+
+  <!-- LIVE SAVED QUESTIONS PREVIEW PANEL -->
+  <div class="control-box" style="border: 1px solid #334155; background: rgba(15, 23, 42, 0.85); padding: 20px; border-radius: 12px;">
+    <h3 style="color:#38bdf8; margin-top:0; margin-bottom: 12px;">📋 Live Saved Questions Preview (<span id="total-q-count">0</span>)</h3>
+    <div id="saved-questions-container" style="max-height: 350px; overflow-y: auto;">
+      <p style="color: #64748b; font-size: 13px; text-align: center;">Loading saved questions...</p>
+    </div>
   </div>
 </div>
 
-<script src="question.js?v=8"></script>
+<script src="question.js?v=9"></script>
 </body>
 </html>
