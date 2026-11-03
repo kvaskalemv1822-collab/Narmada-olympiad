@@ -1,5 +1,5 @@
 /* ==========================================================================
-   NVMSO STUDENT PORTAL - LIGHT THEME & BULLETPROOF CERTIFICATE CSS
+   NVMSO STUDENT PORTAL - LIGHT THEME & FINAL CERTIFICATE CSS
    ========================================================================== */
 * { 
   box-sizing: border-box; 
@@ -242,12 +242,8 @@ input, select, textarea {
     left: 0 !important;
     width: 100vw !important;
     height: 100vh !important;
-    max-width: none !important;
-    max-height: none !important;
     margin: 0 !important;
     padding: 0 !important;
-    border-radius: 0 !important;
-    box-shadow: none !important;
     background: #000000 !important;
     display: flex !important;
     align-items: center !important;
@@ -258,17 +254,10 @@ input, select, textarea {
   .certificate-wrapper {
     position: relative !important;
     width: 100vw !important;
-    max-width: none !important;
     height: auto !important;
-    max-height: 100vh !important;
-    margin: 0 !important;
+    margin: 0 auto !important;
     border-radius: 0 !important;
     box-shadow: none !important;
-    display: flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    page-break-inside: avoid !important;
-    break-inside: avoid !important;
   }
 
   .cert-img {
