@@ -134,7 +134,7 @@ input, select, textarea {
 #student-scorecard-box {
   position: relative;
   width: 100%;
-  max-width: 800px;
+  max-width: 850px;
   aspect-ratio: 2000 / 1414;
   margin: 5px auto;
   border-radius: 12px;
@@ -180,7 +180,7 @@ input, select, textarea {
 .cert-school-name {
   font-family: 'Georgia', serif;
   font-size: clamp(12px, 1.9vw, 17px);
-  font-weight: 600;
+  font-weight: 650;
   color: #DAB963 !important;
   text-shadow: 0 2px 4px rgba(0,0,0,0.8);
   margin: 0;
