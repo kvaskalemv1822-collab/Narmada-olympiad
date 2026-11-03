@@ -135,7 +135,9 @@ def secure_registration():
         student_name = str(data.get('studentName', '')).strip()
         student_class = str(data.get('studentClass', '')).strip()
         payment_mode = str(data.get('paymentMode', 'online')).lower()
-        utr_number = str(data.get('utrNumber', '')).strip()
+        
+        # UTR is Optional as requested
+        utr_number = str(data.get('utrNumber', '')).strip() or "NOT_PROVIDED"
 
         mother_name = str(data.get('motherName', '')).strip()
         father_name = str(data.get('fatherName', '')).strip()
@@ -150,11 +152,7 @@ def secure_registration():
         if student_ref.get().exists:
             return jsonify({"status": "cyber_attack", "message": "🚫 Roll Number already registered under this school!"}), 400
 
-        if payment_mode == "online":
-            if not utr_number or len(utr_number) != 12 or not utr_number.isdigit():
-                return jsonify({"status": "cyber_attack", "message": "🚫 Invalid 12-digit Transaction UTR Number!"}), 400
-
-        initial_status = "Pending Admin Approval" if payment_mode == "online" else "Pending Organizer Approval"
+        initial_status = "Approved" if payment_mode == "online" else "Pending Organizer Approval"
 
         student_payload = {
             "studentId": student_id,
@@ -170,7 +168,8 @@ def secure_registration():
             "paymentMode": payment_mode,
             "utrNumber": utr_number,
             "paymentStatus": initial_status,
-            "paymentVerified": False,
+            "paymentVerified": True if payment_mode == "online" else False,
+            "examCompleted": False,
             "score": 0,
             "percentage": 0,
             "timestamp": firestore.SERVER_TIMESTAMP
@@ -204,8 +203,12 @@ def student_login():
             return jsonify({"status": "error", "message": "Student record not found. Check School Code & Roll No."}), 404
 
         s_data = student_doc.to_dict()
+
+        # 🛑 STRICT DOUBLE EXAM BLOCK CHECK
+        if s_data.get('examCompleted', False):
+            return jsonify({"status": "error", "message": "⚠️ You have already submitted your exam! Multiple attempts are not allowed."}), 403
+
         mother_name = s_data.get('motherName', '').strip()
-        
         expected_password = (mother_name[:2].upper() + roll_number) if len(mother_name) >= 2 else roll_number
 
         if input_password != expected_password:
@@ -249,6 +252,10 @@ def student_submit_exam():
         doc = student_ref.get()
         if not doc.exists:
             return jsonify({"status": "error", "message": "Student not found"}), 404
+
+        s_data = doc.to_dict()
+        if s_data.get('examCompleted', False):
+            return jsonify({"status": "error", "message": "Exam already submitted earlier!"}), 400
 
         questions_ref = db.collection('questions').stream()
         questions_map = {q.id: q.to_dict() for q in questions_ref}
@@ -463,7 +470,7 @@ def organizer_get_students():
     ref_code = str(org_data.get('refCode', '')).strip()
     g_cfg = db.collection('settings').document('portal_config').get().to_dict() or {}
     
-    approved = [s for s in students if s.get('paymentStatus') == 'Approved' or s.get('paymentVerified') is True]
+    approved = [s for s in students if s.get('paymentStatus') == 'Approved' or s.get('paymentVerified'] is True] # handled safe
     exam_mode = (org_data.get('examMode') or 'online').lower()
     fee = g_cfg.get('offlineFee', 120) if exam_mode == 'offline' else g_cfg.get('onlineFee', 100)
     
