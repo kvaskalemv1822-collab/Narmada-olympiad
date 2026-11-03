@@ -154,8 +154,8 @@ input, select, textarea {
 
 .cert-text-overlay {
   position: absolute;
-  top: 48%; 
-  left: 52%; 
+  top: 58%; 
+  left: 50%; 
   transform: translate(-50%, -50%);
   width: 70%; 
   display: flex; 
@@ -180,7 +180,7 @@ input, select, textarea {
 .cert-student-class {
   font-family: 'Georgia', serif;
   font-size: clamp(13px, 2.1vw, 18px);
-  font-weight: 600;
+  font-weight: 650;
   color: #f3f4f6;
   margin: 0 0 5px 0;
 }
