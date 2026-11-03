@@ -129,12 +129,13 @@ input, select, textarea {
 }
 
 /* ==========================================================================
-   🏆 CERTIFICATE CONTAINER & ITALIC GEORGIA FONT OVERLAY
+   🏆 CERTIFICATE CONTAINER & ITALIC GEORGIA FONT OVERLAY (68vw Height Fix)
    ========================================================================== */
 .certificate-wrapper {
   position: relative;
   width: 100%;
-  aspect-ratio: 2000 / 1414;
+  height: 68vw; /* Height 68vw set kar di gayi hai */
+  max-height: 550px;
   background-image: url('certificate-template.png');
   background-size: 100% 100%;
   background-position: center;
@@ -254,7 +255,7 @@ input, select, textarea {
     top: 0 !important;
     left: 0 !important;
     width: 100vw !important;
-    height: 100vh !important;
+    height: 68vw !important; /* Print ke waqt bhi height 68vw locked */
     margin: 0 !important;
     border-radius: 0 !important;
     box-shadow: none !important;
