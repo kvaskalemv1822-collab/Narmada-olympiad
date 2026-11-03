@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>NVMSO - Student Portal 2026</title>
-  <link rel="stylesheet" href="student.css?v=18">
+  <link rel="stylesheet" href="student.css?v=19">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 </head>
 <body>
@@ -101,7 +101,7 @@
           </div>
         </div>
 
-        <!-- TERMS & CONDITIONS CHECKBOX & UPLOADED FILE LINK -->
+        <!-- TERMS & CONDITIONS CHECKBOX & LINK -->
         <div style="display: flex; align-items: flex-start; gap: 10px; margin-bottom: 20px; background: rgba(2, 6, 23, 0.6); padding: 12px; border-radius: 8px; border: 1px solid #334155;">
           <input type="checkbox" id="terms-checkbox" onchange="toggleSubmitButton()" style="width: 20px; height: 20px; cursor: pointer; margin-top: 2px;">
           <label for="terms-checkbox" style="font-size: 12px; color: #cbd5e1; cursor: pointer; line-height: 1.4;">
@@ -161,13 +161,13 @@
       </div>
       <button onclick="fetchStudentResult()" class="btn-submit" style="background: #0284c7;">🔍 Fetch Scorecard & Certificate</button>
       
-      <!-- CERTIFICATE BACKGROUND LINKED WITH SMALL 'c' -->
-      <div id="student-scorecard-box" style="margin-top: 20px; display: none; background-image: url('certificate-template.png'); background-size: cover; background-position: center; border-radius: 10px;"></div>
+      <!-- CERTIFICATE BACKGROUND CONTAINER (2000x1414 Layout Matching Old Format) -->
+      <div id="student-scorecard-box" style="display: none;"></div>
     </div>
   </div>
 
 </div>
 
-<script src="student.js?v=18"></script>
+<script src="student.js?v=19"></script>
 </body>
 </html>
