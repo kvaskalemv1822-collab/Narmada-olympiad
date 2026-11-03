@@ -349,17 +349,29 @@ window.fetchStudentResult = function() {
     if (data.status === "success") {
       const resData = data.result;
       
-      // Clean certificate layout: Name -> Class -> School Name + Download Button outside container
+      // Exact overlay layout matching your snippet + Print button outside
       scorecardBox.innerHTML = `
-        <div class="certificate-content-wrapper">
-          <div class="cert-student-name">${resData.studentName}</div>
+        <div class="cert-text-overlay">
+          <h2 class="cert-student-name">${resData.studentName}</h2>
           <div class="cert-student-class">Class: ${resData.studentClass} ${resData.stream ? '(' + resData.stream + ')' : ''}</div>
           <div class="cert-school-name">${resData.schoolName || resData.orgCode}</div>
         </div>
-        <button onclick="window.print()" class="cert-download-btn no-print">📥 Download / Print Certificate</button>
       `;
+      
+      // Append print button right below certificate container if not already there
+      let existingBtn = document.getElementById("dynamic-cert-print-btn");
+      if (!existingBtn) {
+        const btnHtml = document.createElement("button");
+        btnHtml.id = "dynamic-cert-print-btn";
+        btnHtml.className = "cert-download-btn no-print";
+        btnHtml.innerHTML = "📥 Download / Print Certificate";
+        btnHtml.onclick = () => window.print();
+        scorecardBox.parentNode.insertBefore(btnHtml, scorecardBox.nextSibling);
+      }
     } else {
       scorecardBox.innerHTML = `<p style="color: #d9534f; text-align: center; padding: 40px; background:#fff;">❌ ${data.message || "Result not available."}</p>`;
+      const existingBtn = document.getElementById("dynamic-cert-print-btn");
+      if (existingBtn) existingBtn.remove();
     }
   });
 };
