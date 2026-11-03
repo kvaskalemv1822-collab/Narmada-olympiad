@@ -10,26 +10,10 @@ let examTimerInterval = null;
 document.addEventListener("DOMContentLoaded", () => {
   fetchPortalConfig();
   
-  const rollInput = document.getElementById("std-roll");
-  if (rollInput) {
-    rollInput.addEventListener("input", function() {
-      this.value = this.value.replace(/[^0-9]/g, '');
-    });
-  }
-
-  const loginRollInput = document.getElementById("login-roll");
-  if (loginRollInput) {
-    loginRollInput.addEventListener("input", function() {
-      this.value = this.value.replace(/[^0-9]/g, '');
-    });
-  }
-
-  const resRollInput = document.getElementById("res-roll");
-  if (resRollInput) {
-    resRollInput.addEventListener("input", function() {
-      this.value = this.value.replace(/[^0-9]/g, '');
-    });
-  }
+  ["std-roll", "login-roll", "res-roll"].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener("input", function() { this.value = this.value.replace(/[^0-9]/g, ''); });
+  });
 });
 
 function fetchPortalConfig() {
@@ -55,32 +39,18 @@ function fetchPortalConfig() {
 
         if (isResultDeclared) {
           if (resultView) resultView.classList.remove("hidden");
-          if (statusMsg) {
-            statusMsg.textContent = "🏆 Exam Results Declared! Check your scorecard below.";
-            statusMsg.style.color = "#facc15";
-          }
+          if (statusMsg) { statusMsg.textContent = "🏆 Exam Results Declared! Check your scorecard below."; statusMsg.style.color = "#facc15"; }
         } else if (isExamActive) {
           if (examView) examView.classList.remove("hidden");
-          if (statusMsg) {
-            statusMsg.textContent = "✍️ Online Exam Portal is Active. Login to start.";
-            statusMsg.style.color = "#0284c7";
-          }
+          if (statusMsg) { statusMsg.textContent = "✍️ Online Exam Portal is Active. Login to start."; statusMsg.style.color = "#0284c7"; }
         } else if (isRegOpen) {
           if (regView) regView.classList.remove("hidden");
-          if (statusMsg) {
-            statusMsg.textContent = "🟢 NVMSO Registration is Live & Active.";
-            statusMsg.style.color = "#10b981";
-          }
+          if (statusMsg) { statusMsg.textContent = "🟢 NVMSO Registration is Live & Active."; statusMsg.style.color = "#10b981"; }
         } else {
-          if (statusMsg) {
-            statusMsg.textContent = "🔴 Portal is currently offline / locked by Central Admin.";
-            statusMsg.style.color = "#ef4444";
-          }
+          if (statusMsg) { statusMsg.textContent = "🔴 Portal is currently offline / locked by Central Admin."; statusMsg.style.color = "#ef4444"; }
         }
       }
-    }).catch(() => {
-      if (statusMsg) statusMsg.textContent = "Offline Mode / Server Pipeline Blocked";
-    });
+    }).catch(() => { if (statusMsg) statusMsg.textContent = "Offline Mode / Server Pipeline Blocked"; });
 }
 
 window.fetchSchoolName = function(val) {
@@ -111,19 +81,11 @@ window.fetchSchoolName = function(val) {
       verifiedOrgExamMode = data.examMode;
 
       const payMode = document.getElementById("payment-mode").value;
-      if (payMode === "online" && onlineSection) {
-        onlineSection.style.display = "block";
-      }
-
+      if (payMode === "online" && onlineSection) onlineSection.style.display = "block";
       renderDynamicUPIQR();
-    } else if (data.status === "locked") {
-      display.innerText = `🔒 ${data.message}`;
-      display.style.color = "#f59e0b";
-      isOrganizerVerified = false;
-      if (onlineSection) onlineSection.style.display = "none";
     } else {
-      display.innerText = "❌ Invalid Organizer Code!";
-      display.style.color = "#ef4444";
+      display.innerText = data.status === "locked" ? `🔒 ${data.message}` : "❌ Invalid Organizer Code!";
+      display.style.color = data.status === "locked" ? "#f59e0b" : "#ef4444";
       isOrganizerVerified = false;
       if (onlineSection) onlineSection.style.display = "none";
     }
@@ -134,11 +96,7 @@ function renderDynamicUPIQR() {
   const qrBox = document.getElementById("dynamic-qr-container");
   if (!qrBox) return;
   qrBox.innerHTML = "";
-  
-  if (!isOrganizerVerified) {
-    qrBox.innerHTML = "<p style='color:#94a3b8; font-size:12px;'>🔒 Enter valid School Code first to generate QR.</p>";
-    return;
-  }
+  if (!isOrganizerVerified) return;
 
   let fee = verifiedOrgExamMode === "offline" ? (portalConfigData.offlineFee || 120) : (portalConfigData.onlineFee || 100);
   let upiUrl = `upi://pay?pa=${encodeURIComponent(activeUpiString)}&pn=NVMSO&am=${fee}&cu=INR`;
@@ -160,17 +118,12 @@ window.validateAndShowPayment = function() {
     return;
   }
   
-  const orgCode = document.getElementById('org-code').value.trim();
-  const name = document.getElementById('std-name').value.trim();
-  const mother = document.getElementById('std-mother').value.trim();
-  const father = document.getElementById('std-father').value.trim();
-  const stdClass = document.getElementById('std-class').value;
-  const roll = document.getElementById('std-roll').value.trim();
-  const contact = document.getElementById('std-contact').value.trim();
-
-  if (!orgCode || !name || !mother || !father || !stdClass || !roll || !contact) {
-    alert("❌ Please fill out all required student details before proceeding to payment!");
-    return;
+  const fields = ['org-code', 'std-name', 'std-mother', 'std-father', 'std-class', 'std-roll', 'std-contact'];
+  for (let id of fields) {
+    if (!document.getElementById(id).value.trim()) {
+      alert("❌ Please fill out all required student details before proceeding!");
+      return;
+    }
   }
 
   document.getElementById('details-section').style.display = 'none';
@@ -187,11 +140,7 @@ window.backToDetails = function() {
 
 window.toggleQrDisplay = function() {
   const qrDiv = document.getElementById('dynamic-qr-container');
-  if (qrDiv.style.display === 'none' || qrDiv.style.display === '') {
-    qrDiv.style.display = 'flex';
-  } else {
-    qrDiv.style.display = 'none';
-  }
+  qrDiv.style.display = (qrDiv.style.display === 'none' || qrDiv.style.display === '') ? 'flex' : 'none';
 };
 
 window.toggleSubmitButton = function() {
@@ -232,7 +181,7 @@ window.submitStudentRegistration = function() {
   .then(res => res.json())
   .then(data => {
     if (data.status === "success") {
-      alert("🎉 Registration Saved Successfully to Cloud Database!");
+      alert("🎉 Registration Saved Successfully!");
       document.getElementById('reg-form').reset();
       document.getElementById('payment-section').style.display = 'none';
       document.getElementById('details-section').style.display = 'block';
@@ -243,15 +192,9 @@ window.submitStudentRegistration = function() {
     } else {
       alert("❌ Error: " + data.message);
     }
-  })
-  .catch(() => {
-    alert("❌ Server connection error. Please try again.");
-  });
+  }).catch(() => alert("❌ Server connection error."));
 };
 
-// ==========================================================================
-// ✍️ EXAM LOGIN & STUDENT DETAILS PREVIEW BEFORE STARTING EXAM
-// ==========================================================================
 window.verifyStudentLoginAndStartExam = function() {
   const orgCode = document.getElementById("login-org-code").value.trim().toUpperCase();
   const roll = document.getElementById("login-roll").value.trim();
@@ -271,7 +214,6 @@ window.verifyStudentLoginAndStartExam = function() {
   .then(data => {
     if (data.status === "success") {
       studentSessionData = data.student;
-      
       document.getElementById("student-auth-box").classList.add("hidden");
       
       let previewBox = document.getElementById("student-details-preview-box");
@@ -293,12 +235,9 @@ window.verifyStudentLoginAndStartExam = function() {
         <button onclick="launchActualExam()" class="btn-submit" style="background: #1e3c72;">🚀 Start Exam Now</button>
       `;
     } else {
-      alert("❌ Login Failed: " + (data.message || "Invalid credentials. Password is Mother's first 2 capital letters + Roll No."));
+      alert("❌ Login Failed: " + (data.message || "Invalid credentials."));
     }
-  })
-  .catch(() => {
-    alert("❌ Server connection error during login.");
-  });
+  }).catch(() => alert("❌ Server connection error during login."));
 };
 
 window.launchActualExam = function() {
@@ -309,36 +248,18 @@ window.launchActualExam = function() {
   document.getElementById("exam-student-info").textContent = `Student: ${studentSessionData.studentName} (Class ${studentSessionData.studentClass})`;
   
   loadExamQuestions(studentSessionData.studentClass, studentSessionData.stream);
-  startExamTimer(30 * 60); // 30 Minutes
+  startExamTimer(30 * 60);
 };
 
 function loadExamQuestions(studentClass, stream) {
-  fetch(`${SERVER_URL}/api/student/questions?class=${studentClass}&stream=${stream || ''}`)
+  fetch(`${SERVER_URL}/api/student/questions`)
     .then(res => res.json())
     .then(data => {
       const qContainer = document.getElementById("exam-questions-list");
       if (!qContainer) return;
 
       if (data.status === "success" && data.questions && data.questions.length > 0) {
-        let classNum = parseInt(studentClass, 10);
-        let filteredQuestions = data.questions.filter(q => {
-          let range = q.classRange || "";
-          if (range === "3-5" && classNum >= 3 && classNum <= 5) return true;
-          if (range === "6-8" && classNum >= 6 && classNum <= 8) return true;
-          if (range === "9-10" && classNum >= 9 && classNum <= 10) return true;
-          if (range.includes("11-12") && classNum >= 11) {
-            if (range.includes("Maths") && stream === "Maths") return true;
-            if (range.includes("Science") && stream === "Science") return true;
-            if (!range.includes("Maths") && !range.includes("Science")) return true;
-          }
-          return false;
-        });
-
-        if (filteredQuestions.length === 0) {
-          filteredQuestions = data.questions;
-        }
-
-        currentExamQuestions = filteredQuestions;
+        currentExamQuestions = data.questions;
         qContainer.innerHTML = "";
         
         currentExamQuestions.forEach((q, idx) => {
@@ -356,7 +277,7 @@ function loadExamQuestions(studentClass, stream) {
           `;
         });
       } else {
-        qContainer.innerHTML = `<p style="color: #d9534f; text-align: center;">No questions available for Class ${studentClass} yet. Contact admin.</p>`;
+        qContainer.innerHTML = `<p style="color: #d9534f; text-align: center;">No questions available yet.</p>`;
       }
     });
 }
@@ -407,16 +328,13 @@ window.submitExamAnswers = function() {
   });
 };
 
-// ==========================================================================
-// 🏆 RESULT & SCORECARD VIEWER (WITH WORKING PRINT CERTIFICATE LAYOUT)
-// ==========================================================================
 window.fetchStudentResult = function() {
   const orgCode = document.getElementById("res-org-code").value.trim().toUpperCase();
   const roll = document.getElementById("res-roll").value.trim();
   const scorecardBox = document.getElementById("student-scorecard-box");
 
   if (!orgCode || !roll) {
-    alert("⚠️ Please enter School Code and Roll Number to fetch result.");
+    alert("⚠️ Please enter School Code and Roll Number.");
     return;
   }
 
@@ -446,18 +364,15 @@ window.fetchStudentResult = function() {
         </div>
       `;
     } else {
-      scorecardBox.innerHTML = `<p style="color: #d9534f; text-align: center; padding: 20px;">❌ ${data.message || "Result not declared yet or invalid roll number."}</p>`;
+      scorecardBox.innerHTML = `<p style="color: #d9534f; text-align: center; padding: 20px;">❌ ${data.message || "Result not available."}</p>`;
     }
   });
 };
 
 window.handlePaymentModeChange = (mode) => {
   const onlineSection = document.getElementById("online-payment-section");
-  if (mode === "online" && isOrganizerVerified) {
-    onlineSection.style.display = "block";
-  } else {
-    onlineSection.style.display = "none";
-  }
+  if (mode === "online" && isOrganizerVerified) onlineSection.style.display = "block";
+  else onlineSection.style.display = "none";
 };
 
 window.handleClassChange = (val) => {
