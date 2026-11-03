@@ -348,23 +348,22 @@ window.fetchStudentResult = function() {
     scorecardBox.style.display = "block";
     if (data.status === "success") {
       const resData = data.result;
+      // Certificate layout matching old design sequence: Name -> Class -> School Name
       scorecardBox.innerHTML = `
-        <div id="printable-scorecard" style="padding: 25px; color: #333; text-align: left;">
-          <h4 style="color: #1e3c72; margin-bottom: 12px; text-align: center;">✅ Official Olympiad Scorecard & Certificate</h4>
-          <p style="margin-bottom: 6px;"><strong>Student Name:</strong> ${resData.studentName}</p>
-          <p style="margin-bottom: 6px;"><strong>Class:</strong> ${resData.studentClass}</p>
-          <p style="margin-bottom: 6px;"><strong>Roll No:</strong> ${resData.rollNumber}</p>
-          <p style="margin-bottom: 6px;"><strong>Father's Name:</strong> ${resData.fatherName || 'N/A'}</p>
-          <p style="margin-bottom: 12px;"><strong>School Name:</strong> <span style="font-weight: bold; font-size: 14px;">${resData.schoolName || resData.orgCode}</span></p>
-          <hr style="border-color:#ccc; margin:12px 0;">
-          <p style="font-size: 16px; color: #1e3c72; text-align: center; margin-bottom: 6px;"><strong>Total Score:</strong> ${resData.score} Marks</p>
-          <p style="font-size: 14px; color: #d9534f; text-align: center; margin-bottom: 20px;"><strong>Percentage:</strong> ${resData.percentage || 0}%</p>
+        <div class="certificate-content-wrapper">
+          <div class="cert-student-name">${resData.studentName}</div>
+          <div class="cert-student-class">Class: ${resData.studentClass} ${resData.stream ? '(' + resData.stream + ')' : ''}</div>
+          <div class="cert-school-name">${resData.schoolName || resData.orgCode}</div>
           
-          <button onclick="window.print()" class="btn-submit no-print" style="background: #1e3c72;">🖨️ Print / Save Full Layout Certificate</button>
+          <div class="cert-score-details">
+            Score: ${resData.score} / ${resData.totalMarks || '--'} &nbsp;|&nbsp; Percentage: ${resData.percentage || 0}%
+          </div>
+          
+          <button onclick="window.print()" class="btn-submit no-print" style="background: #e2b76c; color: #000; width: auto; padding: 10px 25px; margin: 0 auto; display: block; font-weight: bold;">🖨️ Print / Save Certificate</button>
         </div>
       `;
     } else {
-      scorecardBox.innerHTML = `<p style="color: #d9534f; text-align: center; padding: 20px;">❌ ${data.message || "Result not available."}</p>`;
+      scorecardBox.innerHTML = `<p style="color: #d9534f; text-align: center; padding: 40px; background:#fff;">❌ ${data.message || "Result not available."}</p>`;
     }
   });
 };
