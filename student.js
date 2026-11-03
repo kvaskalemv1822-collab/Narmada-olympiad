@@ -349,14 +349,14 @@ window.fetchStudentResult = function() {
     if (data.status === "success") {
       const resData = data.result;
       
-      // Clean certificate layout: Name -> Class -> School Name (No marks/percentage) + Print Button
+      // Zero margin clean certificate layout: Name -> Class -> School Name + Download Button
       scorecardBox.innerHTML = `
         <div class="certificate-content-wrapper">
           <div class="cert-student-name">${resData.studentName}</div>
           <div class="cert-student-class">Class: ${resData.studentClass} ${resData.stream ? '(' + resData.stream + ')' : ''}</div>
           <div class="cert-school-name">${resData.schoolName || resData.orgCode}</div>
           
-          <button onclick="window.print()" class="btn-submit no-print" style="background: #e2b76c; color: #000; width: auto; padding: 10px 25px; margin: 25px auto 0 auto; display: block; font-weight: bold; cursor: pointer;">🖨️ Print / Save Certificate</button>
+          <button onclick="window.print()" class="cert-download-btn no-print">📥 Download / Print Certificate</button>
         </div>
       `;
     } else {
