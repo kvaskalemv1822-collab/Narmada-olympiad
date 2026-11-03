@@ -129,12 +129,12 @@ input, select, textarea {
 }
 
 /* ==========================================================================
-   🏆 EXACT CERTIFICATE CARD & OVERLAY (Georgia Font & Single Page Fit)
+   🏆 EXACT CERTIFICATE CARD & OVERLAY (Italic Georgia Font & Single Page Fit)
    ========================================================================== */
 #student-scorecard-box {
   position: relative;
   width: 100%;
-  max-width: 850px;
+  max-width: 800px;
   aspect-ratio: 2000 / 1414;
   margin: 5px auto;
   border-radius: 12px;
@@ -142,15 +142,17 @@ input, select, textarea {
   background: #000000;
   box-shadow: 0 10px 30px rgba(0,0,0,0.35);
   background-image: url('certificate-template.png');
-  background-size: cover;
+  background-size: 100% 100%;
   background-position: center;
+  background-repeat: no-repeat;
 }
 
 .cert-text-overlay {
   position: absolute;
-  top: 45%; 
-  left: 0; 
-  width: 100%; 
+  top: 48%; 
+  left: 52%; 
+  transform: translate(-50%, -50%);
+  width: 70%; 
   display: flex; 
   flex-direction: column;
   align-items: center; 
@@ -161,28 +163,28 @@ input, select, textarea {
 
 .cert-student-name {
   font-family: 'Georgia', serif;
-  font-size: min(7vw, 42px);
+  font-style: italic; /* Student name in Italic style */
+  font-size: min(6.5vw, 40px);
   font-weight: 700;
-  color: #C48067;
-  margin: 0 0 6px 0;
+  color: #e2b76c; /* Matching Gold Tone */
+  margin: 0 0 8px 0;
   text-transform: capitalize;
+  line-height: 1.2;
 }
 
 .cert-student-class {
   font-family: 'Georgia', serif;
-  font-size: clamp(13px, 2.1vw, 19px);
-  font-weight: 700;
-  color: #ffffff !important;
-  text-shadow: 0 2px 4px rgba(0,0,0,0.8);
-  margin: 0 0 4px 0;
+  font-size: clamp(13px, 2.1vw, 18px);
+  font-weight: 600;
+  color: #f3f4f6;
+  margin: 0 0 6px 0;
 }
 
 .cert-school-name {
   font-family: 'Georgia', serif;
-  font-size: clamp(12px, 1.9vw, 17px);
-  font-weight: 650;
-  color: #DAB963 !important;
-  text-shadow: 0 2px 4px rgba(0,0,0,0.8);
+  font-size: clamp(12px, 1.9vw, 16px);
+  font-weight: 700;
+  color: #facc15;
   margin: 0;
   text-transform: uppercase;
 }
@@ -193,7 +195,7 @@ input, select, textarea {
   color: #000; 
   width: auto; 
   padding: 10px 24px; 
-  margin: 10px auto; 
+  margin: 15px auto; 
   display: block; 
   font-weight: bold; 
   cursor: pointer;
@@ -243,7 +245,8 @@ input, select, textarea {
     margin: 0 !important;
     border-radius: 0 !important;
     box-shadow: none !important;
-    background-size: cover !important;
+    background-image: url('certificate-template.png') !important;
+    background-size: 100% 100% !important;
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
     page-break-inside: avoid !important;
