@@ -149,8 +149,8 @@ input, select, textarea {
 /* Certificate Text Container - Perfectly Centered to Avoid Overlap */
 .certificate-content-wrapper {
   position: absolute;
-  top: 62%; 
-  left: 54%; /* Medal area ko chhor kar center alignment */
+  top: 58%; 
+  left: 50%; /* Medal area ko chhor kar center alignment */
   transform: translate(-50%, -50%);
   width: 65%;
   text-align: center;
