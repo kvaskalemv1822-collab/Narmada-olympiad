@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>NVMSO - Student Portal 2026</title>
-  <link rel="stylesheet" href="student.css?v=16">
+  <link rel="stylesheet" href="student.css?v=18">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 </head>
 <body>
@@ -14,7 +14,7 @@
   <div class="subtitle">Official Student Portal & Examination Hub</div>
   <div id="portal-status-msg" class="status-msg">Connecting to secure server...</div>
 
-  <!-- VIEW 1: REGISTRATION COMPONENT (Visible only when Registration is Open) -->
+  <!-- VIEW 1: REGISTRATION COMPONENT -->
   <div id="registration-view" class="hidden">
     <form id="reg-form">
       
@@ -79,7 +79,7 @@
         <button type="button" class="btn-submit" onclick="validateAndShowPayment()">Confirm Details & Proceed to Payment ➡</button>
       </div>
 
-      <!-- STEP 2: PAYMENT & SUBMISSION SECTION (NO UTR REQUIRED) -->
+      <!-- STEP 2: PAYMENT & TERMS SECTION -->
       <div id="payment-section" style="display:none;">
         <div class="form-group" style="margin-bottom:12px;">
           <label>Payment Mode:</label>
@@ -93,13 +93,19 @@
           <button type="button" class="btn-submit" style="background:#0284c7; margin-bottom:10px;" onclick="openDirectUpiApp()">⚡ Pay via UPI App (GPay / PhonePe / Paytm)</button>
           <button type="button" class="btn-submit" style="background:#1e293b; color:#fff; margin-bottom:12px; border:1px solid #475569;" onclick="toggleQrDisplay()">📱 View / Hide QR Code (Alternative)</button>
           <div id="dynamic-qr-container" style="display:none; justify-content:center; margin-bottom:12px;"></div>
-          <p style="font-size: 12px; color: #1e3c72; font-weight: bold; margin-top: 8px;">ℹ️ Direct Online Payment: No UTR required. Simply pay via UPI and complete registration.</p>
+          
+          <!-- OPTIONAL UTR FIELD -->
+          <div class="form-group" style="margin-top: 10px;">
+            <label style="color: #fcd34d;">Enter UTR / Transaction Reference No (Optional):</label>
+            <input type="text" id="std-utr" placeholder="Optional: Enter 12-digit UTR if paying online" maxlength="12">
+          </div>
         </div>
 
+        <!-- TERMS & CONDITIONS CHECKBOX & UPLOADED FILE LINK -->
         <div style="display: flex; align-items: flex-start; gap: 10px; margin-bottom: 20px; background: rgba(2, 6, 23, 0.6); padding: 12px; border-radius: 8px; border: 1px solid #334155;">
           <input type="checkbox" id="terms-checkbox" onchange="toggleSubmitButton()" style="width: 20px; height: 20px; cursor: pointer; margin-top: 2px;">
           <label for="terms-checkbox" style="font-size: 12px; color: #cbd5e1; cursor: pointer; line-height: 1.4;">
-            I confirm that my details are correct and I agree to the terms. Password format: Mother's first 2 capital letters + Roll Number.
+            I confirm that my details are correct and I agree to the <a href="terms.html" target="_blank" style="color: #38bdf8; text-decoration: underline;">Terms & Conditions / Policy</a>. Password format: Mother's first 2 capital letters + Roll Number.
           </label>
         </div>
 
@@ -112,7 +118,7 @@
     </form>
   </div>
 
-  <!-- VIEW 2: EXAM LOGIN & ASSESSMENT ENGINE (DOUBLE EXAM BLOCKED) -->
+  <!-- VIEW 2: EXAM LOGIN -->
   <div id="exam-login-view" class="hidden">
     <div id="student-auth-box" class="score-card" style="text-align: left;">
       <h3 style="color: #38bdf8; font-size: 16px; margin-bottom: 15px; text-align: center;">🔐 Student Online Exam Login</h3>
@@ -141,7 +147,7 @@
     </div>
   </div>
 
-  <!-- VIEW 3: RESULT VIEWER & CERTIFICATE DOWNLOAD -->
+  <!-- VIEW 3: RESULT & CERTIFICATE -->
   <div id="result-view" class="hidden">
     <div class="score-card" style="text-align: left;">
       <h3 style="color: #facc15; font-size: 16px; margin-bottom: 15px; text-align: center;">🏆 Check Olympiad Result & Scorecard</h3>
@@ -155,13 +161,13 @@
       </div>
       <button onclick="fetchStudentResult()" class="btn-submit" style="background: #0284c7;">🔍 Fetch Scorecard & Certificate</button>
       
-      <!-- CERTIFICATE & SCORECARD CONTAINER WITH SMALL 'c' ASSET LINK -->
+      <!-- CERTIFICATE BACKGROUND LINKED WITH SMALL 'c' -->
       <div id="student-scorecard-box" style="margin-top: 20px; display: none; background-image: url('certificate-template.png'); background-size: cover; background-position: center; border-radius: 10px;"></div>
     </div>
   </div>
 
 </div>
 
-<script src="student.js?v=16"></script>
+<script src="student.js?v=18"></script>
 </body>
 </html>
