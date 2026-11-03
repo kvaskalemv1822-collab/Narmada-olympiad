@@ -129,54 +129,54 @@ input, select, textarea {
 }
 
 /* ==========================================================================
-   🏆 EXACT MATCH LANDSCAPE CERTIFICATE (2000px x 1414px) WITH BLACK THEME
+   🏆 FULL LANDSCAPE CERTIFICATE (2000px x 1414px) ZERO MARGIN CSS
    ========================================================================== */
 #student-scorecard-box {
   position: relative;
   width: 100%;
-  max-width: 950px;
+  max-width: 1000px;
   aspect-ratio: 2000 / 1414; /* Exact Landscape Proportions */
-  margin: 20px auto;
+  margin: 10px auto;
   background-image: url('certificate-template.png');
-  background-size: cover;
+  background-size: 100% 100%;
   background-position: center;
   background-repeat: no-repeat;
-  border-radius: 10px;
-  box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+  border-radius: 0px;
+  box-shadow: 0 5px 20px rgba(0,0,0,0.3);
   overflow: hidden;
 }
 
-/* Certificate Text Container - Precisely Positioned to Avoid Overlap */
+/* Certificate Text Container - Perfectly Centered to Avoid Overlap */
 .certificate-content-wrapper {
   position: absolute;
-  top: 52%;
-  left: 54%; /* Balanced offset from left medal design */
+  top: 55%; 
+  left: 54%; /* Medal area ko chhor kar center alignment */
   transform: translate(-50%, -50%);
-  width: 60%;
+  width: 65%;
   text-align: center;
 }
 
 .cert-student-name {
   font-size: 32px;
   font-weight: 700;
-  color: #e2b76c; /* Elegant Gold Tone matching certificate frame */
-  margin-bottom: 10px;
+  color: #e2b76c; /* Gold Tone */
+  margin-bottom: 6px;
   text-transform: capitalize;
   font-family: 'Georgia', serif;
   font-style: italic;
-  letter-spacing: 0.5px;
+  line-height: 1.2;
 }
 
 .cert-student-class {
-  font-size: 18px;
+  font-size: 17px;
   font-weight: 600;
   color: #f3f4f6;
-  margin-bottom: 8px;
+  margin-bottom: 6px;
   font-family: 'Georgia', serif;
 }
 
 .cert-school-name {
-  font-size: 20px;
+  font-size: 19px;
   font-weight: 700;
   color: #facc15;
   margin-bottom: 15px;
@@ -184,14 +184,27 @@ input, select, textarea {
   font-family: 'Georgia', serif;
 }
 
-.cert-score-details {
-  font-size: 14px;
-  font-weight: 500;
-  color: #94a3b8;
-  margin-bottom: 15px;
+/* Download / Print Button Styling */
+.cert-download-btn {
+  background: #e2b76c; 
+  color: #000; 
+  width: auto; 
+  padding: 10px 24px; 
+  margin: 5px auto 0 auto; 
+  display: inline-block; 
+  font-weight: bold; 
+  cursor: pointer;
+  border: none;
+  border-radius: 6px;
+  font-size: 15px;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.2);
 }
 
-/* Print Configuration for Zero Margin & Landscape */
+.cert-download-btn:hover {
+  background: #facc15;
+}
+
+/* Print & Download Configuration for Zero Margin & Full Landscape */
 @media print {
   @page {
     size: landscape;
