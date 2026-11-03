@@ -349,15 +349,14 @@ window.fetchStudentResult = function() {
     if (data.status === "success") {
       const resData = data.result;
       
-      // Zero margin clean certificate layout: Name -> Class -> School Name + Download Button
+      // Clean certificate layout: Name -> Class -> School Name + Download Button outside container
       scorecardBox.innerHTML = `
         <div class="certificate-content-wrapper">
           <div class="cert-student-name">${resData.studentName}</div>
           <div class="cert-student-class">Class: ${resData.studentClass} ${resData.stream ? '(' + resData.stream + ')' : ''}</div>
           <div class="cert-school-name">${resData.schoolName || resData.orgCode}</div>
-          
-          <button onclick="window.print()" class="cert-download-btn no-print">📥 Download / Print Certificate</button>
         </div>
+        <button onclick="window.print()" class="cert-download-btn no-print">📥 Download / Print Certificate</button>
       `;
     } else {
       scorecardBox.innerHTML = `<p style="color: #d9534f; text-align: center; padding: 40px; background:#fff;">❌ ${data.message || "Result not available."}</p>`;
