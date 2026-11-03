@@ -349,16 +349,26 @@ window.fetchStudentResult = function() {
     if (data.status === "success") {
       const resData = data.result;
       
-      // Exact overlay layout matching your snippet + Print button outside
       scorecardBox.innerHTML = `
-        <div class="cert-text-overlay">
-          <h2 class="cert-student-name">${resData.studentName}</h2>
-          <div class="cert-student-class">Class: ${resData.studentClass} ${resData.stream ? '(' + resData.stream + ')' : ''}</div>
-          <div class="cert-school-name">${resData.schoolName || resData.orgCode}</div>
+        <div style="margin-bottom: 20px; text-align: left; background: rgba(15, 23, 42, 0.9); padding: 15px; border-radius: 8px; border: 1px solid #334155;">
+          <h4 style="color: #facc15; margin-bottom: 8px; text-align: center;">📊 Student Scorecard Summary</h4>
+          <p><strong>Name:</strong> ${resData.studentName}</p>
+          <p><strong>Class:</strong> ${resData.studentClass} ${resData.stream ? '(' + resData.stream + ')' : ''}</p>
+          <p><strong>Roll No:</strong> ${resData.rollNumber}</p>
+          <p><strong>School:</strong> ${resData.schoolName || resData.orgCode}</p>
+          <p><strong>Marks Obtained:</strong> <span style="color: #10b981; font-weight: bold;">${resData.score} / ${resData.total || '100'}</span></p>
+          <p><strong>Percentage:</strong> <span style="color: #38bdf8; font-weight: bold;">${resData.percentage || '--'}%</span></p>
+        </div>
+
+        <div class="certificate-wrapper">
+          <div class="cert-text-overlay">
+            <h2 class="cert-student-name">${resData.studentName}</h2>
+            <div class="cert-student-class">Class: ${resData.studentClass} ${resData.stream ? '(' + resData.stream + ')' : ''}</div>
+            <div class="cert-school-name">${resData.schoolName || resData.orgCode}</div>
+          </div>
         </div>
       `;
       
-      // Append print button right below certificate container if not already there
       let existingBtn = document.getElementById("dynamic-cert-print-btn");
       if (!existingBtn) {
         const btnHtml = document.createElement("button");
