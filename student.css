@@ -171,7 +171,7 @@ input:focus, select:focus {
     padding: 0 !important;
   }
   
-  .container, .score-card, #student-scorecard-box {
+  .container, .score-card {
     background: #ffffff !important;
     color: #000000 !important;
     border: none !important;
@@ -180,6 +180,18 @@ input:focus, select:focus {
     max-width: 100% !important;
     margin: 0 !important;
     padding: 10px !important;
+  }
+
+  /* Ensures GitHub certificate template background prints correctly */
+  #student-scorecard-box {
+    background: #ffffff !important;
+    background-image: url('certificate-template.png') !important;
+    background-size: cover !important;
+    background-position: center !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+    width: 100% !important;
+    min-height: 500px !important;
   }
 
   .no-print {
