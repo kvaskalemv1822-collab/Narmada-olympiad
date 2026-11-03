@@ -361,6 +361,7 @@ window.fetchStudentResult = function() {
         </div>
 
         <div class="certificate-wrapper">
+          <img src="certificate-template.png" alt="Certificate" class="cert-img">
           <div class="cert-text-overlay">
             <h2 class="cert-student-name">${resData.studentName}</h2>
             <div class="cert-student-class">Class: ${resData.studentClass} ${resData.stream ? '(' + resData.stream + ')' : ''}</div>
