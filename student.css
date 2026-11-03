@@ -129,27 +129,20 @@ input, select, textarea {
 }
 
 /* ==========================================================================
-   🏆 100% FIXED LANDSCAPE CERTIFICATE CSS (NO DUPLICATION / NO CUTTING)
+   🏆 CERTIFICATE CONTAINER & ITALIC GEORGIA FONT OVERLAY
    ========================================================================== */
-#student-scorecard-box {
-    position: absolute !important;
-    top: 0 !important;
-    left: 0 !important;
-    width: 100vw !important;
-    height: 68vw !important; /* Height thodi kam kar di hai taaki niche ka hissa na kate */
-    max-width: none !important;
-    max-height: 100vh !important;
-    margin: 0 !important;
-    border-radius: 0 !important;
-    box-shadow: none !important;
-    background-image: url('certificate-template.png') !important;
-    background-size: 100% 100% !important;
-    -webkit-print-color-adjust: exact !important;
-    print-color-adjust: exact !important;
-    page-break-inside: avoid !important;
-    break-inside: avoid !important;
-    page-break-after: avoid !important;
-    page-break-before: avoid !important;
+.certificate-wrapper {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 2000 / 1414;
+  background-image: url('certificate-template.png');
+  background-size: 100% 100%;
+  background-position: center;
+  background-repeat: no-repeat;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 5px 20px rgba(0,0,0,0.3);
+  margin-top: 15px;
 }
 
 .cert-text-overlay {
@@ -168,7 +161,7 @@ input, select, textarea {
 
 .cert-student-name {
   font-family: 'Georgia', serif;
-  font-style: italic;
+  font-style: italic; /* Italic Georgia font */
   font-size: min(6.5vw, 40px);
   font-weight: 700;
   color: #e2b76c;
@@ -215,7 +208,7 @@ input, select, textarea {
 }
 
 /* ==========================================================================
-   🖨️ PERFECT PRINT CONFIG (NO REPEAT / SINGLE PAGE LANDSCAPE)
+   🖨️ PERFECT PRINT CONFIG (NO CUTTING / FULL A4 LANDSCAPE FIT)
    ========================================================================== */
 @media print {
   @page {
@@ -241,13 +234,27 @@ input, select, textarea {
   }
 
   #student-scorecard-box {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    max-width: none !important;
+    max-height: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    background: transparent !important;
+    z-index: 999999 !important;
+  }
+
+  .certificate-wrapper {
     position: absolute !important;
     top: 0 !important;
     left: 0 !important;
     width: 100vw !important;
-    height: 70.7vw !important; /* Exact A4 Landscape Proportion (1414/2000 = 0.707) */
-    max-width: none !important;
-    max-height: 100vh !important;
+    height: 100vh !important;
     margin: 0 !important;
     border-radius: 0 !important;
     box-shadow: none !important;
@@ -261,7 +268,7 @@ input, select, textarea {
     page-break-before: avoid !important;
   }
 
-  .no-print, .cert-download-btn {
+  .no-print, .cert-download-btn, #student-scorecard-box > div:first-child {
     display: none !important;
   }
 }
