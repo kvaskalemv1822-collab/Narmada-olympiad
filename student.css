@@ -129,14 +129,14 @@ input, select, textarea {
 }
 
 /* ==========================================================================
-   🏆 EXACT CERTIFICATE CARD & OVERLAY (From Your Code)
+   🏆 EXACT CERTIFICATE CARD & OVERLAY (Georgia Font & Single Page Fit)
    ========================================================================== */
 #student-scorecard-box {
   position: relative;
   width: 100%;
-  max-width: 850px;
+  max-width: 800px;
   aspect-ratio: 2000 / 1414;
-  margin: 20px auto;
+  margin: 5px auto;
   border-radius: 12px;
   overflow: hidden;
   background: #000000;
@@ -160,24 +160,26 @@ input, select, textarea {
 }
 
 .cert-student-name {
-  font-family: 'Alex Brush', cursive, Georgia, serif;
-  font-size: min(8vw, 56px);
+  font-family: 'Georgia', serif;
+  font-size: min(7vw, 42px);
   font-weight: 700;
   color: #C48067;
-  margin: 0 0 8px 0;
+  margin: 0 0 6px 0;
   text-transform: capitalize;
 }
 
 .cert-student-class {
-  font-size: clamp(14px, 2.3vw, 21px);
+  font-family: 'Georgia', serif;
+  font-size: clamp(13px, 2.1vw, 19px);
   font-weight: 700;
   color: #ffffff !important;
   text-shadow: 0 2px 4px rgba(0,0,0,0.8);
-  margin: 0 0 6px 0;
+  margin: 0 0 4px 0;
 }
 
 .cert-school-name {
-  font-size: clamp(13px, 2.1vw, 19px);
+  font-family: 'Georgia', serif;
+  font-size: clamp(12px, 1.9vw, 17px);
   font-weight: 600;
   color: #DAB963 !important;
   text-shadow: 0 2px 4px rgba(0,0,0,0.8);
@@ -190,14 +192,14 @@ input, select, textarea {
   background: #e2b76c; 
   color: #000; 
   width: auto; 
-  padding: 12px 28px; 
-  margin: 20px auto; 
+  padding: 10px 24px; 
+  margin: 10px auto; 
   display: block; 
   font-weight: bold; 
   cursor: pointer;
   border: none;
   border-radius: 6px;
-  font-size: 16px;
+  font-size: 15px;
   box-shadow: 0 4px 10px rgba(0,0,0,0.3);
 }
 
@@ -206,7 +208,7 @@ input, select, textarea {
 }
 
 /* ==========================================================================
-   🖨️ SINGLE PAGE PRINT FIX (PREVENTS 2 TUKDE)
+   🖨️ STRICT SINGLE PAGE PRINT FIX (PREVENTS 2 PAGES / TUKDE)
    ========================================================================== */
 @media print {
   @page {
@@ -246,6 +248,7 @@ input, select, textarea {
     print-color-adjust: exact !important;
     page-break-inside: avoid !important;
     break-inside: avoid !important;
+    page-break-after: avoid !important;
   }
 
   .no-print, .cert-download-btn {
