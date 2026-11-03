@@ -134,7 +134,7 @@ input, select, textarea {
 #student-scorecard-box {
   position: relative;
   width: 100%;
-  max-width: 900px;
+  max-width: 950px;
   aspect-ratio: 2000 / 1414; /* Exact Landscape Proportions */
   margin: 20px auto;
   background-image: url('certificate-template.png');
@@ -146,24 +146,25 @@ input, select, textarea {
   overflow: hidden;
 }
 
-/* Certificate Text Container - Center Aligned Sequence: Name -> Class -> School */
+/* Certificate Text Container - Precisely Positioned to Avoid Overlap */
 .certificate-content-wrapper {
   position: absolute;
-  top: 50%;
-  left: 55%; /* Offset to balance left-side medal placement */
+  top: 52%;
+  left: 54%; /* Balanced offset from left medal design */
   transform: translate(-50%, -50%);
-  width: 65%;
+  width: 60%;
   text-align: center;
 }
 
 .cert-student-name {
-  font-size: 30px;
+  font-size: 32px;
   font-weight: 700;
-  color: #e2b76c; /* Elegant Gold Tone */
-  margin-bottom: 12px;
+  color: #e2b76c; /* Elegant Gold Tone matching certificate frame */
+  margin-bottom: 10px;
   text-transform: capitalize;
   font-family: 'Georgia', serif;
   font-style: italic;
+  letter-spacing: 0.5px;
 }
 
 .cert-student-class {
@@ -175,7 +176,7 @@ input, select, textarea {
 }
 
 .cert-school-name {
-  font-size: 19px;
+  font-size: 20px;
   font-weight: 700;
   color: #facc15;
   margin-bottom: 15px;
@@ -186,7 +187,7 @@ input, select, textarea {
 .cert-score-details {
   font-size: 14px;
   font-weight: 500;
-  color: #cbd5e1;
+  color: #94a3b8;
   margin-bottom: 15px;
 }
 
