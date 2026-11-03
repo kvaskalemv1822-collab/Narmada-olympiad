@@ -348,18 +348,15 @@ window.fetchStudentResult = function() {
     scorecardBox.style.display = "block";
     if (data.status === "success") {
       const resData = data.result;
-      // Certificate layout matching old design sequence: Name -> Class -> School Name
+      
+      // Clean certificate layout: Name -> Class -> School Name (No marks/percentage) + Print Button
       scorecardBox.innerHTML = `
         <div class="certificate-content-wrapper">
           <div class="cert-student-name">${resData.studentName}</div>
           <div class="cert-student-class">Class: ${resData.studentClass} ${resData.stream ? '(' + resData.stream + ')' : ''}</div>
           <div class="cert-school-name">${resData.schoolName || resData.orgCode}</div>
           
-          <div class="cert-score-details">
-            Score: ${resData.score} / ${resData.totalMarks || '--'} &nbsp;|&nbsp; Percentage: ${resData.percentage || 0}%
-          </div>
-          
-          <button onclick="window.print()" class="btn-submit no-print" style="background: #e2b76c; color: #000; width: auto; padding: 10px 25px; margin: 0 auto; display: block; font-weight: bold;">🖨️ Print / Save Certificate</button>
+          <button onclick="window.print()" class="btn-submit no-print" style="background: #e2b76c; color: #000; width: auto; padding: 10px 25px; margin: 25px auto 0 auto; display: block; font-weight: bold; cursor: pointer;">🖨️ Print / Save Certificate</button>
         </div>
       `;
     } else {
