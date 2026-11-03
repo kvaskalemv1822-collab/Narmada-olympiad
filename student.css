@@ -149,7 +149,7 @@ input, select, textarea {
 /* Certificate Text Container - Perfectly Centered to Avoid Overlap */
 .certificate-content-wrapper {
   position: absolute;
-  top: 55%; 
+  top: 62%; 
   left: 54%; /* Medal area ko chhor kar center alignment */
   transform: translate(-50%, -50%);
   width: 65%;
