@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>NVMSO - Student Portal 2026</title>
-  <link rel="stylesheet" href="student.css?v=15">
+  <link rel="stylesheet" href="student.css?v=16">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 </head>
 <body>
@@ -79,7 +79,7 @@
         <button type="button" class="btn-submit" onclick="validateAndShowPayment()">Confirm Details & Proceed to Payment ➡</button>
       </div>
 
-      <!-- STEP 2: PAYMENT & SUBMISSION SECTION -->
+      <!-- STEP 2: PAYMENT & SUBMISSION SECTION (NO UTR REQUIRED) -->
       <div id="payment-section" style="display:none;">
         <div class="form-group" style="margin-bottom:12px;">
           <label>Payment Mode:</label>
@@ -93,11 +93,7 @@
           <button type="button" class="btn-submit" style="background:#0284c7; margin-bottom:10px;" onclick="openDirectUpiApp()">⚡ Pay via UPI App (GPay / PhonePe / Paytm)</button>
           <button type="button" class="btn-submit" style="background:#1e293b; color:#fff; margin-bottom:12px; border:1px solid #475569;" onclick="toggleQrDisplay()">📱 View / Hide QR Code (Alternative)</button>
           <div id="dynamic-qr-container" style="display:none; justify-content:center; margin-bottom:12px;"></div>
-          
-          <div class="form-group">
-            <label style="color:#f87171;">Enter 12-Digit UTR / Transaction Reference No:</label>
-            <input type="text" id="std-utr" placeholder="Enter 12-digit UTR" maxlength="12">
-          </div>
+          <p style="font-size: 12px; color: #1e3c72; font-weight: bold; margin-top: 8px;">ℹ️ Direct Online Payment: No UTR required. Simply pay via UPI and complete registration.</p>
         </div>
 
         <div style="display: flex; align-items: flex-start; gap: 10px; margin-bottom: 20px; background: rgba(2, 6, 23, 0.6); padding: 12px; border-radius: 8px; border: 1px solid #334155;">
@@ -116,7 +112,7 @@
     </form>
   </div>
 
-  <!-- VIEW 2: EXAM LOGIN & ASSESSMENT ENGINE -->
+  <!-- VIEW 2: EXAM LOGIN & ASSESSMENT ENGINE (DOUBLE EXAM BLOCKED) -->
   <div id="exam-login-view" class="hidden">
     <div id="student-auth-box" class="score-card" style="text-align: left;">
       <h3 style="color: #38bdf8; font-size: 16px; margin-bottom: 15px; text-align: center;">🔐 Student Online Exam Login</h3>
@@ -145,7 +141,7 @@
     </div>
   </div>
 
-  <!-- VIEW 3: RESULT VIEWER -->
+  <!-- VIEW 3: RESULT VIEWER & CERTIFICATE DOWNLOAD -->
   <div id="result-view" class="hidden">
     <div class="score-card" style="text-align: left;">
       <h3 style="color: #facc15; font-size: 16px; margin-bottom: 15px; text-align: center;">🏆 Check Olympiad Result & Scorecard</h3>
@@ -159,13 +155,13 @@
       </div>
       <button onclick="fetchStudentResult()" class="btn-submit" style="background: #0284c7;">🔍 Fetch Scorecard & Certificate</button>
       
-      <!-- CERTIFICATE & SCORECARD CONTAINER LINKED WITH GITHUB ASSETS -->
-      <div id="student-scorecard-box" style="margin-top: 20px; display: none; background-image: url('Certificate-template.png'); background-size: cover; background-position: center; border-radius: 10px;"></div>
+      <!-- CERTIFICATE & SCORECARD CONTAINER WITH SMALL 'c' ASSET LINK -->
+      <div id="student-scorecard-box" style="margin-top: 20px; display: none; background-image: url('certificate-template.png'); background-size: cover; background-position: center; border-radius: 10px;"></div>
     </div>
   </div>
 
 </div>
 
-<script src="student.js?v=15"></script>
+<script src="student.js?v=16"></script>
 </body>
 </html>
