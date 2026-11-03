@@ -1,5 +1,5 @@
 /* ==========================================================================
-   NVMSO STUDENT PORTAL - LIGHT THEME & CERTIFICATE MATCHING CSS
+   NVMSO STUDENT PORTAL - LIGHT THEME & EXACT CERTIFICATE CSS
    ========================================================================== */
 * { 
   box-sizing: border-box; 
@@ -129,59 +129,60 @@ input, select, textarea {
 }
 
 /* ==========================================================================
-   🏆 EXACT 2000x1414 LANDSCAPE CERTIFICATE (SINGLE PAGE PRINT FIX)
+   🏆 EXACT CERTIFICATE CARD & OVERLAY (From Your Code)
    ========================================================================== */
 #student-scorecard-box {
   position: relative;
   width: 100%;
-  max-width: 950px;
-  aspect-ratio: 2000 / 1414; /* Exact Landscape Proportions */
-  margin: 10px auto;
-  background-image: url('certificate-template.png');
-  background-size: 100% 100%;
-  background-position: center;
-  background-repeat: no-repeat;
-  border-radius: 0px;
-  box-shadow: 0 5px 20px rgba(0,0,0,0.3);
+  max-width: 850px;
+  aspect-ratio: 2000 / 1414;
+  margin: 20px auto;
+  border-radius: 12px;
   overflow: hidden;
+  background: #000000;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.35);
+  background-image: url('certificate-template.png');
+  background-size: cover;
+  background-position: center;
 }
 
-/* Certificate Text Container - Precisely Positioned */
-.certificate-content-wrapper {
+.cert-text-overlay {
   position: absolute;
-  top: 62%; 
-  left: 54%; 
-  transform: translate(-50%, -50%);
-  width: 65%;
+  top: 45%; 
+  left: 0; 
+  width: 100%; 
+  display: flex; 
+  flex-direction: column;
+  align-items: center; 
   text-align: center;
+  z-index: 5;
+  pointer-events: none;
 }
 
 .cert-student-name {
-  font-size: 32px;
+  font-family: 'Alex Brush', cursive, Georgia, serif;
+  font-size: min(8vw, 56px);
   font-weight: 700;
-  color: #e2b76c; /* Gold Tone */
-  margin-bottom: 6px;
+  color: #C48067;
+  margin: 0 0 8px 0;
   text-transform: capitalize;
-  font-family: 'Georgia', serif;
-  font-style: italic;
-  line-height: 1.2;
 }
 
 .cert-student-class {
-  font-size: 17px;
-  font-weight: 600;
-  color: #f3f4f6;
-  margin-bottom: 6px;
-  font-family: 'Georgia', serif;
+  font-size: clamp(14px, 2.3vw, 21px);
+  font-weight: 700;
+  color: #ffffff !important;
+  text-shadow: 0 2px 4px rgba(0,0,0,0.8);
+  margin: 0 0 6px 0;
 }
 
 .cert-school-name {
-  font-size: 19px;
-  font-weight: 700;
-  color: #facc15;
-  margin-bottom: 10px;
+  font-size: clamp(13px, 2.1vw, 19px);
+  font-weight: 600;
+  color: #DAB963 !important;
+  text-shadow: 0 2px 4px rgba(0,0,0,0.8);
+  margin: 0;
   text-transform: uppercase;
-  font-family: 'Georgia', serif;
 }
 
 /* Download / Print Button Styling */
@@ -190,7 +191,7 @@ input, select, textarea {
   color: #000; 
   width: auto; 
   padding: 12px 28px; 
-  margin: 25px auto 10px auto; 
+  margin: 20px auto; 
   display: block; 
   font-weight: bold; 
   cursor: pointer;
@@ -205,7 +206,7 @@ input, select, textarea {
 }
 
 /* ==========================================================================
-   🖨️ LANDSCAPE PRINT CONFIG (PREVENTS PAGE SPLITTING / 2 TUKDE)
+   🖨️ SINGLE PAGE PRINT FIX (PREVENTS 2 TUKDE)
    ========================================================================== */
 @media print {
   @page {
@@ -237,12 +238,10 @@ input, select, textarea {
     width: 100vw !important;
     height: 100vh !important;
     max-width: none !important;
-    max-height: 100vh !important;
     margin: 0 !important;
     border-radius: 0 !important;
     box-shadow: none !important;
-    background-image: url('certificate-template.png') !important;
-    background-size: 100% 100% !important;
+    background-size: cover !important;
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
     page-break-inside: avoid !important;
