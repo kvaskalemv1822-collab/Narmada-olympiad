@@ -129,12 +129,12 @@ input, select, textarea {
 }
 
 /* ==========================================================================
-   🏆 FULL LANDSCAPE CERTIFICATE (2000px x 1414px) ZERO MARGIN & ALIGNMENT
+   🏆 EXACT 2000x1414 LANDSCAPE CERTIFICATE (SINGLE PAGE PRINT FIX)
    ========================================================================== */
 #student-scorecard-box {
   position: relative;
   width: 100%;
-  max-width: 1000px;
+  max-width: 950px;
   aspect-ratio: 2000 / 1414; /* Exact Landscape Proportions */
   margin: 10px auto;
   background-image: url('certificate-template.png');
@@ -143,14 +143,14 @@ input, select, textarea {
   background-repeat: no-repeat;
   border-radius: 0px;
   box-shadow: 0 5px 20px rgba(0,0,0,0.3);
-  overflow: visible;
+  overflow: hidden;
 }
 
-/* Certificate Text Container - Positioned precisely to avoid overlapping */
+/* Certificate Text Container - Precisely Positioned */
 .certificate-content-wrapper {
   position: absolute;
-  top: 58%; 
-  left: 50%; 
+  top: 62%; 
+  left: 54%; 
   transform: translate(-50%, -50%);
   width: 65%;
   text-align: center;
@@ -184,7 +184,7 @@ input, select, textarea {
   font-family: 'Georgia', serif;
 }
 
-/* Download / Print Button Styling - Certificate ke bahar niche alag se */
+/* Download / Print Button Styling */
 .cert-download-btn {
   background: #e2b76c; 
   color: #000; 
@@ -205,11 +205,11 @@ input, select, textarea {
 }
 
 /* ==========================================================================
-   🖨️ CRITICAL PRINT & BLANK PAGE FIX MEDIA QUERY
+   🖨️ LANDSCAPE PRINT CONFIG (PREVENTS PAGE SPLITTING / 2 TUKDE)
    ========================================================================== */
 @media print {
   @page {
-    size: landscape;
+    size: A4 landscape;
     margin: 0;
   }
   
@@ -218,6 +218,7 @@ input, select, textarea {
     height: 100% !important;
     margin: 0 !important;
     padding: 0 !important;
+    overflow: hidden !important;
     background-color: #000000 !important;
   }
 
@@ -230,12 +231,13 @@ input, select, textarea {
   }
 
   #student-scorecard-box {
-    position: absolute !important;
+    position: fixed !important;
     top: 0 !important;
     left: 0 !important;
     width: 100vw !important;
     height: 100vh !important;
     max-width: none !important;
+    max-height: 100vh !important;
     margin: 0 !important;
     border-radius: 0 !important;
     box-shadow: none !important;
@@ -243,6 +245,8 @@ input, select, textarea {
     background-size: 100% 100% !important;
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
   }
 
   .no-print, .cert-download-btn {
