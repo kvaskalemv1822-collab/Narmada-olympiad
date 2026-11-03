@@ -1,5 +1,5 @@
 /* ==========================================================================
-   NVMSO STUDENT PORTAL - LIGHT THEME & FULL-SCREEN RESPONSIVE CSS
+   NVMSO STUDENT PORTAL - LIGHT THEME & CERTIFICATE MATCHING CSS
    ========================================================================== */
 * { 
   box-sizing: border-box; 
@@ -50,31 +50,6 @@ h1 {
   background: rgba(0, 0, 0, 0.03);
 }
 
-.tab-nav { 
-  display: flex; 
-  justify-content: center; 
-  gap: 10px; 
-  margin-bottom: 20px; 
-}
-
-.tab-btn { 
-  flex: 1;
-  padding: 12px; 
-  background: #6c757d; 
-  color: white; 
-  border: none; 
-  border-radius: 6px; 
-  cursor: pointer; 
-  font-weight: bold;
-  font-size: 14px;
-  transition: all 0.3s ease;
-  text-align: center;
-}
-
-.tab-btn.active-tab { 
-  background: #1e3c72; 
-}
-
 .form-group { 
   margin-bottom: 15px; 
   text-align: left;
@@ -99,10 +74,6 @@ input, select, textarea {
   color: #333;
 }
 
-input:focus, select:focus {
-  border-color: #1e3c72;
-}
-
 .grid-2 {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -121,10 +92,6 @@ input:focus, select:focus {
   margin-top: 10px; 
   font-size: 16px;
   text-transform: uppercase;
-}
-
-.btn-submit:hover {
-  opacity: 0.9;
 }
 
 .hidden { 
@@ -162,51 +129,107 @@ input:focus, select:focus {
 }
 
 /* ==========================================================================
-   🖨️ FULL LAYOUT PRINT CONFIGURATION FOR CERTIFICATES & SCORECARDS
+   🏆 EXACT MATCH LANDSCAPE CERTIFICATE (2000px x 1414px) WITH BLACK THEME
    ========================================================================== */
+#student-scorecard-box {
+  position: relative;
+  width: 100%;
+  max-width: 900px;
+  aspect-ratio: 2000 / 1414; /* Exact Landscape Proportions */
+  margin: 20px auto;
+  background-image: url('certificate-template.png');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  border-radius: 10px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+  overflow: hidden;
+}
+
+/* Certificate Text Container - Center Aligned Sequence: Name -> Class -> School */
+.certificate-content-wrapper {
+  position: absolute;
+  top: 50%;
+  left: 55%; /* Offset to balance left-side medal placement */
+  transform: translate(-50%, -50%);
+  width: 65%;
+  text-align: center;
+}
+
+.cert-student-name {
+  font-size: 30px;
+  font-weight: 700;
+  color: #e2b76c; /* Elegant Gold Tone */
+  margin-bottom: 12px;
+  text-transform: capitalize;
+  font-family: 'Georgia', serif;
+  font-style: italic;
+}
+
+.cert-student-class {
+  font-size: 18px;
+  font-weight: 600;
+  color: #f3f4f6;
+  margin-bottom: 8px;
+  font-family: 'Georgia', serif;
+}
+
+.cert-school-name {
+  font-size: 19px;
+  font-weight: 700;
+  color: #facc15;
+  margin-bottom: 15px;
+  text-transform: uppercase;
+  font-family: 'Georgia', serif;
+}
+
+.cert-score-details {
+  font-size: 14px;
+  font-weight: 500;
+  color: #cbd5e1;
+  margin-bottom: 15px;
+}
+
+/* Print Configuration for Zero Margin & Landscape */
 @media print {
-  body {
-    background-color: #ffffff !important;
-    color: #000000 !important;
-    padding: 0 !important;
+  @page {
+    size: landscape;
+    margin: 0;
   }
   
-  .container, .score-card {
-    background: #ffffff !important;
-    color: #000000 !important;
-    border: none !important;
-    box-shadow: none !important;
+  body, html {
     width: 100% !important;
-    max-width: 100% !important;
+    height: 100% !important;
     margin: 0 !important;
-    padding: 10px !important;
+    padding: 0 !important;
+    background: #000000 !important;
   }
 
-  /* Ensures GitHub certificate template background prints correctly */
+  .container, .score-card, body > *:not(#result-view) {
+    display: none !important;
+  }
+
+  #result-view, #result-view * {
+    visibility: visible !important;
+  }
+
   #student-scorecard-box {
-    background: #ffffff !important;
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    max-width: none !important;
+    margin: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
     background-image: url('certificate-template.png') !important;
-    background-size: cover !important;
-    background-position: center !important;
+    background-size: 100% 100% !important;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
-    width: 100% !important;
-    min-height: 500px !important;
   }
 
   .no-print {
     display: none !important;
-  }
-}
-
-@media (max-width: 600px) {
-  .grid-2 { 
-    grid-template-columns: 1fr; 
-  }
-  .container { 
-    padding: 15px; 
-  }
-  h1 { 
-    font-size: 20px; 
   }
 }
