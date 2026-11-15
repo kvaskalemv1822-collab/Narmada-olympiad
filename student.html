@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>NVMSO - Student Portal 2026</title>
-  <link rel="stylesheet" href="student.css?v=21">
+  <link rel="stylesheet" href="student.css?v=23">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 </head>
 <body>
@@ -17,6 +17,8 @@
   <!-- VIEW 1: REGISTRATION -->
   <div id="registration-view" class="hidden">
     <form id="reg-form">
+      
+      <!-- STEP 1: INPUT DETAILS -->
       <div id="details-section">
         <div style="background: rgba(245, 158, 11, 0.15); border: 1px solid #f59e0b; padding: 12px 15px; border-radius: 8px; margin-bottom: 15px; color: #fcd34d; font-size: 13px;">
           <strong>⚠️ Notice:</strong> Participation requires verified School Organizer Code. Password format is Mother's first 2 capital letters + Roll Number.
@@ -43,9 +45,21 @@
         </div>
         <div class="form-group hidden" id="stream-group"><label>Academic Stream:</label><select id="std-stream"><option value="Maths">Mathematics</option><option value="Science">Science (Bio)</option></select></div>
         <div class="form-group"><label>Contact Number:</label><input type="tel" id="std-contact" maxlength="10" placeholder="Mobile number" required></div>
-        <button type="button" class="btn-submit" onclick="validateAndShowPayment()">Confirm Details & Proceed ➡</button>
+        
+        <button type="button" class="btn-submit" onclick="showReviewDetailsModal()">Review Details Before Payment ➡</button>
       </div>
 
+      <!-- STEP 2: REVIEW DETAILS MODAL / SCREEN -->
+      <div id="review-section" style="display:none; background: #0f172a; color: #fff; padding: 20px; border-radius: 8px; margin-bottom: 15px;">
+        <h3 style="color: #38bdf8; text-align: center; margin-bottom: 15px;">🔍 Please Verify Your Entered Details</h3>
+        <div id="review-content" style="font-size: 14px; line-height: 1.8; margin-bottom: 20px; background: #020617; padding: 15px; border-radius: 6px; border: 1px solid #334155;"></div>
+        <div style="display:flex; gap:10px;">
+          <button type="button" class="btn-submit" style="background:#475569; width:35%; margin-top:0;" onclick="backToEditDetails()">⬅ Edit Details</button>
+          <button type="button" class="btn-submit" style="background:#10b981; width:65%; margin-top:0;" onclick="proceedToPaymentFromReview()">Confirm & Proceed to Payment ➡</button>
+        </div>
+      </div>
+
+      <!-- STEP 3: PAYMENT SECTION -->
       <div id="payment-section" style="display:none;">
         <div class="form-group"><label>Payment Mode:</label><select id="payment-mode" onchange="handlePaymentModeChange(this.value)"><option value="online">Pay Online (UPI / QR)</option><option value="offline">Handover Cash to School Coordinator</option></select></div>
         <div id="online-payment-section" class="qr-box">
@@ -54,27 +68,42 @@
           <div id="dynamic-qr-container" style="display:none; justify-content:center; margin-bottom:12px;"></div>
           <div class="form-group"><label style="color: #fcd34d;">Enter UTR / Transaction Reference No (Single-Use):</label><input type="text" id="std-utr" placeholder="Enter 12-digit UTR" maxlength="12"></div>
         </div>
-        <div style="display: flex; align-items: flex-start; gap: 10px; margin-bottom: 20px; background: rgba(2, 6, 23, 0.6); padding: 12px; border-radius: 8px;">
-          <input type="checkbox" id="terms-checkbox" onchange="toggleSubmitButton()" style="width: 20px; height: 20px; cursor: pointer;">
-          <label for="terms-checkbox" style="font-size: 12px; color: #cbd5e1; cursor: pointer;">I agree to the <a href="terms.html" target="_blank" style="color: #38bdf8;">Terms & Conditions</a>.</label>
-        </div>
-        <div style="display:flex; gap:10px;">
-          <button type="button" class="btn-submit" style="background:#475569; width:35%;" onclick="backToDetails()">⬅ Edit</button>
-          <button type="button" id="btn-final-submit" class="btn-submit" style="background:#10b981; width:65%; opacity:0.5; cursor:not-allowed;" disabled onclick="submitStudentRegistration()">COMPLETE REGISTRATION</button>
+        
+        <div style="display:flex; gap:10px; margin-top: 15px;">
+          <button type="button" class="btn-submit" style="background:#475569; width:35%;" onclick="backToDetails()">⬅ Back</button>
+          <button type="button" id="btn-final-submit" class="btn-submit" style="background:#10b981; width:65%; cursor:pointer;" onclick="submitStudentRegistration()">COMPLETE REGISTRATION</button>
         </div>
       </div>
+
     </form>
   </div>
 
   <!-- VIEW 2: EXAM LOGIN -->
   <div id="exam-login-view" class="hidden">
     <div id="student-auth-box" class="score-card" style="text-align: left;">
-      <h3 style="color: #38bdf8; font-size: 16px; margin-bottom: 15px; text-align: center;">🔐 Student Online Exam Login (Fee Gate Protected)</h3>
+      <h3 style="color: #38bdf8; font-size: 16px; margin-bottom: 15px; text-align: center;">🔐 Student Online Exam Login</h3>
       <div class="form-group"><label>School Organizer Code:</label><input type="text" id="login-org-code" placeholder="e.g. NVMS540"></div>
       <div class="form-group"><label>Roll Number:</label><input type="text" id="login-roll" placeholder="e.g. 101"></div>
       <div class="form-group" style="margin-bottom: 15px;"><label>Password (Mother's first 2 capital letters + Roll No):</label><input type="password" id="login-password" placeholder="e.g. MA101"></div>
       <button onclick="verifyStudentLoginAndStartExam()" class="btn-submit" style="background: #10b981;">🚀 Start Live Examination</button>
     </div>
+    
+    <!-- EXAM INSTRUCTIONS MODAL (Feature: Instructions before exam start) -->
+    <div id="exam-instructions-modal" class="hidden" style="background: #0f172a; color: #fff; padding: 25px; border-radius: 10px; border: 2px solid #facc15; margin-bottom: 20px;">
+      <h3 style="color: #facc15; text-align: center; margin-bottom: 15px; font-size: 20px;">⚠️ IMPORTANT EXAMINATION INSTRUCTIONS</h3>
+      <div style="font-size: 13px; line-height: 1.7; background: #020617; padding: 15px; border-radius: 6px; border: 1px solid #334155; margin-bottom: 20px; color: #cbd5e1;">
+        <p>1. <strong>Duration:</strong> Total exam duration is 30 minutes. Timer will run continuously on top.</p>
+        <p>2. <strong>Negative Marking:</strong> Each correct answer carries +1 mark. Incorrect answers may attract negative marking as configured in questions.</p>
+        <p>3. <strong>Anti-Cheat Security (Do Not Close Tab):</strong> Switching browser tabs, minimizing the browser, or refreshing/closing the window during the exam is strictly prohibited and monitored. Doing so may result in automatic submission.</p>
+        <p>4. <strong>Single Attempt:</strong> You can submit the exam only once. Once submitted, it cannot be retried.</p>
+      </div>
+      <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 20px;">
+        <input type="checkbox" id="agree-instructions" style="width: 20px; height: 20px; cursor: pointer;">
+        <label for="agree-instructions" style="font-size: 13px; color: #fff; cursor: pointer; margin-bottom: 0;">I have read all instructions carefully and agree to follow exam rules.</label>
+      </div>
+      <button onclick="proceedToActualExamPaper()" class="btn-submit" style="background: #10b981; margin-top: 0;">I Have Read All Instructions - Start Exam 🚀</button>
+    </div>
+
     <div id="active-exam-container" class="hidden">
       <div style="display: flex; justify-content: space-between; align-items: center; background: #0b0f19; padding: 12px; border-radius: 8px; margin-bottom: 15px;">
         <span id="exam-timer-display" style="color: #facc15; font-weight: bold;">⏱️ Time Left: --:--</span>
@@ -85,19 +114,20 @@
     </div>
   </div>
 
-  <!-- VIEW 3: RESULT & CERTIFICATE (NEET Style Declaration Gate) -->
+  <!-- VIEW 3: RESULT & CERTIFICATE -->
   <div id="result-view" class="hidden">
     <div class="score-card" style="text-align: left;">
       <h3 style="color: #facc15; font-size: 16px; margin-bottom: 15px; text-align: center;">🏆 Official Olympiad Result & Scorecard</h3>
       <div class="form-group"><label>School Organizer Code:</label><input type="text" id="res-org-code" placeholder="e.g. NVMS540"></div>
       <div class="form-group" style="margin-bottom: 15px;"><label>Roll Number:</label><input type="text" id="res-roll" placeholder="e.g. 101"></div>
       <button onclick="fetchStudentResult()" class="btn-submit" style="background: #0284c7;">🔍 Fetch Scorecard & Certificate</button>
+      
       <div id="student-scorecard-box" style="display: none; margin-top: 20px;"></div>
     </div>
   </div>
 
 </div>
 
-<script src="student.js?v=21"></script>
+<script src="student.js?v=23"></script>
 </body>
 </html>
