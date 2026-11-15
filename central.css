@@ -42,9 +42,6 @@ h1 {
   margin-top: 4px;
 }
 
-/* ==========================================================================
-   2. INTERACTIVE UI CONTAINERS, CARDS & INPUTS
-   ========================================================================== */
 .card-box, .control-box, .login-card {
   background: #0f172a;
   border: 1px solid #334155;
@@ -77,16 +74,12 @@ input:focus, select:focus, textarea:focus {
   border-color: #38bdf8;
 }
 
-/* Checkbox specific wrapper styling overrides */
 input[type="checkbox"] {
   width: auto;
   margin-right: 5px;
   cursor: pointer;
 }
 
-/* ==========================================================================
-   3. PREMIUM ACTION BUTTONS
-   ========================================================================== */
 .btn-primary {
   padding: 12px 24px;
   background: #0284c7;
@@ -114,9 +107,6 @@ button {
   cursor: pointer;
 }
 
-/* ==========================================================================
-   4. ADMIN SESSION INITIALIZATION (LOGIN MATRIX COVER)
-   ========================================================================== */
 .login-wrapper {
   position: fixed;
   top: 0; left: 0; width: 100vw; height: 100vh;
@@ -155,9 +145,6 @@ button {
   text-align: left;
 }
 
-/* ==========================================================================
-   5. GRAND WELCOME CURTAIN ANIMATION LAYER SYSTEM
-   ========================================================================== */
 .welcome-overlay {
   position: fixed;
   top: 0; left: 0; width: 100vw; height: 100vh;
@@ -220,17 +207,11 @@ button {
   border-radius: 3px;
 }
 
-/* Curtain Reveal Animation Dynamic Hooks */
 .reveal-open .welcome-curtain-top { transform: translateY(-100%); }
 .reveal-open .welcome-curtain-bottom { transform: translateY(100%); }
 .reveal-open .welcome-box { opacity: 0; pointer-events: none; }
 
-/* ==========================================================================
-   6. GRID LAYOUT DESIGN TERMINAL & UTILITIES
-   ========================================================================== */
-.hidden { 
-  display: none !important; 
-}
+.hidden { display: none !important; }
 
 hr {
   border: 0;
@@ -238,24 +219,10 @@ hr {
   margin: 15px 0;
 }
 
-/* ==========================================================================
-   7. MEDIA QUERIES FOR MOBILE SMARTPHONES (RESPONSIVE EDGE)
-   ========================================================================== */
 @media (max-width: 768px) {
-  body {
-    padding: 5px;
-  }
-  .container { 
-    padding: 12px; 
-    border-radius: 10px;
-  }
-  h1 { 
-    font-size: 20px; 
-  }
-  .card-box, .control-box {
-    padding: 15px;
-  }
-  .welcome-title {
-    font-size: 22px;
-  }
+  body { padding: 5px; }
+  .container { padding: 12px; border-radius: 10px; }
+  h1 { font-size: 20px; }
+  .card-box, .control-box { padding: 15px; }
+  .welcome-title { font-size: 22px; }
 }
