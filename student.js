@@ -9,7 +9,6 @@ let examTimerInterval = null;
 
 document.addEventListener("DOMContentLoaded", () => {
   fetchPortalConfig();
-  
   ["std-roll", "login-roll", "res-roll"].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.addEventListener("input", function() { this.value = this.value.replace(/[^0-9]/g, ''); });
@@ -22,35 +21,33 @@ function fetchPortalConfig() {
   const examView = document.getElementById("exam-login-view");
   const resultView = document.getElementById("result-view");
 
-  if (regView) regView.classList.add("hidden");
-  if (examView) examView.classList.add("hidden");
-  if (resultView) resultView.classList.add("hidden");
+  [regView, examView, resultView].forEach(v => v?.classList.add("hidden"));
 
   fetch(`${SERVER_URL}/api/portal/config`)
     .then(res => res.json())
     .then(data => {
       if (data.status === "success") {
         portalConfigData = data.config;
-        activeUpiString = portalConfigData.adminUpiId || portalConfigData.upiId || "narmada@upi";
+        activeUpiString = portalConfigData.adminUpiId || "narmada@upi";
 
         const isRegOpen = !!portalConfigData.isRegistrationOpen;
         const isExamActive = !!portalConfigData.isExamActive;
         const isResultDeclared = !!portalConfigData.isResultDeclared;
 
         if (isResultDeclared) {
-          if (resultView) resultView.classList.remove("hidden");
-          if (statusMsg) { statusMsg.textContent = "🏆 Exam Results Declared! Check your scorecard below."; statusMsg.style.color = "#facc15"; }
+          resultView?.classList.remove("hidden");
+          if (statusMsg) { statusMsg.textContent = "🏆 Exam Results Officially Declared by NVMS Command!"; statusMsg.style.color = "#facc15"; }
         } else if (isExamActive) {
-          if (examView) examView.classList.remove("hidden");
-          if (statusMsg) { statusMsg.textContent = "✍️ Online Exam Portal is Active. Login to start."; statusMsg.style.color = "#0284c7"; }
+          examView?.classList.remove("hidden");
+          if (statusMsg) { statusMsg.textContent = "✍️ Online Exam Portal is Active. Login with approved credentials."; statusMsg.style.color = "#0284c7"; }
         } else if (isRegOpen) {
-          if (regView) regView.classList.remove("hidden");
+          regView?.classList.remove("hidden");
           if (statusMsg) { statusMsg.textContent = "🟢 NVMSO Registration is Live & Active."; statusMsg.style.color = "#10b981"; }
         } else {
           if (statusMsg) { statusMsg.textContent = "🔴 Portal is currently offline / locked by Central Admin."; statusMsg.style.color = "#ef4444"; }
         }
       }
-    }).catch(() => { if (statusMsg) statusMsg.textContent = "Offline Mode / Server Pipeline Blocked"; });
+    }).catch(() => { if (statusMsg) statusMsg.textContent = "Server Connection Offline"; });
 }
 
 window.fetchSchoolName = function(val) {
@@ -67,27 +64,22 @@ window.fetchSchoolName = function(val) {
   }
 
   fetch(`${SERVER_URL}/api/student/verify-school`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
+    method: "POST", headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ orgCode: val })
   })
   .then(res => res.json())
   .then(data => {
     if (data.status === "success") {
-      display.innerHTML = `✅ School Authorized: <strong style="color:#10b981; font-size:13px;">${data.schoolName}</strong>`;
-      display.style.color = "#10b981";
+      display.innerHTML = `✅ School Authorized: <strong style="color:#10b981;">${data.schoolName}</strong>`;
       modeBadge.innerText = `EXAM CONDUCT MODE: ${data.examMode.toUpperCase()}`;
       isOrganizerVerified = true;
       verifiedOrgExamMode = data.examMode;
-
-      const payMode = document.getElementById("payment-mode").value;
-      if (payMode === "online" && onlineSection) onlineSection.style.display = "block";
+      if (document.getElementById("payment-mode").value === "online") onlineSection.style.display = "block";
       renderDynamicUPIQR();
     } else {
       display.innerText = data.status === "locked" ? `🔒 ${data.message}` : "❌ Invalid Organizer Code!";
-      display.style.color = data.status === "locked" ? "#f59e0b" : "#ef4444";
       isOrganizerVerified = false;
-      if (onlineSection) onlineSection.style.display = "none";
+      onlineSection.style.display = "none";
     }
   });
 };
@@ -97,35 +89,23 @@ function renderDynamicUPIQR() {
   if (!qrBox) return;
   qrBox.innerHTML = "";
   if (!isOrganizerVerified) return;
-
   let fee = verifiedOrgExamMode === "offline" ? (portalConfigData.offlineFee || 120) : (portalConfigData.onlineFee || 100);
   let upiUrl = `upi://pay?pa=${encodeURIComponent(activeUpiString)}&pn=NVMSO&am=${fee}&cu=INR`;
-  if (typeof QRCode !== "undefined") {
-    new QRCode(qrBox, { text: upiUrl, width: 160, height: 160 });
-  }
+  if (typeof QRCode !== "undefined") new QRCode(qrBox, { text: upiUrl, width: 160, height: 160 });
 }
 
 window.openDirectUpiApp = function() {
-  if (!isOrganizerVerified) { alert("Please verify School Organizer Code first!"); return; }
+  if (!isOrganizerVerified) { alert("Verify School Organizer Code first!"); return; }
   let fee = verifiedOrgExamMode === "offline" ? (portalConfigData.offlineFee || 120) : (portalConfigData.onlineFee || 100);
   window.location.href = `upi://pay?pa=${encodeURIComponent(activeUpiString)}&pn=NVMSO&am=${fee}&cu=INR`;
 };
 
 window.validateAndShowPayment = function() {
-  if (!isOrganizerVerified) {
-    alert("⚠️ Please enter and verify a valid School Organizer Code first!");
-    document.getElementById('org-code').focus();
-    return;
-  }
-  
+  if (!isOrganizerVerified) { alert("⚠️ Enter valid School Organizer Code first!"); return; }
   const fields = ['org-code', 'std-name', 'std-mother', 'std-father', 'std-class', 'std-roll', 'std-contact'];
   for (let id of fields) {
-    if (!document.getElementById(id).value.trim()) {
-      alert("❌ Please fill out all required student details before proceeding!");
-      return;
-    }
+    if (!document.getElementById(id).value.trim()) { alert("❌ Please fill out all required fields!"); return; }
   }
-
   document.getElementById('details-section').style.display = 'none';
   document.getElementById('payment-section').style.display = 'block';
   renderDynamicUPIQR();
@@ -135,7 +115,6 @@ window.validateAndShowPayment = function() {
 window.backToDetails = function() {
   document.getElementById('payment-section').style.display = 'none';
   document.getElementById('details-section').style.display = 'block';
-  window.scrollTo({ top: 0, behavior: 'smooth' });
 };
 
 window.toggleQrDisplay = function() {
@@ -144,19 +123,11 @@ window.toggleQrDisplay = function() {
 };
 
 window.toggleSubmitButton = function() {
-  const termsCheckbox = document.getElementById('terms-checkbox');
-  const submitBtn = document.getElementById('btn-final-submit');
-  if (!termsCheckbox || !submitBtn) return;
-
-  if (termsCheckbox.checked) {
-    submitBtn.disabled = false;
-    submitBtn.style.opacity = "1";
-    submitBtn.style.cursor = "pointer";
-  } else {
-    submitBtn.disabled = true;
-    submitBtn.style.opacity = "0.5";
-    submitBtn.style.cursor = "not-allowed";
-  }
+  const checked = document.getElementById('terms-checkbox').checked;
+  const btn = document.getElementById('btn-final-submit');
+  btn.disabled = !checked;
+  btn.style.opacity = checked ? "1" : "0.5";
+  btn.style.cursor = checked ? "pointer" : "not-allowed";
 };
 
 window.submitStudentRegistration = function() {
@@ -174,40 +145,31 @@ window.submitStudentRegistration = function() {
   };
 
   fetch(`${SERVER_URL}/api/student/register`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
+    method: "POST", headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload)
   })
   .then(res => res.json())
   .then(data => {
     if (data.status === "success") {
-      alert("🎉 Registration Saved Successfully!");
+      alert("🎉 Registration Saved Successfully! Awaiting Organizer Fee Approval.");
       document.getElementById('reg-form').reset();
       document.getElementById('payment-section').style.display = 'none';
       document.getElementById('details-section').style.display = 'block';
       isOrganizerVerified = false;
       document.getElementById("school-name-display").innerText = "";
-      document.getElementById("display-student-exam-mode").innerText = "Exam Conduct Mode: ENTER ORGANIZER CODE FIRST";
       toggleSubmitButton();
-    } else {
-      alert("❌ Error: " + data.message);
-    }
-  }).catch(() => alert("❌ Server connection error."));
+    } else { alert("❌ Error: " + data.message); }
+  });
 };
 
 window.verifyStudentLoginAndStartExam = function() {
   const orgCode = document.getElementById("login-org-code").value.trim().toUpperCase();
   const roll = document.getElementById("login-roll").value.trim();
   const password = document.getElementById("login-password").value.trim();
-
-  if (!orgCode || !roll || !password) {
-    alert("⚠️ Please enter School Code, Roll Number, and Password.");
-    return;
-  }
+  if (!orgCode || !roll || !password) { alert("⚠️ Enter all credentials."); return; }
 
   fetch(`${SERVER_URL}/api/student/login`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
+    method: "POST", headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ orgCode: orgCode, rollNumber: roll, password: password })
   })
   .then(res => res.json())
@@ -215,69 +177,53 @@ window.verifyStudentLoginAndStartExam = function() {
     if (data.status === "success") {
       studentSessionData = data.student;
       document.getElementById("student-auth-box").classList.add("hidden");
+      let previewBox = document.getElementById("student-details-preview-box") || document.createElement("div");
+      previewBox.id = "student-details-preview-box";
+      previewBox.className = "score-card";
+      document.getElementById("exam-login-view").appendChild(previewBox);
       
-      let previewBox = document.getElementById("student-details-preview-box");
-      if (!previewBox) {
-        previewBox = document.createElement("div");
-        previewBox.id = "student-details-preview-box";
-        previewBox.className = "score-card";
-        document.getElementById("exam-login-view").appendChild(previewBox);
-      }
-      
-      previewBox.style.display = "block";
       previewBox.innerHTML = `
-        <h3 style="color: #1e3c72; margin-bottom: 15px;">📋 Student Details Verification</h3>
-        <p style="text-align: left; margin-bottom: 5px;"><strong>Student Name:</strong> ${studentSessionData.studentName}</p>
+        <h3 style="color: #facc15; margin-bottom: 15px;">📋 Student Details Verification</h3>
+        <p style="text-align: left; margin-bottom: 5px;"><strong>Name:</strong> ${studentSessionData.studentName}</p>
         <p style="text-align: left; margin-bottom: 5px;"><strong>Class:</strong> ${studentSessionData.studentClass}</p>
         <p style="text-align: left; margin-bottom: 5px;"><strong>Roll No:</strong> ${studentSessionData.rollNumber}</p>
-        <p style="text-align: left; margin-bottom: 5px;"><strong>Father's Name:</strong> ${studentSessionData.fatherName || 'N/A'}</p>
-        <p style="text-align: left; margin-bottom: 15px;"><strong>School Name:</strong> <span style="font-weight: bold; font-size: 14px;">${studentSessionData.schoolName || studentSessionData.orgCode}</span></p>
-        <button onclick="launchActualExam()" class="btn-submit" style="background: #1e3c72;">🚀 Start Exam Now</button>
+        <p style="text-align: left; margin-bottom: 15px;"><strong>School:</strong> ${studentSessionData.schoolName}</p>
+        <button onclick="launchActualExam()" class="btn-submit" style="background: #10b981;">🚀 Start Exam Now</button>
       `;
-    } else {
-      alert("❌ Login Failed: " + (data.message || "Invalid credentials."));
-    }
-  }).catch(() => alert("❌ Server connection error during login."));
+    } else { alert("❌ Login Failed: " + data.message); }
+  });
 };
 
 window.launchActualExam = function() {
-  const previewBox = document.getElementById("student-details-preview-box");
-  if (previewBox) previewBox.style.display = "none";
-
+  document.getElementById("student-details-preview-box").style.display = "none";
   document.getElementById("active-exam-container").classList.remove("hidden");
   document.getElementById("exam-student-info").textContent = `Student: ${studentSessionData.studentName} (Class ${studentSessionData.studentClass})`;
-  
-  loadExamQuestions(studentSessionData.studentClass, studentSessionData.stream);
+  loadExamQuestions();
   startExamTimer(30 * 60);
 };
 
-function loadExamQuestions(studentClass, stream) {
+function loadExamQuestions() {
   fetch(`${SERVER_URL}/api/student/questions`)
     .then(res => res.json())
     .then(data => {
       const qContainer = document.getElementById("exam-questions-list");
       if (!qContainer) return;
-
-      if (data.status === "success" && data.questions && data.questions.length > 0) {
+      if (data.status === "success" && data.questions) {
         currentExamQuestions = data.questions;
         qContainer.innerHTML = "";
-        
         currentExamQuestions.forEach((q, idx) => {
-          let negBadge = q.negativeMarking ? `<span style="color:#d9534f; float:right; font-size:11px;">Negative: -${q.negativeMarking}</span>` : "";
           qContainer.innerHTML += `
-            <div style="background: #ffffff; border: 1px solid #ccc; padding: 15px; border-radius: 8px; margin-bottom: 12px; font-size: 13px; color: #333;">
-              <p style="color: #1e3c72; font-weight: bold; margin-bottom: 8px;">Q${idx+1}. ${q.questionText} ${negBadge}</p>
+            <div style="background: #ffffff; border: 1px solid #ccc; padding: 15px; border-radius: 8px; margin-bottom: 12px; color: #333;">
+              <p style="color: #1e3c72; font-weight: bold; margin-bottom: 8px;">Q${idx+1}. ${q.questionText}</p>
               <div style="display: flex; flex-direction: column; gap: 6px;">
-                <label style="cursor: pointer; color: #444;"><input type="radio" name="q_${q.id}" value="A" style="margin-right:8px;"> A) ${q.optionA}</label>
-                <label style="cursor: pointer; color: #444;"><input type="radio" name="q_${q.id}" value="B" style="margin-right:8px;"> B) ${q.optionB}</label>
-                <label style="cursor: pointer; color: #444;"><input type="radio" name="q_${q.id}" value="C" style="margin-right:8px;"> C) ${q.optionC}</label>
-                <label style="cursor: pointer; color: #444;"><input type="radio" name="q_${q.id}" value="D" style="margin-right:8px;"> D) ${q.optionD}</label>
+                <label><input type="radio" name="q_${q.id}" value="A"> A) ${q.optionA}</label>
+                <label><input type="radio" name="q_${q.id}" value="B"> B) ${q.optionB}</label>
+                <label><input type="radio" name="q_${q.id}" value="C"> C) ${q.optionC}</label>
+                <label><input type="radio" name="q_${q.id}" value="D"> D) ${q.optionD}</label>
               </div>
             </div>
           `;
         });
-      } else {
-        qContainer.innerHTML = `<p style="color: #d9534f; text-align: center;">No questions available yet.</p>`;
       }
     });
 }
@@ -285,46 +231,29 @@ function loadExamQuestions(studentClass, stream) {
 function startExamTimer(durationSeconds) {
   let timer = durationSeconds;
   const timerDisplay = document.getElementById("exam-timer-display");
-  
   examTimerInterval = setInterval(() => {
-    let minutes = Math.floor(timer / 60);
-    let seconds = timer % 60;
-    timerDisplay.textContent = `⏱️ Time Left: ${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
-
-    if (--timer < 0) {
-      clearInterval(examTimerInterval);
-      alert("⏰ Time is up! Submitting your exam automatically.");
-      submitExamAnswers();
-    }
+    let m = Math.floor(timer / 60), s = timer % 60;
+    timerDisplay.textContent = `⏱️ Time Left: ${m}:${s < 10 ? '0' : ''}${s}`;
+    if (--timer < 0) { clearInterval(examTimerInterval); alert("⏰ Time up!"); submitExamAnswers(); }
   }, 1000);
 }
 
 window.submitExamAnswers = function() {
-  if (!confirm("Are you sure you want to submit your exam answers?")) return;
+  if (!confirm("Submit exam answers?")) return;
   if (examTimerInterval) clearInterval(examTimerInterval);
-
   let answers = {};
   currentExamQuestions.forEach(q => {
-    const selectedOpt = document.querySelector(`input[name="q_${q.id}"]:checked`);
-    answers[q.id] = selectedOpt ? selectedOpt.value : "";
+    const sel = document.querySelector(`input[name="q_${q.id}"]:checked`);
+    answers[q.id] = sel ? sel.value : "";
   });
-
   fetch(`${SERVER_URL}/api/student/submit_exam`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      studentId: studentSessionData.studentId || `${studentSessionData.orgCode}_${studentSessionData.rollNumber}`,
-      answers: answers
-    })
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ studentId: studentSessionData.studentId, answers: answers })
   })
   .then(res => res.json())
   .then(data => {
-    if (data.status === "success") {
-      alert(`🎉 Exam Submitted Successfully! Your Score: ${data.score} / ${data.total}`);
-      window.location.reload();
-    } else {
-      alert("❌ Error submitting exam: " + data.message);
-    }
+    if (data.status === "success") { alert(`🎉 Submitted! Score: ${data.score} / ${data.total}`); location.reload(); }
+    else { alert("❌ Error: " + data.message); }
   });
 };
 
@@ -332,15 +261,10 @@ window.fetchStudentResult = function() {
   const orgCode = document.getElementById("res-org-code").value.trim().toUpperCase();
   const roll = document.getElementById("res-roll").value.trim();
   const scorecardBox = document.getElementById("student-scorecard-box");
-
-  if (!orgCode || !roll) {
-    alert("⚠️ Please enter School Code and Roll Number.");
-    return;
-  }
+  if (!orgCode || !roll) { alert("Enter School Code and Roll No."); return; }
 
   fetch(`${SERVER_URL}/api/student/result`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
+    method: "POST", headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ orgCode: orgCode, rollNumber: roll })
   })
   .then(res => res.json())
@@ -348,53 +272,29 @@ window.fetchStudentResult = function() {
     scorecardBox.style.display = "block";
     if (data.status === "success") {
       const resData = data.result;
-      
       scorecardBox.innerHTML = `
-        <div style="margin-bottom: 20px; text-align: left; background: rgba(15, 23, 42, 0.9); padding: 15px; border-radius: 8px; border: 1px solid #334155;">
-          <h4 style="color: #facc15; margin-bottom: 8px; text-align: center;">📊 Student Scorecard Summary</h4>
+        <div style="background: rgba(15, 23, 42, 0.9); padding: 15px; border-radius: 8px; margin-bottom: 15px;">
+          <h4 style="color: #facc15; margin-bottom: 8px;">📊 Scorecard Summary</h4>
           <p><strong>Name:</strong> ${resData.studentName}</p>
-          <p><strong>Class:</strong> ${resData.studentClass} ${resData.stream ? '(' + resData.stream + ')' : ''}</p>
-          <p><strong>Roll No:</strong> ${resData.rollNumber}</p>
-          <p><strong>School:</strong> ${resData.schoolName || resData.orgCode}</p>
-          <p><strong>Marks Obtained:</strong> <span style="color: #10b981; font-weight: bold;">${resData.score} / ${resData.total || '100'}</span></p>
-          <p><strong>Percentage:</strong> <span style="color: #38bdf8; font-weight: bold;">${resData.percentage || '--'}%</span></p>
+          <p><strong>Class:</strong> ${resData.studentClass}</p>
+          <p><strong>Score:</strong> <span style="color: #10b981; font-weight: bold;">${resData.score} / ${resData.totalMarks || 100} (${resData.percentage}%)</span></p>
         </div>
-
         <div class="certificate-wrapper">
           <img src="certificate-template.png" alt="Certificate" class="cert-img">
           <div class="cert-text-overlay">
             <h2 class="cert-student-name">${resData.studentName}</h2>
-            <div class="cert-student-class">Class: ${resData.studentClass} ${resData.stream ? '(' + resData.stream + ')' : ''}</div>
-            <div class="cert-school-name">${resData.schoolName || resData.orgCode}</div>
+            <div class="cert-student-class">Class: ${resData.studentClass}</div>
+            <div class="cert-school-name">${resData.schoolName}</div>
           </div>
         </div>
       `;
-      
-      let existingBtn = document.getElementById("dynamic-cert-print-btn");
-      if (!existingBtn) {
-        const btnHtml = document.createElement("button");
-        btnHtml.id = "dynamic-cert-print-btn";
-        btnHtml.className = "cert-download-btn no-print";
-        btnHtml.innerHTML = "📥 Download / Print Certificate";
-        btnHtml.onclick = () => window.print();
-        scorecardBox.parentNode.insertBefore(btnHtml, scorecardBox.nextSibling);
-      }
-    } else {
-      scorecardBox.innerHTML = `<p style="color: #d9534f; text-align: center; padding: 40px; background:#fff;">❌ ${data.message || "Result not available."}</p>`;
-      const existingBtn = document.getElementById("dynamic-cert-print-btn");
-      if (existingBtn) existingBtn.remove();
-    }
+    } else { scorecardBox.innerHTML = `<p style="color: #d9534f; text-align: center; padding: 20px;">❌ ${data.message}</p>`; }
   });
 };
 
 window.handlePaymentModeChange = (mode) => {
-  const onlineSection = document.getElementById("online-payment-section");
-  if (mode === "online" && isOrganizerVerified) onlineSection.style.display = "block";
-  else onlineSection.style.display = "none";
+  document.getElementById("online-payment-section").style.display = (mode === "online" && isOrganizerVerified) ? "block" : "none";
 };
-
 window.handleClassChange = (val) => {
-  const streamGroup = document.getElementById("stream-group");
-  if (parseInt(val, 10) >= 11) streamGroup.classList.remove("hidden");
-  else streamGroup.classList.add("hidden");
+  document.getElementById("stream-group").classList.toggle("hidden", parseInt(val, 10) < 11);
 };
