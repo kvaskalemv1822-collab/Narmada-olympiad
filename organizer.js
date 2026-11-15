@@ -177,11 +177,11 @@ function fetchRegisteredStudentsList() {
         const payMode = (s.paymentMode || "online").toUpperCase();
         let utrInfo = s.utrNumber ? `<br><code style="color:#facc15; font-size:11px;">UTR: ${s.utrNumber}</code>` : "";
 
-        // Marks and Percentage calculation for Roster Table
+        // Dynamic Marks and Percentage calculation for Roster Table
         let marksDisplay = `<span style="color:#94a3b8; font-size:11px;">Exam Pending</span>`;
         if (s.examCompleted || s.score !== undefined) {
           let scoreVal = parseFloat(s.score) || 0;
-          let totalVal = parseFloat(s.totalMarks) || 100;
+          let totalVal = parseFloat(s.totalMarks) || parseFloat(portalConfig.totalMarks) || 30;
           let pctVal = s.percentage !== undefined ? s.percentage : ((scoreVal / totalVal) * 100).toFixed(2);
           marksDisplay = `<strong style="color:#4ade80;">${scoreVal}/${totalVal}</strong> <br><span style="color:#38bdf8; font-weight:bold; font-size:11px;">${pctVal}%</span>`;
         }
@@ -316,7 +316,7 @@ window.requestCommissionPayout = function(maxAmount) {
   });
 };
 
-// Result & Ranking View with Percentage & Descending Ranking Arrangement
+// Result & Ranking View with Dynamic Total Marks & Descending Ranking Arrangement
 function checkResultAndRankingStatus() {
   if (!currentOrg) return;
   fetch(`${SERVER_URL}/api/portal/config`)
@@ -336,7 +336,7 @@ function checkResultAndRankingStatus() {
           if (stData.status === "success" && stData.students) {
             let completed = stData.students.filter(s => s.examCompleted);
             
-            // Sort by score/percentage in descending order (Highest to Lowest) for proper ranking
+            // Sort by score in descending order (Highest to Lowest) for proper ranking
             completed.sort((a, b) => {
               let scoreA = parseFloat(a.score) || 0;
               let scoreB = parseFloat(b.score) || 0;
@@ -356,7 +356,7 @@ function checkResultAndRankingStatus() {
                       <th style="padding:10px; text-align:left;">Rank</th>
                       <th style="padding:10px; text-align:left;">Student Name</th>
                       <th style="padding:10px; text-align:left;">Class</th>
-                      <th style="padding:10px; text-align:right;">Score</th>
+                      <th style="padding:10px; text-align:right;">Score / Total</th>
                       <th style="padding:10px; text-align:right;">Percentage</th>
                     </tr>
                   </thead>
@@ -365,8 +365,8 @@ function checkResultAndRankingStatus() {
             
             completed.forEach((s, index) => {
               let scoreVal = parseFloat(s.score) || 0;
-              let totalMarksVal = parseFloat(s.totalMarks) || 100;
-              let percentageVal = s.percentage !== undefined ? s.percentage : ((scoreVal / totalMarksVal) * 100).toFixed(2);
+              let totalMarksVal = parseFloat(s.totalMarks) || parseFloat(portalConfig.totalMarks) || 30;
+              let percentageVal = ((scoreVal / totalMarksVal) * 100).toFixed(2);
 
               rankHtml += `
                 <tr style="border-bottom:1px solid #1e293b;">
