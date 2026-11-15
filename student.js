@@ -13,6 +13,12 @@ document.addEventListener("DOMContentLoaded", () => {
     const el = document.getElementById(id);
     if (el) el.addEventListener("input", function() { this.value = this.value.replace(/[^0-9]/g, ''); });
   });
+
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden && document.getElementById("active-exam-container") && !document.getElementById("active-exam-container").classList.contains("hidden")) {
+      alert("⚠️ WARNING: You switched tabs or minimized the browser! Suspicious activity is monitored.");
+    }
+  });
 });
 
 function fetchPortalConfig() {
@@ -36,10 +42,10 @@ function fetchPortalConfig() {
 
         if (isResultDeclared) {
           resultView?.classList.remove("hidden");
-          if (statusMsg) { statusMsg.textContent = "🏆 Exam Results Officially Declared by NVMS Command!"; statusMsg.style.color = "#facc15"; }
+          if (statusMsg) { statusMsg.textContent = "🏆 Exam Results Officially Declared!"; statusMsg.style.color = "#facc15"; }
         } else if (isExamActive) {
           examView?.classList.remove("hidden");
-          if (statusMsg) { statusMsg.textContent = "✍️ Online Exam Portal is Active. Login with approved credentials."; statusMsg.style.color = "#0284c7"; }
+          if (statusMsg) { statusMsg.textContent = "✍️ Online Exam Portal is Active. Login to start."; statusMsg.style.color = "#0284c7"; }
         } else if (isRegOpen) {
           regView?.classList.remove("hidden");
           if (statusMsg) { statusMsg.textContent = "🟢 NVMSO Registration is Live & Active."; statusMsg.style.color = "#10b981"; }
@@ -100,13 +106,65 @@ window.openDirectUpiApp = function() {
   window.location.href = `upi://pay?pa=${encodeURIComponent(activeUpiString)}&pn=NVMSO&am=${fee}&cu=INR`;
 };
 
-window.validateAndShowPayment = function() {
+// COMPACT & PROFESSIONAL REVIEW DETAILS FORMATTING (Fixed spacing & layout)
+window.showReviewDetailsModal = function() {
   if (!isOrganizerVerified) { alert("⚠️ Enter valid School Organizer Code first!"); return; }
   const fields = ['org-code', 'std-name', 'std-mother', 'std-father', 'std-class', 'std-roll', 'std-contact'];
   for (let id of fields) {
     if (!document.getElementById(id).value.trim()) { alert("❌ Please fill out all required fields!"); return; }
   }
+
+  const schoolNameDisplayElem = document.getElementById("school-name-display");
+  const schoolFullName = schoolNameDisplayElem ? schoolNameDisplayElem.textContent.replace("✅ School Authorized: ", "") : document.getElementById('org-code').value.toUpperCase();
+  const selectedClassVal = document.getElementById('std-class').value;
+
+  const reviewHtml = `
+    <div style="display: flex; gap: 12px; margin-bottom: 10px; border-bottom: 1px dashed #334155; padding-bottom: 8px; text-align: left;">
+      <span style="color: #94a3b8; width: 140px; flex-shrink: 0;">School Name :-</span> 
+      <strong style="color: #4ade80;">${schoolFullName}</strong>
+    </div>
+    <div style="display: flex; gap: 12px; margin-bottom: 10px; border-bottom: 1px dashed #334155; padding-bottom: 8px; text-align: left;">
+      <span style="color: #94a3b8; width: 140px; flex-shrink: 0;">Coordinator Code :-</span> 
+      <strong style="color: #38bdf8;">${document.getElementById('org-code').value.toUpperCase()}</strong>
+    </div>
+    <div style="display: flex; gap: 12px; margin-bottom: 10px; border-bottom: 1px dashed #334155; padding-bottom: 8px; text-align: left;">
+      <span style="color: #94a3b8; width: 140px; flex-shrink: 0;">Student Name :-</span> 
+      <strong style="color: #fff;">${document.getElementById('std-name').value}</strong>
+    </div>
+    <div style="display: flex; gap: 12px; margin-bottom: 10px; border-bottom: 1px dashed #334155; padding-bottom: 8px; text-align: left;">
+      <span style="color: #94a3b8; width: 140px; flex-shrink: 0;">Mother's Name :-</span> 
+      <strong style="color: #fff;">${document.getElementById('std-mother').value}</strong>
+    </div>
+    <div style="display: flex; gap: 12px; margin-bottom: 10px; border-bottom: 1px dashed #334155; padding-bottom: 8px; text-align: left;">
+      <span style="color: #94a3b8; width: 140px; flex-shrink: 0;">Father's Name :-</span> 
+      <strong style="color: #fff;">${document.getElementById('std-father').value}</strong>
+    </div>
+    <div style="display: flex; gap: 12px; margin-bottom: 10px; border-bottom: 1px dashed #334155; padding-bottom: 8px; text-align: left;">
+      <span style="color: #94a3b8; width: 140px; flex-shrink: 0;">Class :-</span> 
+      <strong style="color: #facc15;">${selectedClassVal}</strong>
+    </div>
+    <div style="display: flex; gap: 12px; margin-bottom: 10px; border-bottom: 1px dashed #334155; padding-bottom: 8px; text-align: left;">
+      <span style="color: #94a3b8; width: 140px; flex-shrink: 0;">Roll Number :-</span> 
+      <strong style="color: #38bdf8;">${document.getElementById('std-roll').value}</strong>
+    </div>
+    <div style="display: flex; gap: 12px; text-align: left;">
+      <span style="color: #94a3b8; width: 140px; flex-shrink: 0;">Contact Number :-</span> 
+      <strong style="color: #fff;">${document.getElementById('std-contact').value}</strong>
+    </div>
+  `;
+  document.getElementById('review-content').innerHTML = reviewHtml;
   document.getElementById('details-section').style.display = 'none';
+  document.getElementById('review-section').style.display = 'block';
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+};
+
+window.backToEditDetails = function() {
+  document.getElementById('review-section').style.display = 'none';
+  document.getElementById('details-section').style.display = 'block';
+};
+
+window.proceedToPaymentFromReview = function() {
+  document.getElementById('review-section').style.display = 'none';
   document.getElementById('payment-section').style.display = 'block';
   renderDynamicUPIQR();
   window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -120,14 +178,6 @@ window.backToDetails = function() {
 window.toggleQrDisplay = function() {
   const qrDiv = document.getElementById('dynamic-qr-container');
   qrDiv.style.display = (qrDiv.style.display === 'none' || qrDiv.style.display === '') ? 'flex' : 'none';
-};
-
-window.toggleSubmitButton = function() {
-  const checked = document.getElementById('terms-checkbox').checked;
-  const btn = document.getElementById('btn-final-submit');
-  btn.disabled = !checked;
-  btn.style.opacity = checked ? "1" : "0.5";
-  btn.style.cursor = checked ? "pointer" : "not-allowed";
 };
 
 window.submitStudentRegistration = function() {
@@ -157,7 +207,6 @@ window.submitStudentRegistration = function() {
       document.getElementById('details-section').style.display = 'block';
       isOrganizerVerified = false;
       document.getElementById("school-name-display").innerText = "";
-      toggleSubmitButton();
     } else { alert("❌ Error: " + data.message); }
   });
 };
@@ -176,41 +225,66 @@ window.verifyStudentLoginAndStartExam = function() {
   .then(data => {
     if (data.status === "success") {
       studentSessionData = data.student;
+
+      if (studentSessionData.examMode && studentSessionData.examMode.toLowerCase() === 'offline') {
+        alert("❌ Access Denied: Your school has selected OFFLINE mode for examinations. You cannot take the exam online!");
+        return;
+      }
+
       document.getElementById("student-auth-box").classList.add("hidden");
-      let previewBox = document.getElementById("student-details-preview-box") || document.createElement("div");
-      previewBox.id = "student-details-preview-box";
-      previewBox.className = "score-card";
-      document.getElementById("exam-login-view").appendChild(previewBox);
-      
-      previewBox.innerHTML = `
-        <h3 style="color: #facc15; margin-bottom: 15px;">📋 Student Details Verification</h3>
-        <p style="text-align: left; margin-bottom: 5px;"><strong>Name:</strong> ${studentSessionData.studentName}</p>
-        <p style="text-align: left; margin-bottom: 5px;"><strong>Class:</strong> ${studentSessionData.studentClass}</p>
-        <p style="text-align: left; margin-bottom: 5px;"><strong>Roll No:</strong> ${studentSessionData.rollNumber}</p>
-        <p style="text-align: left; margin-bottom: 15px;"><strong>School:</strong> ${studentSessionData.schoolName}</p>
-        <button onclick="launchActualExam()" class="btn-submit" style="background: #10b981;">🚀 Start Exam Now</button>
-      `;
+      document.getElementById("exam-instructions-modal").classList.remove("hidden");
+
     } else { alert("❌ Login Failed: " + data.message); }
   });
 };
 
-window.launchActualExam = function() {
-  document.getElementById("student-details-preview-box").style.display = "none";
+window.proceedToActualExamPaper = function() {
+  const agreeCheck = document.getElementById("agree-instructions");
+  if (!agreeCheck.checked) {
+    alert("⚠️ Please check the box to confirm you have read all exam rules and instructions.");
+    return;
+  }
+
+  document.getElementById("exam-instructions-modal").classList.add("hidden");
   document.getElementById("active-exam-container").classList.remove("hidden");
   document.getElementById("exam-student-info").textContent = `Student: ${studentSessionData.studentName} (Class ${studentSessionData.studentClass})`;
-  loadExamQuestions();
+  
+  loadExamQuestionsForClass(studentSessionData.studentClass);
   startExamTimer(30 * 60);
 };
 
-function loadExamQuestions() {
+function loadExamQuestionsForClass(studentClass) {
   fetch(`${SERVER_URL}/api/student/questions`)
     .then(res => res.json())
     .then(data => {
       const qContainer = document.getElementById("exam-questions-list");
       if (!qContainer) return;
       if (data.status === "success" && data.questions) {
-        currentExamQuestions = data.questions;
-        qContainer.innerHTML = "";
+        let allQuestions = data.questions;
+        
+        let filteredQuestions = allQuestions.filter(q => {
+          let range = (q.classRange || "").toString();
+          if (range.includes("-")) {
+            let parts = range.split("-");
+            let min = parseInt(parts[0], 10);
+            let max = parseInt(parts[1], 10);
+            let c = parseInt(studentClass, 10);
+            return c >= min && c <= max;
+          }
+          return range === studentClass.toString();
+        });
+
+        if (filteredQuestions.length === 0) {
+          filteredQuestions = allQuestions;
+        }
+
+        currentExamQuestions = filteredQuestions;
+        qContainer.innerHTML = `
+          <div style="background: #0f172a; color: #38bdf8; padding: 10px; border-radius: 6px; margin-bottom: 15px; font-size: 13px; text-align: center;">
+            📊 Total Question Bank: ${allQuestions.length} | Showing <strong>${filteredQuestions.length}</strong> Questions for Class ${studentClass}
+          </div>
+        `;
+
         currentExamQuestions.forEach((q, idx) => {
           qContainer.innerHTML += `
             <div style="background: #ffffff; border: 1px solid #ccc; padding: 15px; border-radius: 8px; margin-bottom: 12px; color: #333;">
@@ -239,7 +313,7 @@ function startExamTimer(durationSeconds) {
 }
 
 window.submitExamAnswers = function() {
-  if (!confirm("Submit exam answers?")) return;
+  if (!confirm("Are you sure you want to submit your exam answers?")) return;
   if (examTimerInterval) clearInterval(examTimerInterval);
   let answers = {};
   currentExamQuestions.forEach(q => {
@@ -252,8 +326,10 @@ window.submitExamAnswers = function() {
   })
   .then(res => res.json())
   .then(data => {
-    if (data.status === "success") { alert(`🎉 Submitted! Score: ${data.score} / ${data.total}`); location.reload(); }
-    else { alert("❌ Error: " + data.message); }
+    if (data.status === "success") { 
+      alert("✅ Exam Submitted Successfully! Your answers have been securely recorded. Results will be displayed once officially declared."); 
+      location.reload(); 
+    } else { alert("❌ Error: " + data.message); }
   });
 };
 
@@ -279,7 +355,7 @@ window.fetchStudentResult = function() {
           <p><strong>Class:</strong> ${resData.studentClass}</p>
           <p><strong>Score:</strong> <span style="color: #10b981; font-weight: bold;">${resData.score} / ${resData.totalMarks || 100} (${resData.percentage}%)</span></p>
         </div>
-        <div class="certificate-wrapper">
+        <div class="certificate-wrapper" id="printable-certificate-area">
           <img src="certificate-template.png" alt="Certificate" class="cert-img">
           <div class="cert-text-overlay">
             <h2 class="cert-student-name">${resData.studentName}</h2>
@@ -287,6 +363,7 @@ window.fetchStudentResult = function() {
             <div class="cert-school-name">${resData.schoolName}</div>
           </div>
         </div>
+        <button onclick="window.print()" class="cert-download-btn no-print" style="margin-top: 20px;">🖨️ Print Certificate (Landscape A4)</button>
       `;
     } else { scorecardBox.innerHTML = `<p style="color: #d9534f; text-align: center; padding: 20px;">❌ ${data.message}</p>`; }
   });
