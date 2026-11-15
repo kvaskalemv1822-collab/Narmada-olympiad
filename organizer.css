@@ -1,5 +1,5 @@
 /* ==========================================================================
-   1. ORGANIZER CYBER DARK COMMAND PANEL BASE THEME
+   ORGANIZER CYBER DARK COMMAND PANEL BASE THEME
    ========================================================================== */
 * {
   box-sizing: border-box;
@@ -41,9 +41,6 @@ h1 {
   margin-bottom: 20px;
 }
 
-/* ==========================================================================
-   2. INTERACTIVE UI CONTAINERS & CARDS
-   ========================================================================== */
 .card-box, .login-card {
   background: #0f172a;
   border: 1px solid #334155;
@@ -76,9 +73,6 @@ input:focus, select:focus {
   border-color: #38bdf8;
 }
 
-/* ==========================================================================
-   3. PREMIUM ACTION BUTTONS
-   ========================================================================== */
 .btn-primary {
   width: 100%;
   padding: 12px 24px;
@@ -93,20 +87,10 @@ input:focus, select:focus {
   transition: background 0.2s, transform 0.1s;
 }
 
-.btn-primary:hover {
-  background: #0369a1;
-}
+.btn-primary:hover { background: #0369a1; }
+.btn-primary:active { transform: scale(0.98); }
 
-.btn-primary:active {
-  transform: scale(0.98);
-}
-
-/* ==========================================================================
-   4. HELPER UTILITIES & RESPONSIVENESS
-   ========================================================================== */
-.hidden { 
-  display: none !important; 
-}
+.hidden { display: none !important; }
 
 hr {
   border: 0;
@@ -115,13 +99,7 @@ hr {
 }
 
 @media (max-width: 600px) {
-  .container { 
-    padding: 15px; 
-  }
-  h1 { 
-    font-size: 20px; 
-  }
-  .card-box {
-    padding: 15px;
-  }
+  .container { padding: 15px; }
+  h1 { font-size: 20px; }
+  .card-box { padding: 15px; }
 }
