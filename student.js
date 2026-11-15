@@ -106,7 +106,7 @@ window.openDirectUpiApp = function() {
   window.location.href = `upi://pay?pa=${encodeURIComponent(activeUpiString)}&pn=NVMSO&am=${fee}&cu=INR`;
 };
 
-// COMPACT & PROFESSIONAL REVIEW DETAILS FORMATTING (Fixed spacing & layout)
+// COMPACT & PROFESSIONAL REVIEW DETAILS FORMATTING
 window.showReviewDetailsModal = function() {
   if (!isOrganizerVerified) { alert("⚠️ Enter valid School Organizer Code first!"); return; }
   const fields = ['org-code', 'std-name', 'std-mother', 'std-father', 'std-class', 'std-roll', 'std-contact'];
@@ -181,6 +181,14 @@ window.toggleQrDisplay = function() {
 };
 
 window.submitStudentRegistration = function() {
+  const payMode = document.getElementById('payment-mode').value;
+  const utrInput = document.getElementById('std-utr') ? document.getElementById('std-utr').value.trim() : '';
+
+  if (payMode === "online" && (!utrInput || utrInput.length < 6)) {
+    alert("❌ Error: Online payment selected! Please enter a valid 12-digit UTR / Transaction Reference Number before submitting.");
+    return;
+  }
+
   const payload = {
     orgCode: document.getElementById('org-code').value.toUpperCase(),
     studentName: document.getElementById('std-name').value.trim(),
@@ -190,8 +198,8 @@ window.submitStudentRegistration = function() {
     rollNumber: document.getElementById('std-roll').value.trim(),
     stream: document.getElementById('std-stream') ? document.getElementById('std-stream').value : '',
     contactNumber: document.getElementById('std-contact').value.trim(),
-    paymentMode: document.getElementById('payment-mode').value,
-    utrNumber: document.getElementById('std-utr') ? document.getElementById('std-utr').value.trim() : ''
+    paymentMode: payMode,
+    utrNumber: utrInput || "NOT_PROVIDED"
   };
 
   fetch(`${SERVER_URL}/api/student/register`, {
@@ -201,7 +209,7 @@ window.submitStudentRegistration = function() {
   .then(res => res.json())
   .then(data => {
     if (data.status === "success") {
-      alert("🎉 Registration Saved Successfully! Awaiting Organizer Fee Approval.");
+      alert("🎉 Registration Submitted! Status is Pending until UTR/Cash verification.");
       document.getElementById('reg-form').reset();
       document.getElementById('payment-section').style.display = 'none';
       document.getElementById('details-section').style.display = 'block';
