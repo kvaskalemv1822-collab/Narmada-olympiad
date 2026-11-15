@@ -10,7 +10,6 @@ CORS(app)
 # Initialize Firebase Admin
 if not firebase_admin._apps:
     try:
-        # If running locally with a service account json file, or using environment credentials
         if os.path.exists('serviceAccountKey.json'):
             cred = credentials.Certificate('serviceAccountKey.json')
             firebase_admin.initialize_app(cred)
@@ -22,7 +21,6 @@ if not firebase_admin._apps:
 db = firestore.client() if firebase_admin._apps else None
 
 def backup_data_to_sheets(action_type, data):
-    # Optional sheets logging placeholder
     pass
 
 @app.route('/')
@@ -70,7 +68,6 @@ def admin_authenticate():
     try:
         data = request.json or {}
         password = data.get('password', '')
-        # Master Admin Password Check (Change as needed)
         if password == "NVMS2026Admin@#":
             return jsonify({"status": "success", "message": "Authenticated"}), 200
         return jsonify({"status": "error", "message": "Invalid Password"}), 401
@@ -121,7 +118,6 @@ def organizer_register():
         if not school_name:
             return jsonify({"status": "error", "message": "School Name is required"}), 400
         
-        # Generate unique code
         count = len(list(db.collection('organizers').stream())) + 1
         org_code = f"NVMS{300 + count}"
 
@@ -303,7 +299,6 @@ def submit_exam():
         if s_data.get('examCompleted', False):
             return jsonify({"status": "error", "message": "Exam already submitted"}), 400
 
-        # Calculate score dynamically
         q_docs = db.collection('questions').stream()
         questions_map = {q.to_dict().get('id'): q.to_dict() for q in q_docs}
 
@@ -338,7 +333,6 @@ def get_student_result():
         org_code = str(data.get('orgCode', '')).strip().upper()
         roll_number = str(data.get('rollNumber', '')).strip()
 
-        # Check if result is declared globally
         config_doc = db.collection('settings').document('portal_config').get()
         if config_doc.exists and not config_doc.to_dict().get('isResultDeclared', False):
             return jsonify({"status": "error", "message": "🔒 Result gate is locked! Scorecards have not been officially declared yet."}), 403
