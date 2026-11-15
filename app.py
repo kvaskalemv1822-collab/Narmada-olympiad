@@ -37,7 +37,9 @@ def format_school_name(name_str):
         return "NVMSO Associated School"
     return ' '.join([word.capitalize() for word in name_str.split()])
 
+# ==========================================
 # 1. ADMIN AUTHENTICATION
+# ==========================================
 @app.route('/api/admin/authenticate', methods=['POST'])
 def admin_authenticate():
     try:
@@ -53,7 +55,9 @@ def admin_authenticate():
     except Exception as e:
         return jsonify({"status": "glitch", "message": str(e)}), 500
 
+# ==========================================
 # 2. GLOBAL CONFIG
+# ==========================================
 @app.route('/api/portal/config', methods=['GET'])
 def get_global_config():
     try:
@@ -82,7 +86,9 @@ def update_master_portal_settings():
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
-# 3. STUDENT REGISTRATION & UTR UNIQUENESS CHECK
+# ==========================================
+# 3. STUDENT REGISTRATION & SINGLE-USE UTR
+# ==========================================
 @app.route('/api/student/verify-school', methods=['POST'])
 def verify_school_code():
     try:
@@ -115,7 +121,7 @@ def secure_registration():
         if not org_code or not roll_num or not student_name or not roll_num.isdigit():
             return jsonify({"status": "cyber_attack", "message": "Security Reject: Malformed payload!"}), 400
 
-        # 🛑 SINGLE-USE UTR CHECK: Prevent duplicate UTR usage across all students
+        # SINGLE-USE UTR CHECK
         if utr_number and utr_number != "NOT_PROVIDED":
             existing_utr = db.collection('students').where('utrNumber', '==', utr_number).limit(1).get()
             if len(list(existing_utr)) > 0:
@@ -153,7 +159,9 @@ def secure_registration():
     except Exception as e:
         return jsonify({"status": "glitch", "message": str(e)}), 500
 
-# 4. STUDENT EXAM LOGIN & SUBMISSION (STRICT PAYMENT GATE)
+# ==========================================
+# 4. EXAM LOGIN & SUBMISSION (FEE GATE)
+# ==========================================
 @app.route('/api/student/login', methods=['POST'])
 def student_login():
     try:
@@ -169,12 +177,12 @@ def student_login():
 
         s_data = student_doc.to_dict()
 
-        # 🛑 STRICT FEE APPROVAL GATE: Exam locked until Organizer/Admin approves payment
+        # STRICT FEE APPROVAL GATE
         is_paid = s_data.get('paymentStatus') == 'Approved' or s_data.get('paymentVerified') is True
         if not is_paid:
-            return jsonify({"status": "error", "message": "🔒 Exam Locked! Your payment/registration is pending verification by School Organizer or Admin."}), 403
+            return jsonify({"status": "error", "message": "🔒 Exam Locked! Your fee/registration is pending verification by School Organizer or Admin."}), 403
 
-        # 🛑 SINGLE-ATTEMPT EXAM BLOCK CHECK
+        # SINGLE-ATTEMPT LOCK
         if s_data.get('examCompleted', False):
             return jsonify({"status": "error", "message": "⚠️ You have already submitted your exam! Multiple attempts are strictly prohibited."}), 403
 
@@ -251,7 +259,7 @@ def student_get_result():
         config_doc = db.collection('settings').document('portal_config').get()
         g_cfg = config_doc.to_dict() if config_doc.exists else {}
 
-        # 🛑 RESULT DECLARATION GATE: Student can only view result if NVMS declares it
+        # RESULT DECLARATION GATE (NEET Style)
         if not g_cfg.get('isResultDeclared', False):
             return jsonify({"status": "error", "message": "🏆 Results have not been officially declared by NVMS Central Command yet!"}), 403
 
@@ -267,7 +275,9 @@ def student_get_result():
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
-# 5. ADMIN & MANUAL OFFLINE RESULT ENTRY ROUTES
+# ==========================================
+# 5. ADMIN & MANUAL OFFLINE SCORE ENTRY
+# ==========================================
 @app.route('/api/admin/all_data', methods=['POST'])
 def admin_get_all_data():
     try:
@@ -289,32 +299,28 @@ def admin_get_financial_requests():
 @app.route('/api/admin/approve_payment', methods=['POST'])
 def admin_approve_online_payment():
     data = request.json or {}
-    student_id = data.get('studentId')
-    if student_id:
-        db.collection('students').document(student_id).update({"paymentVerified": True, "paymentStatus": "Approved"})
+    if data.get('studentId'):
+        db.collection('students').document(data.get('studentId')).update({"paymentVerified": True, "paymentStatus": "Approved"})
         return jsonify({"status": "success", "message": "Payment approved"})
     return jsonify({"status": "error", "message": "Missing ID"}), 400
 
 @app.route('/api/admin/reject_payment', methods=['POST'])
 def admin_reject_online_payment():
     data = request.json or {}
-    student_id = data.get('studentId')
-    reason = data.get('reason', 'Invalid UTR')
-    if student_id:
-        db.collection('students').document(student_id).update({"paymentVerified": False, "paymentStatus": "Rejected", "rejectionReason": reason})
+    if data.get('studentId'):
+        db.collection('students').document(data.get('studentId')).update({"paymentVerified": False, "paymentStatus": "Rejected", "rejectionReason": data.get('reason', 'Invalid UTR')})
         return jsonify({"status": "success", "message": "Payment rejected"})
     return jsonify({"status": "error", "message": "Missing ID"}), 400
 
 @app.route('/api/admin/reexam', methods=['POST'])
 def admin_trigger_reexam():
     data = request.json or {}
-    student_id = data.get('studentId')
-    if student_id:
-        db.collection('students').document(student_id).update({"examCompleted": False, "score": 0, "submittedAnswers": {}})
+    if data.get('studentId'):
+        db.collection('students').document(data.get('studentId')).update({"examCompleted": False, "score": 0, "submittedAnswers": {}})
         return jsonify({"status": "success", "message": "Re-exam triggered"})
     return jsonify({"status": "error", "message": "Missing ID"}), 400
 
-# 🌟 NEW: Manual Score/Result Entry for Offline OMR Students (NEET/Board Style)
+# MANUAL OFFLINE SCORE ENTRY (NEET Style)
 @app.route('/api/admin/manual_score_entry', methods=['POST'])
 def admin_manual_score_entry():
     try:
@@ -332,7 +338,7 @@ def admin_manual_score_entry():
             "percentage": percentage,
             "manualEntry": True
         })
-        return jsonify({"status": "success", "message": "Manual offline score updated successfully!"}), 200
+        return jsonify({"status": "success", "message": "Manual score updated successfully!"}), 200
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
@@ -349,7 +355,9 @@ def admin_complete_payout():
     if data.get('payoutId'): db.collection('payouts').document(data.get('payoutId')).update({"status": "completed"})
     return jsonify({"status": "success", "message": "Payout completed"})
 
+# ==========================================
 # 6. ORGANIZER ROUTES
+# ==========================================
 @app.route('/api/organizer/login', methods=['POST'])
 def organizer_login():
     data = request.json or {}
@@ -366,8 +374,7 @@ def organizer_login():
 @app.route('/api/organizer/register', methods=['POST'])
 def organizer_register():
     data = request.json or {}
-    rand_num = random.randint(100, 999)
-    org_code = f"NVMS{rand_num}"
+    org_code = f"NVMS{random.randint(100, 999)}"
     while db.collection('organizers').document(org_code).get().exists:
         org_code = f"NVMS{random.randint(100, 999)}"
 
@@ -462,7 +469,9 @@ def organizer_request_payout():
     })
     return jsonify({"status": "success", "message": "Requested"})
 
+# ==========================================
 # 7. CHAT & QUESTION BANK
+# ==========================================
 @app.route('/api/admin/queries', methods=['GET'])
 def get_queries():
     queries = [{**doc.to_dict(), "ticketId": doc.id} for doc in db.collection('supportTickets').stream()]
