@@ -1,64 +1,93 @@
+import os
+import json
+import random
+import requests
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import firebase_admin
 from firebase_admin import credentials, firestore
-import os
 
 app = Flask(__name__)
-CORS(app)
 
-# Initialize Firebase Admin securely
+# Full Access CORS Configuration for Cross-Origin Resources
+CORS(app, resources={r"/api/*": {"origins": "*"}})
+
+# ==========================================================================
+# 🛡️ CLOUD FIREBASE DATABASE INITIALIZATION GRID
+# ==========================================================================
 db = None
 try:
     if not firebase_admin._apps:
-        if os.path.exists('serviceAccountKey.json'):
-            cred = credentials.Certificate('serviceAccountKey.json')
+        firebase_key_json = os.environ.get('FIREBASE_CONFIG_JSON')
+        if not firebase_key_json:
+            if os.path.exists('serviceAccountKey.json'):
+                cred = credentials.Certificate('serviceAccountKey.json')
+                firebase_admin.initialize_app(cred)
+            else:
+                raise ValueError("CRITICAL CYBER THREAT: FIREBASE_CONFIG_JSON environmental vector is missing!")
+        else:
+            cred_dict = json.loads(firebase_key_json)
+            cred = credentials.Certificate(cred_dict)
             firebase_admin.initialize_app(cred)
-            db = firestore.client()
-            print("🔥 Firebase Connected via serviceAccountKey.json")
-        else:
-            firebase_admin.initialize_app()
-            db = firestore.client()
-            print("🔥 Firebase Connected via Default Environment App")
-    else:
-        db = firestore.client()
+    db = firestore.client()
 except Exception as e:
-    print(f"❌ Firebase Initialization Error: {e}")
+    print(f"❌ Critical Core Setup Exception Tracker: {str(e)}")
 
-@app.route('/')
-def home():
-    db_status = "Connected" if db is not None else "Disconnected"
-    return jsonify({"status": "active", "firebase": db_status, "system": "NVMSO 2026 Backend API"}), 200
+GOOGLE_SHEET_WEBHOOK_URL = os.environ.get('GOOGLE_SHEETS_WEBHOOK_URL', '')
 
-# ==========================================
-# 1. PORTAL CONFIGURATION (WITH MUTUAL EXCLUSIVITY)
-# ==========================================
-@app.route('/api/portal/config', methods=['GET'])
-def get_portal_config():
+def backup_data_to_sheets(payload_type, data_body):
+    if GOOGLE_SHEET_WEBHOOK_URL:
+        try:
+            requests.post(GOOGLE_SHEET_WEBHOOK_URL, json={"type": payload_type, "data": data_body}, timeout=4)
+        except Exception:
+            pass 
+
+def format_school_name(name_str):
+    if not name_str: 
+        return "NVMSO Associated School"
+    return ' '.join([word.capitalize() for word in name_str.split()])
+
+# ==========================================================================
+# 1. FIREBASE CONSOLE-ONLY ADMIN AUTHENTICATION ENGINE
+# ==========================================================================
+@app.route('/api/admin/authenticate', methods=['POST'])
+def admin_authenticate():
     try:
-        if db is None: return jsonify({"status": "error", "message": "DB offline"}), 500
-        doc = db.collection('settings').document('portal_config').get()
-        if doc.exists:
-            return jsonify({"status": "success", "config": doc.to_dict()}), 200
-        else:
-            default_config = {
-                "onlineFee": 100, "offlineFee": 120, "isRegistrationOpen": True,
-                "isExamActive": False, "isResultDeclared": False,
-                "broadcastNotice": "Welcome to Narmada Valley Maths & Science Olympiad 2026!",
-                "adminUpiId": "narmada@upi",
-                "adminPassword": "NVMS2026Admin@#"
-            }
-            db.collection('settings').document('portal_config').set(default_config)
-            return jsonify({"status": "success", "config": default_config}), 200
+        data = request.json or {}
+        password = str(data.get('password', '')).strip()
+        
+        config_doc = db.collection('settings').document('portal_config').get()
+        if not config_doc.exists:
+            return jsonify({"status": "cyber_attack", "message": "🚨 Config document missing!"}), 500
+            
+        stored_password = str(config_doc.to_dict().get('adminPassword', '')).strip()
+        if password == stored_password:
+            return jsonify({"status": "success", "message": "Master Node Auth Success!"}), 200
+            
+        return jsonify({"status": "cyber_attack", "message": "🚨 Admin Password Rejected!"}), 401
+    except Exception as e:
+        return jsonify({"status": "glitch", "message": str(e)}), 500
+
+# ==========================================================================
+# 2. GLOBAL PORTAL PHASE LIFECYCLE MANAGEMENT ROUTERS
+# ==========================================================================
+@app.route('/api/portal/config', methods=['GET'])
+def get_global_config():
+    try:
+        config_doc = db.collection('settings').document('portal_config').get()
+        if config_doc.exists:
+            config = config_doc.to_dict()
+            if "adminPassword" in config: 
+                del config["adminPassword"]
+            return jsonify({"status": "success", "config": config}), 200
+        return jsonify({"status": "error", "message": "Config mapping trace missing!"}), 404
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
 @app.route('/api/admin/update_config', methods=['POST'])
-def update_portal_config():
+def update_master_portal_settings():
     try:
-        if db is None: return jsonify({"status": "error", "message": "DB offline"}), 500
         data = request.json or {}
-        
         is_reg = bool(data.get('isRegistrationOpen', False))
         is_exam = bool(data.get('isExamActive', False))
         is_result = bool(data.get('isResultDeclared', False))
@@ -74,172 +103,91 @@ def update_portal_config():
             is_exam = False
             is_result = False
 
-        payload = {
-            "onlineFee": float(data.get('onlineFee', 100)),
-            "offlineFee": float(data.get('offlineFee', 120)),
+        update_payload = {
+            "onlineFee": int(data.get('onlineFee', 100)),
+            "offlineFee": int(data.get('offlineFee', 120)),
             "isRegistrationOpen": is_reg,
             "isExamActive": is_exam,
             "isResultDeclared": is_result,
             "broadcastNotice": str(data.get('broadcastNotice', '')).strip()
         }
-        
-        db.collection('settings').document('portal_config').set(payload, merge=True)
-        return jsonify({"status": "success", "message": "Portal phase updated securely!"}), 200
+
+        db.collection('settings').document('portal_config').set(update_payload, merge=True)
+        return jsonify({"status": "success", "message": "Master parameters synced!"}), 200
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
-# ==========================================
-# 2. ADMIN AUTHENTICATION (READING 'adminPassword' FIELD)
-# ==========================================
-@app.route('/api/admin/authenticate', methods=['POST'])
-def admin_authenticate():
-    try:
-        if db is None: return jsonify({"status": "error", "message": "DB offline"}), 500
-        data = request.json or {}
-        input_pass = str(data.get('password', '')).strip()
-        
-        config_doc = db.collection('settings').document('portal_config').get()
-        stored_pass = config_doc.to_dict().get('adminPassword', 'NVMS2026Admin@#') if config_doc.exists else "NVMS2026Admin@#"
-            
-        if input_pass == stored_pass:
-            return jsonify({"status": "success", "message": "Authenticated"}), 200
-        return jsonify({"status": "error", "message": "Invalid Master Password"}), 401
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
-
-# ==========================================
-# 3. SCHOOL ORGANIZER LOGIN & REGISTER
-# ==========================================
+# ==========================================================================
+# 3. STUDENT REGISTRATION & SCHOOL VERIFICATION ROUTERS
+# ==========================================================================
 @app.route('/api/student/verify-school', methods=['POST'])
-def verify_school():
+def verify_school_code():
     try:
-        if db is None: return jsonify({"status": "error", "message": "DB offline"}), 500
         data = request.json or {}
         org_code = str(data.get('orgCode', '')).strip().upper()
+        org_doc = db.collection('organizers').document(org_code).get()
         
-        doc = db.collection('organizers').document(org_code).get()
-        if not doc.exists:
-            docs = db.collection('organizers').stream()
-            for d in docs:
-                if d.id.upper() == org_code or str(d.to_dict().get('orgCode', '')).upper() == org_code:
-                    doc = d
-                    break
-
-        if doc and doc.exists:
-            org_data = doc.to_dict()
+        if org_doc.exists:
+            org_data = org_doc.to_dict()
+            if not org_data.get('principalApproved', False):
+                return jsonify({"status": "locked", "message": "Registration Locked! Principal Permission NOC pending."}), 200
+            
+            config_doc = db.collection('settings').document('portal_config').get()
+            g_cfg = config_doc.to_dict() if config_doc.exists else {}
+            fee = g_cfg.get('offlineFee', 120) if org_data.get('examMode') == 'offline' else g_cfg.get('onlineFee', 100)
+            
             return jsonify({
-                "status": "success",
-                "schoolName": org_data.get('schoolName', org_code),
-                "examMode": org_data.get('examMode', 'online')
+                "status": "success", 
+                "schoolName": org_data.get('schoolName'),
+                "examMode": org_data.get('examMode', 'online'), 
+                "applicableFee": fee
             }), 200
-        return jsonify({"status": "error", "message": "Invalid School Organizer Code!"}), 404
+        return jsonify({"status": "invalid", "message": "Organizer School Code Not Found!"}), 200
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
-@app.route('/api/organizer/login', methods=['POST'])
-def organizer_login():
-    try:
-        if db is None: return jsonify({"status": "error", "message": "DB offline"}), 500
-        data = request.json or {}
-        org_code = str(data.get('orgCode', '')).strip().upper()
-        password = str(data.get('password', '')).strip()
-        
-        doc = db.collection('organizers').document(org_code).get()
-        org_data = None
-        
-        if doc.exists:
-            org_data = doc.to_dict()
-        else:
-            docs = db.collection('organizers').stream()
-            for d in docs:
-                d_dict = d.to_dict()
-                if d.id.upper() == org_code or str(d_dict.get('orgCode', '')).upper() == org_code:
-                    org_data = d_dict
-                    break
-
-        if org_data:
-            stored_pass = str(org_data.get('password', '')).strip()
-            if stored_pass == password:
-                return jsonify({"status": "success", "data": org_data}), 200
-            else:
-                return jsonify({"status": "error", "message": "Incorrect Password"}), 401
-                
-        return jsonify({"status": "error", "message": "Organizer Code not found in database"}), 404
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
-
-@app.route('/api/organizer/register', methods=['POST'])
-def organizer_register():
-    try:
-        if db is None: return jsonify({"status": "error", "message": "DB offline"}), 500
-        data = request.json or {}
-        school_name = str(data.get('schoolName', '')).strip()
-        if not school_name:
-            return jsonify({"status": "error", "message": "School Name is required"}), 400
-        
-        count = len(list(db.collection('organizers').stream())) + 1
-        org_code = f"NVMS{300 + count}"
-
-        payload = {
-            "code": org_code,
-            "orgCode": org_code,
-            "name": str(data.get('name', '')).strip(),
-            "schoolName": school_name,
-            "contact": str(data.get('contact', '')).strip(),
-            "password": str(data.get('password', '')).strip(),
-            "pin": str(data.get('pin', '')).strip(),
-            "refCode": str(data.get('refCode', 'NONE')).strip().upper(),
-            "examMode": "online",
-            "principalApproved": False,
-            "manualSettled": False
-        }
-        db.collection('organizers').document(org_code).set(payload)
-        return jsonify({"status": "success", "orgCode": org_code}), 200
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
-
-# ==========================================
-# 4. SECURE STUDENT REGISTRATION
-# ==========================================
 @app.route('/api/student/register', methods=['POST'])
 def secure_registration():
     try:
-        if db is None: return jsonify({"status": "error", "message": "DB offline"}), 500
         data = request.json or {}
         org_code = str(data.get('orgCode', '')).strip().upper()
         roll_num = str(data.get('rollNumber', '')).strip()
         student_name = str(data.get('studentName', '')).strip()
+        student_class = str(data.get('studentClass', '')).strip()
         payment_mode = str(data.get('paymentMode', 'online')).lower()
-        utr_number = str(data.get('utrNumber', '')).strip()
+        
+        utr_number = str(data.get('utrNumber', '')).strip() or "NOT_PROVIDED"
+
+        mother_name = str(data.get('motherName', '')).strip()
+        father_name = str(data.get('fatherName', '')).strip()
+        stream = str(data.get('stream', '')).strip()
+        contact_number = str(data.get('contactNumber', '')).strip()
 
         if not org_code or not roll_num or not student_name or not roll_num.isdigit():
-            return jsonify({"status": "error", "message": "Invalid registration form payload!"}), 400
+            return jsonify({"status": "cyber_attack", "message": "Security Reject: Malformed payload!"}), 400
 
         student_id = f"{org_code}_{roll_num}"
         student_ref = db.collection('students').document(student_id)
         if student_ref.get().exists:
-            return jsonify({"status": "error", "message": f"🚫 Roll Number '{roll_num}' already registered under '{org_code}'!"}), 400
+            return jsonify({"status": "cyber_attack", "message": "🚫 Roll Number already registered under this school!"}), 400
 
-        if payment_mode == "online" and (not utr_number or len(utr_number) < 6):
-            return jsonify({"status": "error", "message": "❌ Valid UTR number is mandatory!"}), 400
-
-        initial_status = "Pending Payment Verification" if payment_mode == "online" else "Pending Organizer Cash Approval"
+        initial_status = "Approved" if payment_mode == "online" else "Pending Organizer Approval"
 
         student_payload = {
             "studentId": student_id,
             "orgCode": org_code,
-            "schoolCode": org_code,
+            "schoolCode": org_code,  
             "rollNumber": roll_num,
             "studentName": student_name,
-            "motherName": str(data.get('motherName', '')).strip(),
-            "fatherName": str(data.get('fatherName', '')).strip(),
-            "studentClass": str(data.get('studentClass', '')).strip(),
-            "stream": str(data.get('stream', '')).strip(),
-            "contactNumber": str(data.get('contactNumber', '')).strip(),
+            "motherName": mother_name,
+            "fatherName": father_name,
+            "studentClass": student_class,
+            "stream": stream,
+            "contactNumber": contact_number,
             "paymentMode": payment_mode,
-            "utrNumber": utr_number or "NOT_PROVIDED",
+            "utrNumber": utr_number,
             "paymentStatus": initial_status,
-            "paymentVerified": False,
+            "paymentVerified": True if payment_mode == "online" else False,
             "examCompleted": False,
             "score": 0,
             "percentage": 0,
@@ -247,263 +195,425 @@ def secure_registration():
         }
         
         student_ref.set(student_payload)
-        db.collection('organizers').document(org_code).set({"manualSettled": False}, merge=True)
-        return jsonify({"status": "success", "message": "Registration submitted!"}), 200
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
+        backup_data_to_sheets("STUDENT_REGISTRATION", student_payload)
 
-# ==========================================
-# 5. STUDENT LOGIN & EXAM
-# ==========================================
+        return jsonify({"status": "success", "message": "Registration successful!", "studentId": student_id}), 200
+    except Exception as e:
+        return jsonify({"status": "glitch", "message": str(e)}), 500
+
+# ==========================================================================
+# 4. STUDENT EXAM LOGIN & ASSESSMENT ROUTERS
+# ==========================================================================
 @app.route('/api/student/login', methods=['POST'])
 def student_login():
     try:
-        if db is None: return jsonify({"status": "error", "message": "DB offline"}), 500
         data = request.json or {}
         org_code = str(data.get('orgCode', '')).strip().upper()
         roll_number = str(data.get('rollNumber', '')).strip()
         input_password = str(data.get('password', '')).strip()
 
+        if not org_code or not roll_number or not input_password:
+            return jsonify({"status": "error", "message": "Missing login credentials"}), 400
+
         student_id = f"{org_code}_{roll_number}"
         student_doc = db.collection('students').document(student_id).get()
+        
         if not student_doc.exists:
-            return jsonify({"status": "error", "message": "Student record not found."}), 404
+            return jsonify({"status": "error", "message": "Student record not found. Check School Code & Roll No."}), 404
 
         s_data = student_doc.to_dict()
 
-        is_paid = s_data.get('paymentStatus') == 'Approved' or s_data.get('paymentVerified') is True
-        if not is_paid:
-            return jsonify({"status": "error", "message": "🔒 Exam Locked! Fee pending verification."}), 403
-
         if s_data.get('examCompleted', False):
-            return jsonify({"status": "error", "message": "⚠️ Exam already submitted!"}), 403
+            return jsonify({"status": "error", "message": "⚠️ You have already submitted your exam! Multiple attempts are not allowed."}), 403
 
-        mother_name = str(s_data.get('motherName', '')).strip()
+        mother_name = s_data.get('motherName', '').strip()
         expected_password = (mother_name[:2].upper() + roll_number) if len(mother_name) >= 2 else roll_number
+
         if input_password != expected_password:
-            return jsonify({"status": "error", "message": "Invalid password!"}), 401
+            return jsonify({"status": "error", "message": "Invalid password! Password format is Mother's first 2 capital letters + Roll No."}), 401
 
         org_doc = db.collection('organizers').document(org_code).get()
-        s_data['schoolName'] = org_doc.to_dict().get('schoolName', org_code) if org_doc.exists else org_code
-        s_data['examMode'] = org_doc.to_dict().get('examMode', 'online') if org_doc.exists else 'online'
+        if org_doc.exists:
+            s_data['schoolName'] = org_doc.to_dict().get('schoolName', org_code)
+        else:
+            s_data['schoolName'] = org_code
+
         s_data['id'] = student_doc.id
         return jsonify({"status": "success", "student": s_data}), 200
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
 @app.route('/api/student/questions', methods=['GET'])
-def get_student_questions():
+def student_get_questions():
     try:
-        if db is None: return jsonify({"status": "error", "message": "DB offline"}), 500
-        docs = db.collection('questions').stream()
-        questions = [doc.to_dict() for doc in docs]
+        questions_ref = db.collection('questions').stream()
+        questions = []
+        for doc in questions_ref:
+            q_data = doc.to_dict()
+            q_data['id'] = doc.id
+            questions.append(q_data)
         return jsonify({"status": "success", "questions": questions}), 200
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
 @app.route('/api/student/submit_exam', methods=['POST'])
-def submit_exam():
+def student_submit_exam():
     try:
-        if db is None: return jsonify({"status": "error", "message": "DB offline"}), 500
         data = request.json or {}
-        student_id, answers = data.get('studentId'), data.get('answers', {})
+        student_id = data.get('studentId')
+        answers = data.get('answers', {})
+
+        if not student_id:
+            return jsonify({"status": "error", "message": "Student ID missing"}), 400
 
         student_ref = db.collection('students').document(student_id)
         doc = student_ref.get()
-        if not doc.exists: return jsonify({"status": "error", "message": "Student not found"}), 404
-
-        questions_map = {q.to_dict().get('id'): q.to_dict() for q in db.collection('questions').stream()}
-        score = sum(1.0 for q_id, chosen in answers.items() if q_id in questions_map and chosen and chosen.upper() == questions_map[q_id].get('correctOption', '').upper())
-        total_marks = len(questions_map) if len(questions_map) > 0 else 30
-        percentage = round((score / total_marks) * 100, 2) if total_marks > 0 else 0
-
-        student_ref.update({"examCompleted": True, "answers": answers, "score": score, "totalMarks": total_marks, "percentage": percentage})
-        return jsonify({"status": "success"}), 200
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
-
-@app.route('/api/student/result', methods=['POST'])
-def get_student_result():
-    try:
-        if db is None: return jsonify({"status": "error", "message": "DB offline"}), 500
-        data = request.json or {}
-        org_code, roll_number = str(data.get('orgCode', '')).strip().upper(), str(data.get('rollNumber', '')).strip()
-
-        config_doc = db.collection('settings').document('portal_config').get()
-        if config_doc.exists and not config_doc.to_dict().get('isResultDeclared', False):
-            return jsonify({"status": "error", "message": "🔒 Result gate is locked!"}), 403
-
-        student_id = f"{org_code}_{roll_number}"
-        doc = db.collection('students').document(student_id).get()
-        if not doc.exists: return jsonify({"status": "error", "message": "Scorecard not found."}), 404
+        if not doc.exists:
+            return jsonify({"status": "error", "message": "Student not found"}), 404
 
         s_data = doc.to_dict()
-        s_data['schoolName'] = db.collection('organizers').document(org_code).get().to_dict().get('schoolName', org_code)
-        return jsonify({"status": "success", "result": s_data}), 200
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
+        if s_data.get('examCompleted', False):
+            return jsonify({"status": "error", "message": "Exam already submitted earlier!"}), 400
 
-# ==========================================
-# 6. ORGANIZER & ADMIN APIS
-# ==========================================
-@app.route('/api/organizer/students', methods=['POST'])
-def organizer_get_students():
-    try:
-        if db is None: return jsonify({"status": "error", "message": "DB offline"}), 500
-        org_code = str((request.json or {}).get('orgCode', '')).strip().upper()
-        
-        docs = db.collection('students').where('orgCode', '==', org_code).stream()
-        students = [doc.to_dict() for doc in docs]
-        org_data = db.collection('organizers').document(org_code).get().to_dict() or {}
+        questions_ref = db.collection('questions').stream()
+        questions_map = {q.id: q.to_dict() for q in questions_ref}
 
-        verified = [s for s in students if s.get('paymentStatus') == 'Approved' or s.get('paymentVerified') is True]
-        exam_mode = org_data.get('examMode', 'online').lower()
-        fee_per_student = 120 if exam_mode == 'offline' else 100
+        total_marks = len(questions_map) * 1  
+        obtained_score = 0.0
 
-        total_fees = len(verified) * fee_per_student
-        direct_comm = len(verified) * 15 if exam_mode == 'offline' else total_fees * 0.15
-        ref_comm = total_fees * 0.05 if (org_data.get('refCode') and org_data.get('refCode') != 'NONE') else 0
-        net_payable = max(0, total_fees - direct_comm - ref_comm)
+        for q_id, selected_opt in answers.items():
+            if q_id in questions_map:
+                correct_opt = questions_map[q_id].get('correctOption', '').strip().upper()
+                neg_marking = float(questions_map[q_id].get('negativeMarking', 0))
+                
+                if selected_opt and selected_opt.strip().upper() == correct_opt:
+                    obtained_score += 1.0
+                elif selected_opt and selected_opt.strip().upper() != correct_opt:
+                    obtained_score -= neg_marking
 
-        is_settled = org_data.get('manualSettled', False)
-        if is_settled: net_payable, direct_comm, ref_comm = 0, 0, 0
+        final_score = max(0.0, obtained_score)
+        percentage = round((final_score / max(1, total_marks)) * 100, 2)
+
+        student_ref.update({
+            "examCompleted": True,
+            "score": final_score,
+            "totalMarks": total_marks,
+            "percentage": percentage,
+            "submittedAnswers": answers
+        })
 
         return jsonify({
-            "status": "success", "students": students, "adminUpiId": "narmada@upi",
-            "financials": {"totalRegistrations": len(students), "verifiedRegistrations": len(verified), "totalFees": total_fees, "directCommission": direct_comm, "referralCommission": ref_comm, "netPayableToNvms": round(net_payable, 2), "isSettled": is_settled}
+            "status": "success", 
+            "score": final_score, 
+            "total": total_marks, 
+            "percentage": percentage
         }), 200
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
-@app.route('/api/organizer/approve_cash', methods=['POST'])
-def organizer_approve_cash():
+@app.route('/api/student/result', methods=['POST'])
+def student_get_result():
     try:
-        if db is None: return jsonify({"status": "error", "message": "DB offline"}), 500
-        db.collection('students').document((request.json or {}).get('studentId')).update({"paymentStatus": "Approved", "paymentVerified": True})
-        return jsonify({"status": "success"}), 200
+        data = request.json or {}
+        org_code = str(data.get('orgCode', '')).strip().upper()
+        roll_number = str(data.get('rollNumber', '')).strip()
+
+        if not org_code or not roll_number:
+            return jsonify({"status": "error", "message": "Missing school code or roll number"}), 400
+
+        student_id = f"{org_code}_{roll_number}"
+        student_doc = db.collection('students').document(student_id).get()
+
+        if not student_doc.exists:
+            return jsonify({"status": "error", "message": "Student record not found."}), 404
+
+        s_data = student_doc.to_dict()
+        
+        org_doc = db.collection('organizers').document(org_code).get()
+        if org_doc.exists:
+            s_data['schoolName'] = org_doc.to_dict().get('schoolName', org_code)
+        else:
+            s_data['schoolName'] = org_code
+
+        config_doc = db.collection('settings').document('portal_config').get()
+        g_cfg = config_doc.to_dict() if config_doc.exists else {}
+        if not g_cfg.get('isResultDeclared', False):
+            return jsonify({"status": "error", "message": "Result has not been declared by Central Admin yet!"}), 403
+
+        return jsonify({"status": "success", "result": s_data}), 200
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
+# ==========================================================================
+# 5. ADMIN CENTRAL PANEL & ORGANIZER MANAGEMENT ROUTERS
+# ==========================================================================
 @app.route('/api/admin/all_data', methods=['POST'])
 def admin_get_all_data():
     try:
-        if db is None: return jsonify({"status": "error", "message": "DB offline"}), 500
-        organizers = [doc.to_dict() for doc in db.collection('organizers').stream()]
-        students = [doc.to_dict() for doc in db.collection('students').stream()]
-        return jsonify({"status": "success", "organizers": organizers, "students": students}), 200
+        orgs = [{**doc.to_dict(), "code": doc.id} for doc in db.collection('organizers').stream()]
+        students = [{**doc.to_dict(), "id": doc.id} for doc in db.collection('students').stream()]
+        return jsonify({"status": "success", "organizers": orgs, "students": students}), 200
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
 @app.route('/api/admin/financial_requests', methods=['GET'])
 def admin_get_financial_requests():
     try:
-        if db is None: return jsonify({"status": "error", "message": "DB offline"}), 500
-        settlements = [doc.to_dict() for doc in db.collection('settlements').stream()]
-        return jsonify({"status": "success", "settlements": settlements, "payouts": []}), 200
+        settlements = [{**doc.to_dict(), "id": doc.id} for doc in db.collection('settlements').where('status', '==', 'pending').stream()]
+        payouts = [{**doc.to_dict(), "id": doc.id} for doc in db.collection('payouts').where('status', '==', 'pending').stream()]
+        return jsonify({"status": "success", "settlements": settlements, "payouts": payouts}), 200
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
 @app.route('/api/admin/approve_payment', methods=['POST'])
-def admin_approve_payment():
-    try:
-        if db is None: return jsonify({"status": "error", "message": "DB offline"}), 500
-        db.collection('students').document((request.json or {}).get('studentId')).update({"paymentStatus": "Approved", "paymentVerified": True})
-        return jsonify({"status": "success"}), 200
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
+def admin_approve_online_payment():
+    data = request.json or {}
+    student_id = data.get('studentId')
+    if student_id:
+        db.collection('students').document(student_id).update({"paymentVerified": True, "paymentStatus": "Approved"})
+        return jsonify({"status": "success", "message": "Payment approved"})
+    return jsonify({"status": "error", "message": "Missing ID"}), 400
 
-@app.route('/api/admin/manual_score_entry', methods=['POST'])
-def admin_manual_score_entry():
-    try:
-        if db is None: return jsonify({"status": "error", "message": "DB offline"}), 500
-        data = request.json or {}
-        score, total_marks = float(data.get('score', 0)), float(data.get('totalMarks', 30))
-        percentage = round((score / total_marks) * 100, 2) if total_marks > 0 else 0
-        db.collection('students').document(data.get('studentId')).update({"score": score, "totalMarks": total_marks, "percentage": percentage, "manualEntry": True, "examCompleted": True})
-        return jsonify({"status": "success"}), 200
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
+@app.route('/api/admin/reject_payment', methods=['POST'])
+def admin_reject_online_payment():
+    data = request.json or {}
+    student_id = data.get('studentId')
+    reason = data.get('reason', 'Invalid UTR')
+    if student_id:
+        db.collection('students').document(student_id).update({"paymentVerified": False, "paymentStatus": "Rejected", "rejectionReason": reason})
+        return jsonify({"status": "success", "message": "Payment rejected"})
+    return jsonify({"status": "error", "message": "Missing ID"}), 400
 
 @app.route('/api/admin/reexam', methods=['POST'])
-def admin_reexam():
-    try:
-        if db is None: return jsonify({"status": "error", "message": "DB offline"}), 500
-        db.collection('students').document((request.json or {}).get('studentId')).update({"examCompleted": False, "score": 0, "percentage": 0})
-        return jsonify({"status": "success"}), 200
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
-
-@app.route('/api/organizer/submit_settlement', methods=['POST'])
-def submit_settlement():
-    try:
-        if db is None: return jsonify({"status": "error", "message": "DB offline"}), 500
-        data = request.json or {}
-        req_id = f"{data.get('orgCode')}_{data.get('utrNumber')}"
-        db.collection('settlements').document(req_id).set({"id": req_id, "orgCode": data.get('orgCode'), "utrNumber": data.get('utrNumber'), "amount": data.get('amount'), "status": "Pending"})
-        return jsonify({"status": "success"}), 200
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
+def admin_trigger_reexam():
+    data = request.json or {}
+    student_id = data.get('studentId')
+    if student_id:
+        db.collection('students').document(student_id).update({"examCompleted": False, "score": 0, "submittedAnswers": {}})
+        return jsonify({"status": "success", "message": "Re-exam triggered"})
+    return jsonify({"status": "error", "message": "Missing ID"}), 400
 
 @app.route('/api/admin/approve_settlement', methods=['POST'])
-def approve_settlement():
-    try:
-        if db is None: return jsonify({"status": "error", "message": "DB offline"}), 500
-        data = request.json or {}
-        if data.get('requestId'): db.collection('settlements').document(data.get('requestId')).update({"status": "Approved"})
-        db.collection('organizers').document(data.get('orgCode')).update({"manualSettled": True})
-        return jsonify({"status": "success"}), 200
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
+def admin_approve_settlement():
+    data = request.json or {}
+    org_code = data.get('orgCode')
+    req_id = data.get('requestId')
+    if org_code:
+        db.collection('organizers').document(org_code).update({"manualSettled": True})
+    if req_id:
+        db.collection('settlements').document(req_id).update({"status": "approved"})
+    return jsonify({"status": "success", "message": "Settlement approved"})
 
-@app.route('/api/organizer/send_query', methods=['POST'])
-def send_organizer_query():
-    try:
-        if db is None: return jsonify({"status": "error", "message": "DB offline"}), 500
-        data = request.json or {}
-        ticket_id = f"TICKET_{data.get('orgCode')}"
-        db.collection('support_tickets').document(ticket_id).set({"ticketId": ticket_id, "orgCode": data.get('orgCode'), "lastMessage": data.get('message', '')}, merge=True)
-        db.collection('support_messages').add({"ticketId": ticket_id, "orgCode": data.get('orgCode'), "senderName": data.get('senderName'), "text": data.get('message', ''), "isAdmin": False, "timestamp": firestore.SERVER_TIMESTAMP})
-        return jsonify({"status": "success"}), 200
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
+@app.route('/api/admin/complete_payout', methods=['POST'])
+def admin_complete_payout():
+    data = request.json or {}
+    payout_id = data.get('payoutId')
+    if payout_id:
+        db.collection('payouts').document(payout_id).update({"status": "completed"})
+    return jsonify({"status": "success", "message": "Payout completed"})
 
-@app.route('/api/organizer/query_messages', methods=['GET'])
-def get_organizer_messages():
-    try:
-        if db is None: return jsonify({"status": "error", "message": "DB offline"}), 500
-        messages = [d.to_dict() for d in db.collection('support_messages').where('ticketId', '==', f"TICKET_{request.args.get('orgCode')}").stream()]
-        return jsonify({"status": "success", "messages": messages}), 200
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
+# ==========================================================================
+# 6. ORGANIZER PORTAL & STUDENTS MATRIX
+# ==========================================================================
+@app.route('/api/organizer/login', methods=['POST'])
+def organizer_login():
+    data = request.json or {}
+    org_code = str(data.get('orgCode', '')).strip().upper()
+    password = str(data.get('password', '')).strip()
+    org_doc = db.collection('organizers').document(org_code).get()
+    if not org_doc.exists or str(org_doc.to_dict().get('password', '')).strip() != password:
+        return jsonify({"status": "error", "message": "Invalid credentials"}), 401
+    org_data = org_doc.to_dict()
+    org_data['code'] = org_code
+    if "password" in org_data: del org_data["password"]
+    return jsonify({"status": "success", "data": org_data}), 200
 
+@app.route('/api/organizer/register', methods=['POST'])
+def organizer_register():
+    data = request.json or {}
+    school_name = str(data.get('schoolName', '')).strip()
+    name = str(data.get('name', '')).strip()
+    contact = str(data.get('contact', '')).strip()
+    password = str(data.get('password', '')).strip()
+    pin = str(data.get('pin', '')).strip()
+    ref_code = str(data.get('refCode', '')).strip().upper()
+
+    rand_num = random.randint(100, 999)
+    org_code = f"NVMS{rand_num}"
+    while db.collection('organizers').document(org_code).get().exists:
+        org_code = f"NVMS{random.randint(100, 999)}"
+
+    org_payload = {
+        "schoolName": format_school_name(school_name),
+        "name": name,
+        "contact": contact,
+        "password": password,
+        "pin": pin,
+        "refCode": ref_code,
+        "examMode": "online",
+        "principalApproved": False,
+        "manualSettled": False,
+        "totalRegistrations": 0,
+        "timestamp": firestore.SERVER_TIMESTAMP
+    }
+    db.collection('organizers').document(org_code).set(org_payload)
+    return jsonify({"status": "success", "orgCode": org_code}), 200
+
+@app.route('/api/organizer/update_profile', methods=['POST'])
+def organizer_update_profile():
+    data = request.json or {}
+    org_code = str(data.get('orgCode', '')).strip().upper()
+    db.collection('organizers').document(org_code).update({
+        "examMode": str(data.get('examMode', 'online')).lower(),
+        "principalApproved": bool(data.get('principalApproved', False))
+    })
+    return jsonify({"status": "success", "message": "Updated"})
+
+@app.route('/api/organizer/students', methods=['POST'])
+def organizer_get_students():
+    data = request.json or {}
+    org_code = str(data.get('orgCode', '')).strip().upper()
+    students = []
+    seen = set()
+    for f in ['orgCode', 'schoolCode']:
+        for doc in db.collection('students').where(f, '==', org_code).stream():
+            if doc.id not in seen:
+                seen.add(doc.id)
+                sd = doc.to_dict()
+                sd['id'] = doc.id
+                students.append(sd)
+
+    org_data = db.collection('organizers').document(org_code).get().to_dict() or {}
+    is_settled = bool(org_data.get('manualSettled', False))
+    ref_code = str(org_data.get('refCode', '')).strip()
+    g_cfg = db.collection('settings').document('portal_config').get().to_dict() or {}
+    
+    approved = [s for s in students if s.get('paymentStatus') == 'Approved' or s.get('paymentVerified') is True]
+    exam_mode = (org_data.get('examMode') or 'online').lower()
+    fee = g_cfg.get('offlineFee', 120) if exam_mode == 'offline' else g_cfg.get('onlineFee', 100)
+    
+    cash_approved = [s for s in approved if (s.get('paymentMode') or '').lower() == 'offline']
+    cash_held = len(cash_approved) * fee
+    gross = len(approved) * fee
+
+    direct_comm = len(approved) * 15 if exam_mode == 'offline' else int(gross * 0.15)
+    ref_comm = int(gross * 0.05) if (ref_code and ref_code != "NONE") else 0
+    net_payable = 0 if is_settled else max(0, cash_held - direct_comm)
+
+    return jsonify({
+        "status": "success",
+        "students": students,
+        "isSettled": is_settled,
+        "adminUpiId": g_cfg.get('adminUpiId', 'narmada@upi'),
+        "isResultDeclared": bool(g_cfg.get('isResultDeclared', False)),
+        "financials": {
+            "totalRegistrations": len(students),
+            "approvedRegistrations": len(approved),
+            "totalFees": gross,
+            "cashHeld": cash_held,
+            "directCommission": direct_comm,
+            "referralCommission": ref_comm,
+            "netPayableToNvms": net_payable
+        }
+    }), 200
+
+@app.route('/api/organizer/approve_cash', methods=['POST'])
+def organizer_approve_cash():
+    data = request.json or {}
+    db.collection('students').document(data.get('studentId')).update({"paymentVerified": True, "paymentStatus": "Approved"})
+    return jsonify({"status": "success", "message": "Cash approved"})
+
+@app.route('/api/organizer/submit_settlement', methods=['POST'])
+def organizer_submit_settlement():
+    data = request.json or {}
+    db.collection('settlements').document().set({
+        "orgCode": data.get('orgCode'),
+        "utrNumber": data.get('utrNumber'),
+        "amount": data.get('amount'),
+        "status": "pending",
+        "timestamp": firestore.SERVER_TIMESTAMP
+    })
+    return jsonify({"status": "success", "message": "Submitted"})
+
+@app.route('/api/organizer/request_payout', methods=['POST'])
+def organizer_request_payout():
+    data = request.json or {}
+    db.collection('payouts').document().set({
+        "orgCode": data.get('orgCode'),
+        "upiId": data.get('upiId'),
+        "amount": data.get('amount'),
+        "status": "pending",
+        "timestamp": firestore.SERVER_TIMESTAMP
+    })
+    return jsonify({"status": "success", "message": "Requested"})
+
+# ==========================================================================
+# 7. CHAT & QUESTION BANK ROUTERS
+# ==========================================================================
 @app.route('/api/admin/queries', methods=['GET'])
-def admin_get_queries():
-    try:
-        if db is None: return jsonify({"status": "error", "message": "DB offline"}), 500
-        queries = [d.to_dict() for d in db.collection('support_tickets').stream()]
-        return jsonify({"status": "success", "queries": queries}), 200
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
+def get_queries():
+    queries = [{**doc.to_dict(), "ticketId": doc.id} for doc in db.collection('supportTickets').stream()]
+    return jsonify({"status": "success", "queries": queries})
 
 @app.route('/api/admin/query_messages', methods=['GET'])
-def admin_get_query_messages():
-    try:
-        if db is None: return jsonify({"status": "error", "message": "DB offline"}), 500
-        messages = [d.to_dict() for d in db.collection('support_messages').where('ticketId', '==', request.args.get('ticketId')).stream()]
-        return jsonify({"status": "success", "messages": messages}), 200
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
+def get_query_messages():
+    msgs = [doc.to_dict() for doc in db.collection('supportTickets').document(request.args.get('ticketId')).collection('messages').order_by('createdAt').stream()]
+    return jsonify({"status": "success", "messages": msgs})
 
 @app.route('/api/admin/reply_query', methods=['POST'])
-def admin_reply_query():
-    try:
-        if db is None: return jsonify({"status": "error", "message": "DB offline"}), 500
-        data = request.json or {}
-        db.collection('support_messages').add({"ticketId": data.get('ticketId'), "text": data.get('message', ''), "isAdmin": True, "timestamp": firestore.SERVER_TIMESTAMP})
-        return jsonify({"status": "success"}), 200
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
+def reply_query():
+    data = request.json or {}
+    t_id = data.get('ticketId')
+    msg = data.get('message', '')
+    db.collection('supportTickets').document(t_id).collection('messages').add({"text": msg, "imageUrl": data.get('imageUrl', ''), "isAdmin": True, "createdAt": firestore.SERVER_TIMESTAMP})
+    db.collection('supportTickets').document(t_id).set({"lastMessage": msg}, merge=True)
+    return jsonify({"status": "success", "message": "Replied"})
+
+@app.route('/api/organizer/send_query', methods=['POST'])
+def organizer_send_query():
+    data = request.json or {}
+    org_code = str(data.get('orgCode', '')).strip().upper()
+    t_id = f"TICKET_{org_code}"
+    db.collection('supportTickets').document(t_id).set({"orgCode": org_code, "senderName": data.get('senderName'), "lastMessage": data.get('message', ''), "updatedAt": firestore.SERVER_TIMESTAMP}, merge=True)
+    db.collection('supportTickets').document(t_id).collection('messages').add({"text": data.get('message', ''), "imageUrl": data.get('imageUrl', ''), "isAdmin": False, "createdAt": firestore.SERVER_TIMESTAMP})
+    return jsonify({"status": "success", "message": "Sent"})
+
+@app.route('/api/organizer/query_messages', methods=['GET'])
+def organizer_get_query_messages():
+    org_code = request.args.get('orgCode', '').strip().upper()
+    msgs = [doc.to_dict() for doc in db.collection('supportTickets').document(f"TICKET_{org_code}").collection('messages').order_by('createdAt').stream()]
+    return jsonify({"status": "success", "messages": msgs})
+
+@app.route('/api/admin/add-question', methods=['POST'])
+def admin_add_question():
+    data = request.json or {}
+    db.collection('questions').add({
+        "classRange": str(data.get('classRange', '')),
+        "subject": str(data.get('subject', '')),
+        "negativeMarking": float(data.get('negativeMarking', 0)),
+        "questionText": str(data.get('questionText', '')),
+        "optionA": str(data.get('optionA', '')),
+        "optionB": str(data.get('optionB', '')),
+        "optionC": str(data.get('optionC', '')),
+        "optionD": str(data.get('optionD', '')),
+        "correctOption": str(data.get('correctOption', 'A')),
+        "timestamp": firestore.SERVER_TIMESTAMP
+    })
+    return jsonify({"status": "success", "message": "Question added"})
+
+@app.route('/api/admin/all_questions', methods=['GET'])
+def admin_get_all_questions():
+    questions = [{**doc.to_dict(), "id": doc.id} for doc in db.collection('questions').stream()]
+    return jsonify({"status": "success", "questions": questions})
+
+@app.route('/api/admin/delete-question', methods=['POST'])
+def admin_delete_question():
+    data = request.json or {}
+    q_id = data.get('questionId')
+    if q_id:
+        db.collection('questions').document(q_id).delete()
+        return jsonify({"status": "success", "message": "Question deleted"})
+    return jsonify({"status": "error", "message": "Missing ID"}), 400
 
 if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 5000))
-    app.run(host='0.0.0.0', port=port)
+    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
