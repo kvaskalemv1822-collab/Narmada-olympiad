@@ -88,6 +88,7 @@ function initializeCentralPanelData() {
         const config = data.config;
         if (document.getElementById("cfg-online-fee")) document.getElementById("cfg-online-fee").value = config.onlineFee || 100;
         if (document.getElementById("cfg-offline-fee")) document.getElementById("cfg-offline-fee").value = config.offlineFee || 120;
+        if (document.getElementById("cfg-admin-upi")) document.getElementById("cfg-admin-upi").value = config.adminUpiId || "narmada@upi";
         
         if (document.getElementById("cfg-reg-active")) document.getElementById("cfg-reg-active").checked = !!config.isRegistrationOpen;
         if (document.getElementById("cfg-exam-active")) document.getElementById("cfg-exam-active").checked = !!config.isExamActive;
@@ -125,6 +126,7 @@ window.saveGlobalConfig = async () => {
   const payload = {
     onlineFee: Number(document.getElementById("cfg-online-fee").value),
     offlineFee: Number(document.getElementById("cfg-offline-fee").value),
+    adminUpiId: document.getElementById("cfg-admin-upi").value.trim() || "narmada@upi",
     isRegistrationOpen: document.getElementById("cfg-reg-active").checked,
     isExamActive: document.getElementById("cfg-exam-active").checked,
     isResultDeclared: document.getElementById("cfg-result-allowed").checked,
@@ -184,16 +186,18 @@ function renderMergedOrganizersTable() {
     const cashRegs = verifiedStudents.filter(s => (s.paymentMode || '').toLowerCase() === 'offline' || (s.paymentMode || '').toLowerCase() === 'cash').length;
 
     const examMode = (org.examMode || 'online').toLowerCase();
-    const feePerStudent = examMode === 'offline' ? 120 : 100;
-
-    const cashGross = cashRegs * feePerStudent;
-    const grossTotal = totalReg * feePerStudent;
-
-    const directComm = examMode === 'offline' ? (totalReg * 15) : (grossTotal * 0.15);
-    const hasReferral = org.refCode && org.refCode.trim().length > 0 && org.refCode.toUpperCase() !== "NONE";
-    const refComm = hasReferral ? (grossTotal * 0.05) : 0; 
     
-    const netCashToPortal = isSettled ? 0 : Math.max(0, cashGross - directComm);
+    // Calculations as per base online fee (₹100)
+    const cashGross = cashRegs * (examMode === 'offline' ? 120 : 100);
+    const baseFeeTotal = totalReg * 100;
+
+    const directComm = int(baseFeeTotal * 0.15);
+    const hasReferral = org.refCode && org.refCode.trim().length > 0 && org.refCode.toUpperCase() !== "NONE";
+    const refComm = hasReferral ? int(baseFeeTotal * 0.05) : 0; 
+    const totalComm = directComm + refComm;
+
+    const netBalance = cashGross - totalComm;
+    const netCashToPortal = isSettled ? 0 : Math.max(0, netBalance);
 
     const sett = pendingSettlementsCache.find(s => s.orgCode === code);
     const organizerUpi = org.upiId || org.upi || "org@upi"; 
@@ -205,9 +209,9 @@ function renderMergedOrganizersTable() {
 
     let actionCell = isSettled ? "<span style='color:#38bdf8; font-weight:bold;'>Completed</span>" : (sett ? `<button onclick="approveOrganizerSettlement('${code}', '${sett.id}')" style="background:#10b981; color:#fff; border:none; padding:4px 8px; font-size:10px; border-radius:4px; font-weight:bold; cursor:pointer;">Verify UTR</button>` : "Awaiting");
 
-    if (refComm > 0) {
-      actionCell += `<br><button onclick="payCommissionViaPhonePe('${organizerUpi}', ${refComm}, '${code}')" style="margin-top:6px; background:#f59e0b; color:#fff; border:none; padding:5px 8px; font-size:10px; border-radius:4px; font-weight:bold; cursor:pointer;">📲 Pay Comm (₹${refComm.toFixed(0)})</button>`;
-    }
+    // 💬 Click-to-Chat Button integration
+    let chatButton = `<button onclick="openChatSession('TICKET_${code}', '${org.schoolName || code}')" style="background:#7c3aed; color:#fff; border:none; padding:4px 8px; font-size:10px; border-radius:4px; font-weight:bold; cursor:pointer; margin-top:4px;">💬 Chat</button>`;
+    actionCell += `<br>${chatButton}`;
 
     let pendingBadge = pendingReviewCount > 0 ? `<br><span style="font-size:9px; color:#f59e0b; font-weight:bold;">(${pendingReviewCount} Pending)</span>` : "";
 
@@ -225,10 +229,10 @@ function renderMergedOrganizersTable() {
         <td style="padding:10px; color:#4ade80; font-weight:bold; text-align:center;">
           ${totalReg} ${pendingBadge}<br><span style="font-size:10px; color:#94a3b8;">(${onlineRegs} On / ${cashRegs} Cash)</span>
         </td>
-        <td style="padding:10px; color:#facc15; font-weight:bold;">₹${directComm.toFixed(0)}</td>
-        <td style="padding:10px; color:#c084fc; font-weight:bold;">₹${refComm.toFixed(0)}</td>
+        <td style="padding:10px; color:#facc15; font-weight:bold;">₹${directComm}</td>
+        <td style="padding:10px; color:#c084fc; font-weight:bold;">₹${refComm}</td>
         <td style="padding:10px;">
-          <strong style="color:${netCashToPortal > 0 ? '#f87171' : '#4ade80'}; font-size:14px;">₹${netCashToPortal.toFixed(0)}</strong><br>
+          <strong style="color:${netCashToPortal > 0 ? '#f87171' : '#4ade80'}; font-size:14px;">₹${netCashToPortal}</strong><br>
           <span style="font-size:10px; color:#94a3b8;">Cash Held: ₹${cashGross}</span>
         </td>
         <td style="padding:10px;">${settCell}</td>
@@ -237,6 +241,8 @@ function renderMergedOrganizersTable() {
     `;
   });
 }
+
+function int(val) { return Math.floor(val); }
 
 function fetchSupportTickets() {
   fetch(`${SERVER_URL}/api/admin/queries`)
@@ -317,32 +323,6 @@ window.sendAdminReply = function() {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ ticketId: activeTicketId, message: msgText })
   }).then(res => res.json());
-};
-
-window.payCommissionViaPhonePe = function(upiId, amount, orgCode) {
-  if (!upiId || upiId === "org@upi") {
-    let customUpi = prompt("Please enter organizer's correct UPI ID for payment:", "");
-    if (!customUpi) return;
-    upiId = customUpi;
-  }
-
-  let upiIntentUrl = `upi://pay?pa=${encodeURIComponent(upiId)}&pn=NVMSO_Commission_Payout&am=${amount.toFixed(2)}&cu=INR`;
-  window.location.href = upiIntentUrl;
-
-  setTimeout(() => {
-    if (confirm("Did you complete the payment on PhonePe? Click OK to mark this commission payout as completed.")) {
-      fetch(`${SERVER_URL}/api/admin/complete_payout`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ orgCode: orgCode, amount: amount })
-      }).then(res => res.json()).then(d => {
-        if(d.status === "success") {
-          alert("🎉 Commission payout recorded successfully!");
-          fetchAllCentralData();
-        }
-      });
-    }
-  }, 3000);
 };
 
 function populateSchoolDropdowns() {
