@@ -107,6 +107,45 @@ button {
   cursor: pointer;
 }
 
+/* ==========================================================================
+   2. UPI PAY BUTTON & TABLE UI ENHANCEMENTS (NEWLY ADDED)
+   ========================================================================= */
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 10px;
+}
+
+th, td {
+  padding: 12px 10px;
+  text-align: left;
+  font-size: 13px;
+}
+
+th {
+  background: #1e293b;
+  color: #38bdf8;
+  font-weight: 700;
+}
+
+/* Direct & Referral UPI Pay Button Styling inside Tables */
+td a[href^="upi://pay"] {
+  display: inline-block;
+  background: #10b981;
+  color: #ffffff !important;
+  padding: 4px 8px;
+  font-size: 11px;
+  font-weight: 700;
+  border-radius: 4px;
+  text-decoration: none;
+  margin-top: 4px;
+  transition: background 0.2s;
+}
+
+td a[href^="upi://pay"]:hover {
+  background: #059669;
+}
+
 .login-wrapper {
   position: fixed;
   top: 0; left: 0; width: 100vw; height: 100vh;
