@@ -20,9 +20,6 @@ if not firebase_admin._apps:
 
 db = firestore.client() if firebase_admin._apps else None
 
-def backup_data_to_sheets(action_type, data):
-    pass
-
 @app.route('/')
 def home():
     return jsonify({"status": "active", "system": "NVMSO 2026 Backend API is running securely."}), 200
@@ -156,7 +153,7 @@ def organizer_update_profile():
         return jsonify({"status": "error", "message": str(e)}), 500
 
 # ==========================================
-# 4. SECURE STUDENT REGISTRATION
+# 4. SECURE STUDENT REGISTRATION (WITH AUTO-RESET ON NEW ENTRY)
 # ==========================================
 @app.route('/api/student/register', methods=['POST'])
 def secure_registration():
@@ -219,7 +216,8 @@ def secure_registration():
         
         student_ref.set(student_payload)
         
-        # New registration added -> Reset organizer settlement flag so fresh dues/commissions calculate correctly
+        # 🔄 AUTO-RESET TRIGGER: Naya student register hote hi manualSettled ko False kar diya jata hai 
+        # jisse agar pehle settlement ho bhi chuki ho, toh naye dues/commissions aate hi payment option wapas trigger ho jaye.
         db.collection('organizers').document(org_code).set({"manualSettled": False}, merge=True)
         
         return jsonify({
@@ -299,8 +297,6 @@ def submit_exam():
         questions_map = {q.to_dict().get('id'): q.to_dict() for q in q_docs}
 
         score = 0.0
-        total_questions = len(answers) if len(answers) > 0 else len(questions_map)
-        
         for q_id, chosen_opt in answers.items():
             if q_id in questions_map:
                 correct_opt = questions_map[q_id].get('correctOption')
@@ -347,7 +343,7 @@ def get_student_result():
         return jsonify({"status": "error", "message": str(e)}), 500
 
 # ==========================================
-# 6. ORGANIZER DASHBOARD API (WITH ZERO-BALANCE RESET)
+# 6. ORGANIZER DASHBOARD API (WITH DYNAMIC ZERO-BALANCE CHECK)
 # ==========================================
 @app.route('/api/organizer/students', methods=['POST'])
 def organizer_get_students():
@@ -373,7 +369,6 @@ def organizer_get_students():
         ref_comm = total_fees * 0.05 if has_ref else 0
         net_payable = max(0, total_fees - direct_comm - ref_comm)
 
-        # ZERO-BALANCE SETTLEMENT LOGIC: IF ADMIN APPROVED SETTLEMENT, RESET BALANCES TO 0
         is_settled = org_data.get('manualSettled', False)
         if is_settled:
             net_payable = 0
@@ -489,7 +484,7 @@ def admin_reexam():
         return jsonify({"status": "error", "message": str(e)}), 500
 
 # ==========================================
-# 8. SUPPORT CHAT & SETTLEMENTS (ZERO-BALANCE APPROVAL)
+# 8. SUPPORT CHAT & SETTLEMENTS
 # ==========================================
 @app.route('/api/organizer/submit_settlement', methods=['POST'])
 def submit_settlement():
@@ -522,7 +517,7 @@ def approve_settlement():
         if req_id:
             db.collection('settlements').document(req_id).update({"status": "Approved"})
         
-        # SET `manualSettled = True` SO BALANCES RESET TO ₹0
+        # SET `manualSettled = True` TO ZERO OUT BALANCE UNTIL NEW STUDENT REGISTERS
         db.collection('organizers').document(org_code).update({"manualSettled": True})
         return jsonify({"status": "success"}), 200
     except Exception as e:
