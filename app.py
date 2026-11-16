@@ -156,7 +156,7 @@ def organizer_update_profile():
         return jsonify({"status": "error", "message": str(e)}), 500
 
 # ==========================================
-# 4. SECURE STUDENT REGISTRATION (NEET/Police Style Validation)
+# 4. SECURE STUDENT REGISTRATION
 # ==========================================
 @app.route('/api/student/register', methods=['POST'])
 def secure_registration():
@@ -172,7 +172,6 @@ def secure_registration():
         if not org_code or not roll_num or not student_name or not roll_num.isdigit():
             return jsonify({"status": "error", "message": "Invalid or incomplete registration form payload!"}), 400
 
-        # 1. SAME SCHOOL CODE + ROLL NUMBER DUPLICATE BLOCK
         student_id = f"{org_code}_{roll_num}"
         student_ref = db.collection('students').document(student_id)
         if student_ref.get().exists:
@@ -181,23 +180,20 @@ def secure_registration():
                 "message": f"🚫 Registration Blocked: Roll Number '{roll_num}' is already registered under School Code '{org_code}'!"
             }), 400
 
-        # 2. ONLINE PAYMENT & UTR MANDATORY VALIDATION
         if payment_mode == "online":
             if not utr_number or utr_number == "NOT_PROVIDED" or len(utr_number) < 6:
                 return jsonify({
                     "status": "error", 
-                    "message": "❌ Online Payment Error: Valid UTR / Transaction Reference Number is mandatory to complete online registration!"
+                    "message": "❌ Online Payment Error: Valid UTR / Transaction Reference Number is mandatory!"
                 }), 400
 
-            # SINGLE-USE UTR CHECK
             existing_utr = db.collection('students').where('utrNumber', '==', utr_number).limit(1).get()
             if len(list(existing_utr)) > 0:
                 return jsonify({
                     "status": "error", 
-                    "message": "🚫 Security Error: This UTR Transaction Number has already been used by another candidate!"
+                    "message": "🚫 Security Error: This UTR Transaction Number has already been used!"
                 }), 400
 
-        # 3. PAYMENT STATUS PENDING UNTIL VERIFIED
         initial_status = "Pending Payment Verification" if payment_mode == "online" else "Pending Organizer Cash Approval"
 
         student_payload = {
@@ -222,11 +218,13 @@ def secure_registration():
         }
         
         student_ref.set(student_payload)
-        backup_data_to_sheets("STUDENT_REGISTRATION", student_payload)
+        
+        # New registration added -> Reset organizer settlement flag so fresh dues/commissions calculate correctly
+        db.collection('organizers').document(org_code).set({"manualSettled": False}, merge=True)
         
         return jsonify({
             "status": "success", 
-            "message": "Registration submitted successfully! Status is Pending until verification."
+            "message": "Registration submitted successfully!"
         }), 200
 
     except Exception as e:
@@ -246,23 +244,21 @@ def student_login():
         student_id = f"{org_code}_{roll_number}"
         student_doc = db.collection('students').document(student_id).get()
         if not student_doc.exists:
-            return jsonify({"status": "error", "message": "Student record not found. Check School Code & Roll No."}), 404
+            return jsonify({"status": "error", "message": "Student record not found."}), 404
 
         s_data = student_doc.to_dict()
 
-        # STRICT FEE APPROVAL GATE
         is_paid = s_data.get('paymentStatus') == 'Approved' or s_data.get('paymentVerified') is True
         if not is_paid:
-            return jsonify({"status": "error", "message": "🔒 Exam Locked! Your fee/registration is pending verification by School Organizer or Admin."}), 403
+            return jsonify({"status": "error", "message": "🔒 Exam Locked! Fee pending verification."}), 403
 
-        # SINGLE-ATTEMPT LOCK
         if s_data.get('examCompleted', False):
-            return jsonify({"status": "error", "message": "⚠️ You have already submitted your exam! Multiple attempts are strictly prohibited."}), 403
+            return jsonify({"status": "error", "message": "⚠️ Exam already submitted!"}), 403
 
         mother_name = s_data.get('motherName', '').strip()
         expected_password = (mother_name[:2].upper() + roll_number) if len(mother_name) >= 2 else roll_number
         if input_password != expected_password:
-            return jsonify({"status": "error", "message": "Invalid password! Format is Mother's first 2 capital letters + Roll No."}), 401
+            return jsonify({"status": "error", "message": "Invalid password!"}), 401
 
         org_doc = db.collection('organizers').document(org_code).get()
         org_data = org_doc.to_dict() if org_doc.exists else {}
@@ -303,15 +299,15 @@ def submit_exam():
         questions_map = {q.to_dict().get('id'): q.to_dict() for q in q_docs}
 
         score = 0.0
-        total_questions = 0
+        total_questions = len(answers) if len(answers) > 0 else len(questions_map)
+        
         for q_id, chosen_opt in answers.items():
             if q_id in questions_map:
-                total_questions += 1
                 correct_opt = questions_map[q_id].get('correctOption')
                 if chosen_opt and chosen_opt.upper() == correct_opt.upper():
                     score += 1.0
 
-        total_marks = len(questions_map) if len(questions_map) > 0 else 100
+        total_marks = len(questions_map) if len(questions_map) > 0 else 30
         percentage = round((score / total_marks) * 100, 2) if total_marks > 0 else 0
 
         student_ref.update({
@@ -335,7 +331,7 @@ def get_student_result():
 
         config_doc = db.collection('settings').document('portal_config').get()
         if config_doc.exists and not config_doc.to_dict().get('isResultDeclared', False):
-            return jsonify({"status": "error", "message": "🔒 Result gate is locked! Scorecards have not been officially declared yet."}), 403
+            return jsonify({"status": "error", "message": "🔒 Result gate is locked!"}), 403
 
         student_id = f"{org_code}_{roll_number}"
         doc = db.collection('students').document(student_id).get()
@@ -351,7 +347,7 @@ def get_student_result():
         return jsonify({"status": "error", "message": str(e)}), 500
 
 # ==========================================
-# 6. ORGANIZER DASHBOARD API
+# 6. ORGANIZER DASHBOARD API (WITH ZERO-BALANCE RESET)
 # ==========================================
 @app.route('/api/organizer/students', methods=['POST'])
 def organizer_get_students():
@@ -377,13 +373,21 @@ def organizer_get_students():
         ref_comm = total_fees * 0.05 if has_ref else 0
         net_payable = max(0, total_fees - direct_comm - ref_comm)
 
+        # ZERO-BALANCE SETTLEMENT LOGIC: IF ADMIN APPROVED SETTLEMENT, RESET BALANCES TO 0
+        is_settled = org_data.get('manualSettled', False)
+        if is_settled:
+            net_payable = 0
+            direct_comm = 0
+            ref_comm = 0
+
         financials = {
             "totalRegistrations": len(students),
             "verifiedRegistrations": total_regs,
             "totalFees": total_fees,
             "directCommission": direct_comm,
             "referralCommission": ref_comm,
-            "netPayableToNvms": round(net_payable, 2)
+            "netPayableToNvms": round(net_payable, 2),
+            "isSettled": is_settled
         }
 
         return jsonify({
@@ -456,7 +460,7 @@ def admin_manual_score_entry():
         data = request.json or {}
         student_id = data.get('studentId')
         score = float(data.get('score', 0))
-        total_marks = float(data.get('totalMarks', 100))
+        total_marks = float(data.get('totalMarks', 30))
         percentage = round((score / total_marks) * 100, 2) if total_marks > 0 else 0
 
         db.collection('students').document(student_id).update({
@@ -485,7 +489,7 @@ def admin_reexam():
         return jsonify({"status": "error", "message": str(e)}), 500
 
 # ==========================================
-# 8. SUPPORT CHAT & SETTLEMENTS
+# 8. SUPPORT CHAT & SETTLEMENTS (ZERO-BALANCE APPROVAL)
 # ==========================================
 @app.route('/api/organizer/submit_settlement', methods=['POST'])
 def submit_settlement():
@@ -515,7 +519,10 @@ def approve_settlement():
         org_code = data.get('orgCode')
         req_id = data.get('requestId')
         
-        db.collection('settlements').document(req_id).update({"status": "Approved"})
+        if req_id:
+            db.collection('settlements').document(req_id).update({"status": "Approved"})
+        
+        # SET `manualSettled = True` SO BALANCES RESET TO ₹0
         db.collection('organizers').document(org_code).update({"manualSettled": True})
         return jsonify({"status": "success"}), 200
     except Exception as e:
@@ -527,7 +534,6 @@ def send_organizer_query():
         data = request.json or {}
         org_code = data.get('orgCode')
         msg = data.get('message', '')
-        img = data.get('imageUrl', '')
         
         ticket_id = f"TICKET_{org_code}"
         msg_payload = {
@@ -535,7 +541,6 @@ def send_organizer_query():
             "orgCode": org_code,
             "senderName": data.get('senderName', org_code),
             "text": msg,
-            "imageUrl": img,
             "isAdmin": False,
             "timestamp": firestore.SERVER_TIMESTAMP
         }
