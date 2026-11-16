@@ -198,6 +198,10 @@ def secure_registration():
         }
         
         student_ref.set(student_payload)
+        
+        # 🎯 AUTOMATIC RESET & RECALCULATION: New student registration resets manualSettled to False
+        db.collection('organizers').document(org_code).set({"manualSettled": False}, merge=True)
+        
         backup_data_to_sheets("STUDENT_REGISTRATION", student_payload)
 
         return jsonify({"status": "success", "message": "Registration successful!", "studentId": student_id}), 200
@@ -522,7 +526,7 @@ def organizer_get_students():
     ref_code = str(org_data.get('refCode', '')).strip()
     g_cfg = db.collection('settings').document('portal_config').get().to_dict() or {}
     
-    approved = [s for s in students if s.get('paymentStatus') == 'Approved' or s.get('paymentVerified') is True]
+    approved = [s for s in students if s.get('paymentStatus') == 'Approved' or s.get('paymentVerified'] is True]
     exam_mode = (org_data.get('examMode') or 'online').lower()
     
     online_fee = g_cfg.get('onlineFee', 100)
