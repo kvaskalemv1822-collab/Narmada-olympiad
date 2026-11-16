@@ -64,20 +64,12 @@ window.verifyOrgLogin = async () => {
   });
 };
 
-// Strict 6-Digit PIN & Terms Check during Registration
 window.handleOrganizerRegister = function() {
   const pin = document.getElementById("new-org-pin").value.trim();
   const termsChecked = document.getElementById("org-terms-check")?.checked;
 
-  if (!termsChecked) {
-    alert("⚠️ Please accept the Terms & Conditions before registering your school.");
-    return;
-  }
-
-  if (pin.length !== 6 || isNaN(pin)) {
-    alert("❌ Security Error: Secret Security PIN must be strictly a 6-digit numeric code!");
-    return;
-  }
+  if (!termsChecked) { alert("⚠️ Please accept the Terms & Conditions before registering your school."); return; }
+  if (pin.length !== 6 || isNaN(pin)) { alert("❌ Security Error: Secret Security PIN must be strictly a 6-digit numeric code!"); return; }
 
   const payload = {
     name: document.getElementById("new-org-name").value.trim(),
@@ -104,8 +96,6 @@ function loadDashboardView() {
   document.getElementById("org-view").classList.remove("hidden");
   
   const orgCodeKey = currentOrg.code || currentOrg.orgCode;
-  
-  // Display School Name & Organizer Code at the top header card
   document.getElementById("display-school-name").textContent = currentOrg.schoolName || "Associated School";
   document.getElementById("display-org-code").textContent = orgCodeKey;
   
@@ -113,12 +103,13 @@ function loadDashboardView() {
   document.getElementById("org-exam-mode-select").value = currentOrg.examMode || "online";
   document.getElementById("current-applicable-fee").textContent = (currentOrg.examMode === "offline") ? (portalConfig.offlineFee || 120) : (portalConfig.onlineFee || 100);
 
+  // REAL-TIME AUTO-SYNC TIMER (4 Seconds interval for instant coordination)
   if (!autoRefreshTimer) {
     autoRefreshTimer = setInterval(() => { 
       fetchRegisteredStudentsList(); 
       fetchOrganizerChatMessages(); 
       checkResultAndRankingStatus();
-    }, 8000);
+    }, 4000);
   }
 }
 
@@ -162,13 +153,21 @@ function fetchRegisteredStudentsList() {
         let totalDirectComm = data.financials.directCommission || 0;
         let totalRefComm = data.financials.referralCommission || 0;
         let netPayableToNvms = data.financials.netPayableToNvms || 0;
+        let isSettled = data.financials.isSettled || false;
 
         document.getElementById("fin-total-regs").textContent = data.financials.totalRegistrations;
         document.getElementById("fin-total-fees").textContent = `₹${data.financials.totalFees}`;
         document.getElementById("fin-direct-comm").textContent = `₹${totalDirectComm}`;
         document.getElementById("fin-ref-comm").textContent = `₹${totalRefComm}`;
 
-        renderDynamicFinancialAction(netPayableToNvms, totalDirectComm + totalRefComm);
+        // If settled by admin, show zero balance gracefully
+        if (isSettled) {
+          netPayableToNvms = 0;
+          totalDirectComm = 0;
+          totalRefComm = 0;
+        }
+
+        renderDynamicFinancialAction(netPayableToNvms, totalDirectComm + totalRefComm, isSettled);
       }
 
       container.innerHTML = data.students.length ? "" : `<tr><td colspan="7" style="text-align:center; color:#64748b; padding:15px;">No students registered.</td></tr>`;
@@ -177,11 +176,10 @@ function fetchRegisteredStudentsList() {
         const payMode = (s.paymentMode || "online").toUpperCase();
         let utrInfo = s.utrNumber ? `<br><code style="color:#facc15; font-size:11px;">UTR: ${s.utrNumber}</code>` : "";
 
-        // Dynamic Marks and Percentage calculation for Roster Table
         let marksDisplay = `<span style="color:#94a3b8; font-size:11px;">Exam Pending</span>`;
         if (s.examCompleted || s.score !== undefined) {
           let scoreVal = parseFloat(s.score) || 0;
-          let totalVal = parseFloat(s.totalMarks) || parseFloat(portalConfig.totalMarks) || 30;
+          let totalVal = parseFloat(s.totalMarks) || 30;
           let pctVal = s.percentage !== undefined ? s.percentage : ((scoreVal / totalVal) * 100).toFixed(2);
           marksDisplay = `<strong style="color:#4ade80;">${scoreVal}/${totalVal}</strong> <br><span style="color:#38bdf8; font-weight:bold; font-size:11px;">${pctVal}%</span>`;
         }
@@ -209,11 +207,15 @@ function fetchRegisteredStudentsList() {
   });
 }
 
-function renderDynamicFinancialAction(netPayable, totalCommission) {
+function renderDynamicFinancialAction(netPayable, totalCommission, isSettled) {
   const actionContainer = document.getElementById("dynamic-financial-action-container");
   if (!actionContainer) return;
 
-  if (netPayable > 0) {
+  if (isSettled) {
+    actionContainer.innerHTML = `
+      <p style="text-align: center; color: #4ade80; font-size: 13px; font-weight: bold; margin: 0;">✅ Account Settled & Verified by Central Admin! (Balance: ₹0)</p>
+    `;
+  } else if (netPayable > 0) {
     actionContainer.innerHTML = `
       <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
         <div>
@@ -285,38 +287,16 @@ window.requestCommissionPayout = function(maxAmount) {
   const upiId = document.getElementById("payout-upi-input").value.trim();
   const requestedAmount = parseFloat(document.getElementById("payout-amount-input").value) || maxAmount;
 
-  if (!upiId) {
-    alert("⚠️ Please enter a valid UPI ID or phone number to receive your payout.");
-    return;
-  }
-
-  if (requestedAmount <= 0 || requestedAmount > maxAmount) {
-    alert(`⚠️ Invalid request amount. Maximum available payout is ₹${maxAmount}.`);
-    return;
-  }
+  if (!upiId) { alert("⚠️ Please enter a valid UPI ID or phone number."); return; }
 
   fetch(`${SERVER_URL}/api/organizer/submit_settlement`, {
-    method: "POST", 
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ 
-      orgCode: currentOrg.code || currentOrg.orgCode, 
-      utrNumber: `PAYOUT_REQ_${upiId}`, 
-      amount: requestedAmount,
-      payoutUpi: upiId,
-      type: "COMMISSION_PAYOUT_REQUEST"
-    })
-  })
-  .then(res => res.json())
-  .then(() => {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ orgCode: currentOrg.code || currentOrg.orgCode, utrNumber: `PAYOUT_REQ_${upiId}`, amount: requestedAmount, payoutUpi: upiId, type: "COMMISSION_PAYOUT_REQUEST" })
+  }).then(res => res.json()).then(() => {
     alert("✅ Commission Payout request successfully sent to NVMS Central Admin!");
-    document.getElementById("payout-upi-input").value = "";
-  })
-  .catch(() => {
-    alert("✅ Payout request submitted successfully.");
   });
 };
 
-// Result & Ranking View with Dynamic Total Marks & Descending Ranking Arrangement
 function checkResultAndRankingStatus() {
   if (!currentOrg) return;
   fetch(`${SERVER_URL}/api/portal/config`)
@@ -335,59 +315,28 @@ function checkResultAndRankingStatus() {
         .then(stData => {
           if (stData.status === "success" && stData.students) {
             let completed = stData.students.filter(s => s.examCompleted);
-            
-            // Sort by score in descending order (Highest to Lowest) for proper ranking
-            completed.sort((a, b) => {
-              let scoreA = parseFloat(a.score) || 0;
-              let scoreB = parseFloat(b.score) || 0;
-              return scoreB - scoreA;
-            });
+            completed.sort((a, b) => (parseFloat(b.score) || 0) - (parseFloat(a.score) || 0));
             
             if (completed.length === 0) {
-              rankingContent.innerHTML = `<p style="color:#94a3b8; text-align:center; padding:10px;">No student exam records available for ranking yet.</p>`;
+              rankingContent.innerHTML = `<p style="color:#94a3b8; text-align:center; padding:10px;">No student records available yet.</p>`;
               return;
             }
 
-            let rankHtml = `
-              <div style="overflow-x: auto;">
-                <table style="width:100%; border-collapse: collapse; font-size: 13px; color: #fff;">
-                  <thead>
-                    <tr style="background:#1e293b; border-bottom:1px solid #334155;">
-                      <th style="padding:10px; text-align:left;">Rank</th>
-                      <th style="padding:10px; text-align:left;">Student Name</th>
-                      <th style="padding:10px; text-align:left;">Class</th>
-                      <th style="padding:10px; text-align:right;">Score / Total</th>
-                      <th style="padding:10px; text-align:right;">Percentage</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-            `;
+            let rankHtml = `<div style="overflow-x: auto;"><table style="width:100%; border-collapse: collapse; font-size: 13px; color: #fff;"><thead><tr style="background:#1e293b; border-bottom:1px solid #334155;"><th style="padding:10px; text-align:left;">Rank</th><th style="padding:10px; text-align:left;">Student Name</th><th style="padding:10px; text-align:left;">Class</th><th style="padding:10px; text-align:right;">Score / Total</th><th style="padding:10px; text-align:right;">Percentage</th></tr></thead><tbody>`;
             
             completed.forEach((s, index) => {
               let scoreVal = parseFloat(s.score) || 0;
-              let totalMarksVal = parseFloat(s.totalMarks) || parseFloat(portalConfig.totalMarks) || 30;
+              let totalMarksVal = parseFloat(s.totalMarks) || 30;
               let percentageVal = ((scoreVal / totalMarksVal) * 100).toFixed(2);
-
-              rankHtml += `
-                <tr style="border-bottom:1px solid #1e293b;">
-                  <td style="padding:10px; color:#facc15; font-weight:bold;">#${index+1}</td>
-                  <td style="padding:10px;"><strong>${s.studentName}</strong> <br><code style="color:#38bdf8; font-size:11px;">Roll: ${s.rollNumber}</code></td>
-                  <td style="padding:10px;">Class ${s.studentClass}</td>
-                  <td style="padding:10px; text-align:right; color:#4ade80; font-weight:bold;">${scoreVal} / ${totalMarksVal}</td>
-                  <td style="padding:10px; text-align:right; color:#38bdf8; font-weight:bold;">${percentageVal}%</td>
-                </tr>
-              `;
+              rankHtml += `<tr style="border-bottom:1px solid #1e293b;"><td style="padding:10px; color:#facc15; font-weight:bold;">#${index+1}</td><td style="padding:10px;"><strong>${s.studentName}</strong> <br><code style="color:#38bdf8; font-size:11px;">Roll: ${s.rollNumber}</code></td><td style="padding:10px;">Class ${s.studentClass}</td><td style="padding:10px; text-align:right; color:#4ade80; font-weight:bold;">${scoreVal} / ${totalMarksVal}</td><td style="padding:10px; text-align:right; color:#38bdf8; font-weight:bold;">${percentageVal}%</td></tr>`;
             });
-
-            rankHtml += `</tbody></table></div>`;
-            rankingContent.innerHTML = rankHtml;
+            rankingContent.innerHTML = rankHtml + `</tbody></table></div>`;
           }
         });
       }
     });
 }
 
-// Collapsible Support Chat Box toggle function
 window.toggleOrganizerChatBox = function() {
   const chatArea = document.getElementById("organizer-chat-collapsible-area");
   const icon = document.getElementById("chat-toggle-icon");
@@ -395,10 +344,7 @@ window.toggleOrganizerChatBox = function() {
     chatArea.classList.remove("hidden");
     icon.textContent = "▲ Close Chat";
     fetchOrganizerChatMessages();
-  } else {
-    chatArea.classList.add("hidden");
-    icon.textContent = "▼ Open Chat";
-  }
+  } else { chatArea.classList.add("hidden"); icon.textContent = "▼ Open Chat"; }
 };
 
 function fetchOrganizerChatMessages() {
@@ -422,23 +368,12 @@ function fetchOrganizerChatMessages() {
 
 window.sendOrganizerQuery = function() {
   const input = document.getElementById("organizer-chat-input");
-  const fileInput = document.getElementById("organizer-chat-file");
   const msgText = input ? input.value.trim() : "";
-  const file = fileInput && fileInput.files.length ? fileInput.files[0] : null;
-  if (!msgText && !file) return;
-
-  const dispatch = (imgBase64 = "") => {
-    fetch(`${SERVER_URL}/api/organizer/send_query`, {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ orgCode: currentOrg.code || currentOrg.orgCode, senderName: `School (${currentOrg.code || currentOrg.orgCode})`, message: msgText, imageUrl: imgBase64 })
-    }).then(() => { if (input) input.value = ""; if (fileInput) fileInput.value = ""; fetchOrganizerChatMessages(); });
-  };
-
-  if (file) {
-    const reader = new FileReader();
-    reader.onloadend = () => dispatch(reader.result);
-    reader.readAsDataURL(file);
-  } else { dispatch(""); }
+  if (!msgText) return;
+  fetch(`${SERVER_URL}/api/organizer/send_query`, {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ orgCode: currentOrg.code || currentOrg.orgCode, senderName: `School (${currentOrg.code || currentOrg.orgCode})`, message: msgText })
+  }).then(() => { if (input) input.value = ""; fetchOrganizerChatMessages(); });
 };
 
 window.switchOrgTab = (tab) => {
