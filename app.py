@@ -92,7 +92,6 @@ def update_master_portal_settings():
         is_exam = bool(data.get('isExamActive', False))
         is_result = bool(data.get('isResultDeclared', False))
         
-        # STRICT MUTUAL EXCLUSIVITY: Only one portal state can be active at a time
         if is_result:
             is_reg = False
             is_exam = False
@@ -135,12 +134,15 @@ def verify_school_code():
             
             config_doc = db.collection('settings').document('portal_config').get()
             g_cfg = config_doc.to_dict() if config_doc.exists else {}
-            fee = g_cfg.get('offlineFee', 120) if org_data.get('examMode') == 'offline' else g_cfg.get('onlineFee', 100)
+            
+            # 🎯 RULE 2 & 3: Fee mapping strictly based on Organizer's chosen examMode
+            exam_mode = (org_data.get('examMode') or 'online').lower()
+            fee = g_cfg.get('offlineFee', 120) if exam_mode == 'offline' else g_cfg.get('onlineFee', 100)
             
             return jsonify({
                 "status": "success", 
                 "schoolName": org_data.get('schoolName'),
-                "examMode": org_data.get('examMode', 'online'), 
+                "examMode": exam_mode, 
                 "applicableFee": fee
             }), 200
         return jsonify({"status": "invalid", "message": "Organizer School Code Not Found!"}), 200
@@ -204,7 +206,7 @@ def secure_registration():
         return jsonify({"status": "glitch", "message": str(e)}), 500
 
 # ==========================================================================
-# 4. STUDENT EXAM LOGIN & ASSESSMENT ROUTERS (WITH PAYMENT APPROVAL GATE)
+# 4. STUDENT EXAM LOGIN & ASSESSMENT ROUTERS
 # ==========================================================================
 @app.route('/api/student/login', methods=['POST'])
 def student_login():
@@ -444,7 +446,7 @@ def admin_complete_payout():
     return jsonify({"status": "success", "message": "Payout completed"})
 
 # ==========================================================================
-# 6. ORGANIZER PORTAL & STUDENTS MATRIX (COMMISSION BASED ON ONLINE BASE FEE)
+# 6. ORGANIZER PORTAL & STUDENTS MATRIX (PRECISE FEE & COMMISSION LOGIC)
 # ==========================================================================
 @app.route('/api/organizer/login', methods=['POST'])
 def organizer_login():
@@ -525,13 +527,16 @@ def organizer_get_students():
     online_fee = g_cfg.get('onlineFee', 100)
     offline_fee = g_cfg.get('offlineFee', 120)
     
+    # 🎯 FEE MAPPING: Online mode = ₹100 flat fee per student (chahe cash ho ya online). Offline mode = ₹120 fee per student.
+    current_fee_per_student = offline_fee if exam_mode == 'offline' else online_fee
+
     # Separate Cash (Offline) vs Online approved registrations
     cash_approved = [s for s in approved if (s.get('paymentMode') or '').lower() in ['offline', 'cash']]
     online_approved = [s for s in approved if (s.get('paymentMode') or '').lower() == 'online']
     
-    cash_held = len(cash_approved) * offline_fee
-    online_collected_by_nvms = len(online_approved) * online_fee
-    gross_total = (len(cash_approved) * offline_fee) + (len(online_approved) * online_fee)
+    cash_held = len(cash_approved) * current_fee_per_student
+    online_collected_by_nvms = len(online_approved) * current_fee_per_student
+    gross_total = len(approved) * current_fee_per_student
 
     # 🎯 COMMISSION FIXED ON ONLINE EXAM BASE FEE (online_fee = ₹100 per student)
     base_fee_total = len(approved) * online_fee
