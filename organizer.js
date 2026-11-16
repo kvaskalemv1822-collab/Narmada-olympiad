@@ -31,6 +31,7 @@ function fetchGlobalConfigAndNotice() {
     .then(data => {
       if (data.status === "success") {
         portalConfig = data.config;
+        adminUpiId = portalConfig.adminUpiId || "narmada@upi";
         const noticeBanner = document.getElementById("admin-notice-banner");
         const noticeText = document.getElementById("notice-text");
         if (portalConfig.broadcastNotice && noticeBanner && noticeText) {
@@ -146,18 +147,24 @@ function fetchRegisteredStudentsList() {
     if (data.status === "success") {
       adminUpiId = data.adminUpiId || "narmada@upi";
       if (data.financials) {
-        let totalDirectComm = data.financials.directCommission || 0;
-        let totalRefComm = data.financials.referralCommission || 0;
+        let totalRegs = data.financials.approvedRegistrations || 0;
+        let cashHeld = data.financials.cashHeld || 0;
+        let onlineCollected = data.financials.onlineCollected || 0;
+        let directComm = data.financials.directCommission || 0;
+        let refComm = data.financials.referralCommission || 0;
+        let totalComm = data.financials.totalCommission || 0;
         let netPayableToNvms = data.financials.netPayableToNvms || 0;
-        let isSettled = data.financials.isSettled || false;
+        let nvmsOwesOrganizer = data.financials.nvmsOwesOrganizer || 0;
+        let isSettled = data.isSettled || false;
 
-        document.getElementById("fin-total-regs").textContent = data.financials.totalRegistrations;
-        document.getElementById("fin-total-fees").textContent = `₹${data.financials.totalFees}`;
-        document.getElementById("fin-direct-comm").textContent = `₹${totalDirectComm}`;
-        document.getElementById("fin-ref-comm").textContent = `₹${totalRefComm}`;
+        document.getElementById("fin-total-regs").textContent = totalRegs;
+        document.getElementById("fin-cash-held").textContent = `₹${cashHeld}`;
+        document.getElementById("fin-online-collected").textContent = `₹${onlineCollected}`;
+        document.getElementById("fin-direct-comm").textContent = `₹${directComm}`;
+        document.getElementById("fin-ref-comm").textContent = `₹${refComm}`;
+        document.getElementById("fin-total-comm").textContent = `₹${totalComm}`;
 
-        if (isSettled) { netPayableToNvms = 0; totalDirectComm = 0; totalRefComm = 0; }
-        renderDynamicFinancialAction(netPayableToNvms, totalDirectComm + totalRefComm, isSettled);
+        renderDynamicFinancialAction(netPayableToNvms, nvmsOwesOrganizer, isSettled);
       }
 
       container.innerHTML = data.students.length ? "" : `<tr><td colspan="7" style="text-align:center; color:#64748b; padding:15px;">No students registered.</td></tr>`;
@@ -173,7 +180,7 @@ function fetchRegisteredStudentsList() {
         }
 
         let actionCell = `<span style="color:#4ade80; font-weight:bold;">Approved</span>`;
-        if (!isApproved && s.paymentMode === 'offline') {
+        if (!isApproved && (s.paymentMode || '').toLowerCase() === 'offline') {
           actionCell = `<button onclick="approveStudentCashEntry('${s.studentId || s.id}')" style="background:#10b981; color:#fff; padding:5px 10px; font-size:11px; border-radius:4px; border:none; cursor:pointer;">💸 Approve Cash</button>`;
         } else if (!isApproved) {
           actionCell = `<span style='color:#f59e0b; font-size:11px;'>Awaiting UTR</span>`;
@@ -195,7 +202,7 @@ function fetchRegisteredStudentsList() {
   });
 }
 
-function renderDynamicFinancialAction(netPayable, totalCommission, isSettled) {
+function renderDynamicFinancialAction(netPayable, nvmsOwesOrg, isSettled) {
   const actionContainer = document.getElementById("dynamic-financial-action-container");
   if (!actionContainer) return;
 
@@ -204,7 +211,7 @@ function renderDynamicFinancialAction(netPayable, totalCommission, isSettled) {
   } else if (netPayable > 0) {
     actionContainer.innerHTML = `
       <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
-        <div><p style="font-size: 13px; color: #f87171; font-weight: bold; margin: 0;">Net Amount Payable to NVMS:</p><h2 style="color: #f87171; margin: 5px 0 0 0;">₹${netPayable}</h2></div>
+        <div><p style="font-size: 13px; color: #f87171; font-weight: bold; margin: 0;">Net Amount Payable to NVMS (Cash Held - Commission):</p><h2 style="color: #f87171; margin: 5px 0 0 0;">₹${netPayable}</h2></div>
         <button onclick="window.location.href='upi://pay?pa=${adminUpiId}&pn=NVMSO&am=${netPayable}&cu=INR'" class="btn-primary" style="background: #10b981; padding: 10px 16px; width: auto; cursor:pointer;">⚡ Pay via UPI</button>
       </div>
       <div style="margin-top: 12px; border-top: 1px dashed #334155; padding-top: 10px; display: flex; gap: 10px; flex-wrap: wrap;">
@@ -213,13 +220,13 @@ function renderDynamicFinancialAction(netPayable, totalCommission, isSettled) {
         <button onclick="submitSettlementProof(${netPayable})" class="btn-primary" style="background: #0284c7; width: auto; cursor:pointer;">Submit UTR</button>
       </div>
     `;
-  } else if (totalCommission > 0) {
+  } else if (nvmsOwesOrg > 0) {
     actionContainer.innerHTML = `
-      <div><p style="font-size: 13px; color: #4ade80; font-weight: bold; margin: 0;">Total Commission Payout Receivable:</p><h2 style="color: #4ade80; margin: 5px 0 0 0;">₹${totalCommission}</h2></div>
+      <div><p style="font-size: 13px; color: #4ade80; font-weight: bold; margin: 0;">NVMS Owes You (Commission Payout Request):</p><h2 style="color: #4ade80; margin: 5px 0 0 0;">₹${nvmsOwesOrg}</h2></div>
       <div style="border-top: 1px dashed #334155; padding-top: 10px; margin-top: 10px; display: flex; gap: 10px; flex-wrap: wrap;">
-        <input type="text" id="payout-upi-input" placeholder="Enter UPI ID (e.g. user@paytm)" style="flex: 1; min-width: 200px;">
-        <input type="number" id="payout-amount-input" value="${totalCommission}" style="width: 100px;">
-        <button onclick="requestCommissionPayout(${totalCommission})" class="btn-primary" style="background: #10b981; width: auto; cursor:pointer;">📤 Request Payout</button>
+        <input type="text" id="payout-upi-input" placeholder="Enter your UPI ID (e.g. user@paytm)" style="flex: 1; min-width: 200px;">
+        <input type="number" id="payout-amount-input" value="${nvmsOwesOrg}" style="width: 100px;">
+        <button onclick="requestCommissionPayout(${nvmsOwesOrg})" class="btn-primary" style="background: #f59e0b; width: auto; cursor:pointer;">📤 Request Payout</button>
       </div>
     `;
   } else {
@@ -247,10 +254,10 @@ window.submitSettlementProof = function(defaultAmount) {
 window.requestCommissionPayout = function(maxAmount) {
   const upiId = document.getElementById("payout-upi-input").value.trim();
   if (!upiId) { alert("Enter UPI ID."); return; }
-  fetch(`${SERVER_URL}/api/organizer/submit_settlement`, {
+  fetch(`${SERVER_URL}/api/organizer/request_payout`, {
     method: "POST", headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ orgCode: currentOrg.code || currentOrg.orgCode, utrNumber: `PAYOUT_${upiId}`, amount: maxAmount })
-  }).then(() => alert("✅ Payout request sent!"));
+    body: JSON.stringify({ orgCode: currentOrg.code || currentOrg.orgCode, upiId: upiId, amount: maxAmount })
+  }).then(() => alert("✅ Commission payout request sent to Central Admin!"));
 };
 
 function checkResultAndRankingStatus() {
