@@ -1,8 +1,10 @@
-const SERVER_URL = "https://nvmso-backend.onrender.com";
+Const SERVER_URL = "https://nvmso-backend.onrender.com";
 let allStudentsCache = [];
 let allOrganizersCache = [];
 let pendingSettlementsCache = [];
 let pendingPayoutsCache = [];
+let activeTicketId = null;
+let activeTicketSender = null;
 let autoRefreshTimer = null;
 
 // 🔄 PERSISTENT SESSION CHECK ON PAGE LOAD
@@ -14,18 +16,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (mainContainer) mainContainer.classList.remove("hidden");
     initializeCentralPanelData();
   }
-  startLiveClockTracker();
 });
-
-function startLiveClockTracker() {
-  const clockEl = document.getElementById("admin-live-clock");
-  if (clockEl) {
-    setInterval(() => {
-      const now = new Date();
-      clockEl.textContent = now.toLocaleTimeString() + " (" + now.toLocaleDateString() + ")";
-    }, 1000);
-  }
-}
 
 window.verifyAdminPassword = async () => {
   const passInput = document.getElementById("admin-pass-input").value.trim();
@@ -97,6 +88,7 @@ function initializeCentralPanelData() {
         const config = data.config;
         if (document.getElementById("cfg-online-fee")) document.getElementById("cfg-online-fee").value = config.onlineFee || 100;
         if (document.getElementById("cfg-offline-fee")) document.getElementById("cfg-offline-fee").value = config.offlineFee || 120;
+        if (document.getElementById("cfg-admin-upi")) document.getElementById("cfg-admin-upi").value = config.adminUpiId || "narmada@upi";
         
         if (document.getElementById("cfg-reg-active")) document.getElementById("cfg-reg-active").checked = !!config.isRegistrationOpen;
         if (document.getElementById("cfg-exam-active")) document.getElementById("cfg-exam-active").checked = !!config.isExamActive;
@@ -105,11 +97,13 @@ function initializeCentralPanelData() {
 
         setupSmartSwitchesExclusiveRule();
         fetchAllCentralData();
+        fetchSupportTickets();
 
         // 🔄 AUTO-REFRESH LIVE SYNC (8s poll)
         if (!autoRefreshTimer) {
           autoRefreshTimer = setInterval(() => {
             fetchAllCentralData();
+            fetchSupportTickets();
           }, 8000);
         }
       }
@@ -132,7 +126,7 @@ window.saveGlobalConfig = async () => {
   const payload = {
     onlineFee: Number(document.getElementById("cfg-online-fee").value),
     offlineFee: Number(document.getElementById("cfg-offline-fee").value),
-    adminUpiId: document.getElementById("cfg-admin-upi") ? document.getElementById("cfg-admin-upi").value.trim() : "narmada@upi",
+    adminUpiId: document.getElementById("cfg-admin-upi").value.trim() || "narmada@upi",
     isRegistrationOpen: document.getElementById("cfg-reg-active").checked,
     isExamActive: document.getElementById("cfg-exam-active").checked,
     isResultDeclared: document.getElementById("cfg-result-allowed").checked,
@@ -214,21 +208,24 @@ function renderMergedOrganizersTable() {
 
     let actionCell = isSettled ? "<span style='color:#38bdf8; font-weight:bold;'>Completed</span>" : (sett ? `<button onclick="approveOrganizerSettlement('${code}', '${sett.id}')" style="background:#10b981; color:#fff; border:none; padding:4px 8px; font-size:10px; border-radius:4px; font-weight:bold; cursor:pointer;">Verify UTR</button>` : "Awaiting");
 
+    let chatButton = `<button onclick="openChatSession('TICKET_${code}', '${org.schoolName || code}')" style="background:#7c3aed; color:#fff; border:none; padding:4px 8px; font-size:10px; border-radius:4px; font-weight:bold; cursor:pointer; margin-top:4px;">💬 Chat</button>`;
+    actionCell += `<br>${chatButton}`;
+
     let pendingBadge = pendingReviewCount > 0 ? `<br><span style="font-size:9px; color:#f59e0b; font-weight:bold;">(${pendingReviewCount} Pending)</span>` : "";
 
-    // 📲 UPI Deep-Link Pay URLs for Direct & Referral Commissions in Central Panel
+    // 📲 UPI Deep-Link Pay URLs for Direct & Referral Commissions
     const orgUpi = org.upiId || 'narmada@upi';
     const directUpiLink = `upi://pay?pa=${encodeURIComponent(orgUpi)}&pn=${encodeURIComponent(org.schoolName || 'Organizer')}&am=${directComm}&cu=INR`;
     const refUpiLink = `upi://pay?pa=${encodeURIComponent(orgUpi)}&pn=${encodeURIComponent(org.schoolName || 'Organizer')}&am=${refComm}&cu=INR`;
 
     let directCommHtml = `₹${directComm}`;
     if (directComm > 0 && !isSettled) {
-      directCommHtml += `<br><a href="${directUpiLink}" style="background:#10b981; color:#fff; padding:2px 6px; font-size:9px; border-radius:3px; text-decoration:none; display:inline-block; margin-top:3px;">📲 Pay UPI</a>`;
+      directCommHtml += `<br><a href="${directUpiLink}" style="background:#10b981; color:#fff; padding:2px 6px; font-size:9px; border-radius:3px; text-decoration:none; display:inline-block; margin-top:2px;">📲 Pay UPI</a>`;
     }
 
     let refCommHtml = `₹${refComm}`;
     if (refComm > 0 && !isSettled) {
-      refCommHtml += `<br><a href="${refUpiLink}" style="background:#f59e0b; color:#fff; padding:2px 6px; font-size:9px; border-radius:3px; text-decoration:none; display:inline-block; margin-top:3px;">📲 Pay UPI</a>`;
+      refCommHtml += `<br><a href="${refUpiLink}" style="background:#f59e0b; color:#fff; padding:2px 6px; font-size:9px; border-radius:3px; text-decoration:none; display:inline-block; margin-top:2px;">📲 Pay UPI</a>`;
     }
 
     tbody.innerHTML += `
@@ -259,6 +256,87 @@ function renderMergedOrganizersTable() {
 }
 
 function int(val) { return Math.floor(val); }
+
+function fetchSupportTickets() {
+  fetch(`${SERVER_URL}/api/admin/queries`)
+    .then(res => res.json())
+    .then(data => {
+      const listContainer = document.getElementById("support-tickets-list");
+      if (!listContainer) return;
+      
+      if (data.status === "success" && data.queries && data.queries.length > 0) {
+        listContainer.innerHTML = "";
+        data.queries.forEach(q => {
+          listContainer.innerHTML += `
+            <div onclick="openChatSession('${q.ticketId}', '${q.senderName || q.orgCode}')" style="padding: 8px; margin-bottom: 6px; background: #0f172a; border: 1px solid #334155; border-radius: 6px; cursor: pointer;">
+              <p style="font-weight: bold; color: #38bdf8; font-size: 11px;">${q.senderName || q.orgCode}</p>
+              <p style="color: #cbd5e1; font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${q.lastMessage || 'New Query'}</p>
+            </div>
+          `;
+        });
+      } else {
+        listContainer.innerHTML = `<p style="font-size: 11px; color: #64748b; text-align: center; margin-top: 20px;">No pending support queries.</p>`;
+      }
+    }).catch(() => {});
+}
+
+window.openChatSession = function(ticketId, senderName) {
+  activeTicketId = ticketId;
+  activeTicketSender = senderName;
+  
+  const chatBox = document.getElementById("active-chat-box");
+  const chatInput = document.getElementById("admin-chat-input");
+  const sendBtn = document.getElementById("btn-send-reply");
+
+  if(chatInput) chatInput.disabled = false;
+  if(sendBtn) sendBtn.disabled = false;
+
+  chatBox.innerHTML = `<p style="color: #4ade80; font-size: 11px; text-align: center; margin-bottom: 10px;">-- Connected with ${senderName} --</p>`;
+  
+  fetch(`${SERVER_URL}/api/admin/query_messages?ticketId=${ticketId}`)
+    .then(res => res.json())
+    .then(data => {
+      if (data.status === "success" && data.messages) {
+        chatBox.innerHTML = "";
+        data.messages.forEach(m => {
+          let align = m.isAdmin ? "right" : "left";
+          let bg = m.isAdmin ? "#0369a1" : "#1e293b";
+          let imageHtml = m.imageUrl ? `<br><a href="${m.imageUrl}" target="_blank"><img src="${m.imageUrl}" style="max-width: 140px; max-height: 140px; border-radius: 4px; margin-top: 5px; border: 1px solid #38bdf8;" /></a>` : "";
+
+          chatBox.innerHTML += `
+            <div style="text-align: ${align}; margin-bottom: 8px;">
+              <span style="display: inline-block; background: ${bg}; padding: 6px 10px; border-radius: 6px; max-width: 80%; text-align: left; color: #fff; font-size: 11px;">
+                ${m.text}${imageHtml}
+              </span>
+            </div>
+          `;
+        });
+        chatBox.scrollTop = chatBox.scrollHeight;
+      }
+    }).catch(() => {});
+};
+
+window.sendAdminReply = function() {
+  const chatInput = document.getElementById("admin-chat-input");
+  const chatBox = document.getElementById("active-chat-box");
+  const msgText = chatInput ? chatInput.value.trim() : "";
+
+  if (!msgText || !activeTicketId) return;
+
+  chatBox.innerHTML += `
+    <div style="text-align: right; margin-bottom: 8px;">
+      <span style="display: inline-block; background: #0369a1; padding: 6px 10px; border-radius: 6px; max-width: 80%; text-align: left; color: #fff; font-size: 11px;">${msgText}</span>
+    </div>
+  `;
+  chatBox.scrollTop = chatBox.scrollHeight;
+  chatInput.value = "";
+
+  fetch(`${SERVER_URL}/api/admin/reply_query`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ticketId: activeTicketId, message: msgText })
+  }).then(res => res.json());
+};
 
 function populateSchoolDropdowns() {
   const rankSelect = document.getElementById("ranking-school-select");
@@ -414,6 +492,7 @@ window.loadSchoolStudentLedger = function() {
   });
 };
 
+// 🛑 MANUAL SCORE ENTRY MODAL FUNCTIONS
 window.openManualScoreModal = function(studentId, name, studentClass) {
   document.getElementById("modal-student-id").value = studentId;
   document.getElementById("modal-student-info").textContent = `Student: ${name} (Class ${studentClass})`;
@@ -441,39 +520,63 @@ window.saveManualScore = function() {
       alert("✅ Offline student score saved successfully via Central Panel!");
       closeManualScoreModal(); 
       fetchAllCentralData();
-    } else { alert("❌ Error: " + data.message); }
+    } else { 
+      alert("❌ Error: " + data.message); 
+    }
   });
 };
 
 window.approveOnlinePayment = function(studentId) {
   if (!confirm(`Are you sure you want to approve this online payment UTR?`)) return;
+
   fetch(`${SERVER_URL}/api/admin/approve_payment`, {
-    method: "POST", headers: { "Content-Type": "application/json" },
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ studentId: studentId })
-  }).then(res => res.json()).then(data => { if (data.status === "success") { alert("✅ Approved!"); fetchAllCentralData(); } });
+  })
+  .then(res => res.json())
+  .then(data => {
+    if (data.status === "success") {
+      alert("✅ Online payment approved successfully!");
+      fetchAllCentralData();
+    }
+  });
 };
 
 window.rejectOnlinePayment = function(studentId) {
-  let reason = prompt("Enter reason for rejecting this UTR:", "Fake or Invalid UTR Number");
+  let reason = prompt("Enter reason for rejecting this UTR (e.g., Fake UTR / Payment not received):", "Fake or Invalid UTR Number");
   if (!reason) return;
+
   fetch(`${SERVER_URL}/api/admin/reject_payment`, {
-    method: "POST", headers: { "Content-Type": "application/json" },
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ studentId: studentId, reason: reason })
-  }).then(res => res.json()).then(data => { if (data.status === "success") { alert("❌ Rejected!"); fetchAllCentralData(); } });
+  })
+  .then(res => res.json())
+  .then(data => {
+    if (data.status === "success") {
+      alert("❌ UTR rejected successfully!");
+      fetchAllCentralData();
+    }
+  });
 };
 
 window.triggerReExam = function(studentId) {
   if(!confirm("Reset this student's exam status to allow Re-Exam?")) return;
   fetch(`${SERVER_URL}/api/admin/reexam`, {
-    method: "POST", headers: { "Content-Type": "application/json" },
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ studentId: studentId })
-  }).then(res => res.json()).then(d => { if(d.status === "success") alert("✅ Re-Exam triggered!"); });
+  }).then(res => res.json()).then(d => {
+    if(d.status === "success") alert("✅ Re-Exam triggered successfully!");
+  });
 };
 
 window.approveOrganizerSettlement = function(orgCode, reqId) {
   if(!confirm(`Confirm settlement approval for ${orgCode}? This will reset their Net Payable balance to ₹0.`)) return;
   fetch(`${SERVER_URL}/api/admin/approve_settlement`, {
-    method: "POST", headers: { "Content-Type": "application/json" },
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ orgCode: orgCode, requestId: reqId })
   }).then(res => res.json()).then(d => {
     if(d.status === "success") {
@@ -483,4 +586,7 @@ window.approveOrganizerSettlement = function(orgCode, reqId) {
   });
 };
 
-window.logoutAdminSession = () => { sessionStorage.removeItem("nvmso_admin_logged"); location.reload(); };
+window.logoutAdminSession = () => { 
+  sessionStorage.removeItem("nvmso_admin_logged"); 
+  location.reload(); 
+};
