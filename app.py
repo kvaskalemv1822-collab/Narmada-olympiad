@@ -46,7 +46,7 @@ def get_portal_config():
                 "isExamActive": False, "isResultDeclared": False,
                 "broadcastNotice": "Welcome to Narmada Valley Maths & Science Olympiad 2026!",
                 "adminUpiId": "narmada@upi",
-                "adminPassword": "NVMS2026Admin@#"
+                "password": "NVMS2026Admin@#"
             }
             db.collection('settings').document('portal_config').set(default_config)
             return jsonify({"status": "success", "config": default_config}), 200
@@ -89,7 +89,7 @@ def update_portal_config():
         return jsonify({"status": "error", "message": str(e)}), 500
 
 # ==========================================
-# 2. ADMIN AUTHENTICATION (READING adminPassword FROM portal_config)[span_1](start_span)[span_1](end_span)
+# 2. ADMIN AUTHENTICATION (READING 'password' FIELD FROM portal_config)
 # ==========================================
 @app.route('/api/admin/authenticate', methods=['POST'])
 def admin_authenticate():
@@ -98,9 +98,8 @@ def admin_authenticate():
         data = request.json or {}
         input_pass = str(data.get('password', '')).strip()
         
-        # Reading directly from 'portal_config' document as per Firestore structure[span_2](start_span)[span_2](end_span)
         config_doc = db.collection('settings').document('portal_config').get()
-        stored_pass = config_doc.to_dict().get('adminPassword', 'NVMS2026Admin@#') if config_doc.exists else "NVMS2026Admin@#"
+        stored_pass = config_doc.to_dict().get('password', 'NVMS2026Admin@#') if config_doc.exists else "NVMS2026Admin@#"
             
         if input_pass == stored_pass:
             return jsonify({"status": "success", "message": "Authenticated"}), 200
