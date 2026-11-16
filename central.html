@@ -74,7 +74,7 @@
     <button onclick="saveGlobalConfig()" class="btn-primary" style="background:#f59e0b; width:auto; cursor:pointer;">Publish Live Notification Ticker</button>
   </div>
 
-  <!-- PHASE INTERLOCK & FEE CONFIGURATIONS (ADMIN UPI REPLACED WITH EXAM DURATION) -->
+  <!-- PHASE INTERLOCK & FEE CONFIGURATIONS -->
   <div class="card-box" style="border: 1px solid #38bdf8;">
     <h3 style="color:#38bdf8; text-align:left; margin-bottom:12px;">🎛️ Dynamic Portal Phase Commander & Exam Duration</h3>
     
@@ -101,7 +101,7 @@
     <button onclick="saveGlobalConfig()" class="btn-primary" style="background:#10b981; width:auto; cursor:pointer;">💾 Save Master Parameters</button>
   </div>
 
-  <!-- 1. ASSOCIATED SCHOOL ORGANIZERS & UPI ID / PAYOUT REQUEST COLUMN -->
+  <!-- 1. ASSOCIATED SCHOOL ORGANIZERS & SETTLEMENT MANAGER -->
   <div class="card-box" style="border: 1px solid #38bdf8;">
     <h3 style="color:#38bdf8; text-align:left; margin-bottom:12px;">🏫 Associated School Organizers, Exam Modes & Settlement Manager</h3>
     <div style="overflow-x: auto;">
@@ -123,7 +123,7 @@
     </div>
   </div>
 
-  <!-- 2. LIVE SUPPORT & QUERY RESOLUTION CHAT DESK (DEFAULT COLLAPSED/HIDDEN) -->
+  <!-- 2. LIVE SUPPORT & QUERY RESOLUTION CHAT DESK -->
   <div class="card-box" style="border: 1px solid #c084fc;">
     <div style="display: flex; justify-content: space-between; align-items: center; cursor: pointer;" onclick="toggleAdminChatBox()">
       <h3 style="color:#c084fc; text-align:left; margin:0;">💬 Live Support & Query Resolution Chat Desk <span id="chat-badge" style="background:#dc2626; color:#fff; font-size:10px; padding:2px 6px; border-radius:10px; display:none;">New</span></h3>
@@ -162,4 +162,21 @@
 
   <!-- 4. SCHOOL-WISE STUDENT DETAILS LEDGER -->
   <div class="card-box" style="border: 1px solid #10b981;">
-    <h3 style="color:#10b981; text-align:left; margin-bottom:
+    <h3 style="color:#10b981; text-align:left; margin-bottom:12px;">📋 School-Wise Student Details Ledger & Manual Score Entry</h3>
+    <div style="margin-bottom:15px;">
+      <select id="ledger-school-select" onchange="loadSchoolStudentLedger()" style="min-width: 250px; background:#020617; color:#fff; border:1px solid #475569; padding:8px; border-radius:6px;">
+        <option value="ALL">📋 All Schools Ledger</option>
+      </select>
+    </div>
+    <div style="overflow-x: auto;">
+      <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 13px;">
+        <thead>
+          <tr style="border-bottom: 2px solid #334155; color: #94a3b8;">
+            <th style="padding:10px;">Student Name</th>
+            <th style="padding:10px;">Class</th>
+            <th style="padding:10px;">Payment Status & UTR</th>
+            <th style="padding:10px;">Marks / %</th>
+            <th style="padding:10px;">Action / Manual Score</th>
+          </tr>
+        </thead>
+        <tbody id="ledger-student-
