@@ -46,7 +46,7 @@ def get_portal_config():
                 "isExamActive": False, "isResultDeclared": False,
                 "broadcastNotice": "Welcome to Narmada Valley Maths & Science Olympiad 2026!",
                 "adminUpiId": "narmada@upi",
-                "password": "NVMS2026Admin@#"
+                "adminPassword": "NVMS2026Admin@#"
             }
             db.collection('settings').document('portal_config').set(default_config)
             return jsonify({"status": "success", "config": default_config}), 200
@@ -89,7 +89,7 @@ def update_portal_config():
         return jsonify({"status": "error", "message": str(e)}), 500
 
 # ==========================================
-# 2. ADMIN AUTHENTICATION (READING 'password' FIELD FROM portal_config)
+# 2. ADMIN AUTHENTICATION (READING 'adminPassword' FIELD)
 # ==========================================
 @app.route('/api/admin/authenticate', methods=['POST'])
 def admin_authenticate():
@@ -99,7 +99,7 @@ def admin_authenticate():
         input_pass = str(data.get('password', '')).strip()
         
         config_doc = db.collection('settings').document('portal_config').get()
-        stored_pass = config_doc.to_dict().get('password', 'NVMS2026Admin@#') if config_doc.exists else "NVMS2026Admin@#"
+        stored_pass = config_doc.to_dict().get('adminPassword', 'NVMS2026Admin@#') if config_doc.exists else "NVMS2026Admin@#"
             
         if input_pass == stored_pass:
             return jsonify({"status": "success", "message": "Authenticated"}), 200
@@ -195,21 +195,6 @@ def organizer_register():
         }
         db.collection('organizers').document(org_code).set(payload)
         return jsonify({"status": "success", "orgCode": org_code}), 200
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
-
-@app.route('/api/organizer/update_profile', methods=['POST'])
-def organizer_update_profile():
-    try:
-        if db is None: return jsonify({"status": "error", "message": "DB offline"}), 500
-        data = request.json or {}
-        org_code = str(data.get('orgCode', '')).strip().upper()
-        update_payload = {}
-        if 'examMode' in data: update_payload['examMode'] = data['examMode']
-        if 'principalApproved' in data: update_payload['principalApproved'] = data['principalApproved']
-        
-        db.collection('organizers').document(org_code).set(update_payload, merge=True)
-        return jsonify({"status": "success"}), 200
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
