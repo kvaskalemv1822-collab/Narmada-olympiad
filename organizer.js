@@ -1,7 +1,6 @@
 const SERVER_URL = "https://nvmso-backend.onrender.com";
 let currentOrg = null;
 let portalConfig = {};
-let adminUpiId = "narmada@upi";
 let autoRefreshTimer = null;
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -31,7 +30,6 @@ function fetchGlobalConfigAndNotice() {
     .then(data => {
       if (data.status === "success") {
         portalConfig = data.config;
-        adminUpiId = portalConfig.adminUpiId || "narmada@upi";
         const noticeBanner = document.getElementById("admin-notice-banner");
         const noticeText = document.getElementById("notice-text");
         if (portalConfig.broadcastNotice && noticeBanner && noticeText) {
@@ -77,7 +75,8 @@ window.handleOrganizerRegister = function() {
     contact: document.getElementById("new-org-contact").value.trim(),
     password: document.getElementById("new-org-pass").value.trim(),
     pin: pin,
-    refCode: document.getElementById("new-org-ref").value.trim().toUpperCase()
+    refCode: document.getElementById("new-org-ref").value.trim().toUpperCase(),
+    upiId: document.getElementById("new-org-upi").value.trim()
   };
 
   fetch(`${SERVER_URL}/api/organizer/register`, {
@@ -100,9 +99,12 @@ function loadDashboardView() {
   document.getElementById("display-org-code").textContent = orgCodeKey;
   document.getElementById("principal-perm-checkbox").checked = !!currentOrg.principalApproved;
   document.getElementById("org-exam-mode-select").value = currentOrg.examMode || "online";
+  
+  const upiField = document.getElementById("org-upi-input");
+  if(upiField) upiField.value = currentOrg.upiId || "";
+
   document.getElementById("current-applicable-fee").textContent = (currentOrg.examMode === "offline") ? (portalConfig.offlineFee || 120) : (portalConfig.onlineFee || 100);
 
-  // REAL-TIME AUTO-SYNC TIMER (4 seconds)
   if (!autoRefreshTimer) {
     autoRefreshTimer = setInterval(() => { 
       fetchRegisteredStudentsList(); 
@@ -114,23 +116,40 @@ function loadDashboardView() {
 
 window.updateExamMode = function(val) {
   if (!currentOrg) return;
+  const upiIdVal = document.getElementById("org-upi-input")?.value.trim() || "";
   fetch(`${SERVER_URL}/api/organizer/update_profile`, {
     method: "POST", headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ orgCode: currentOrg.code || currentOrg.orgCode, examMode: val, principalApproved: currentOrg.principalApproved })
+    body: JSON.stringify({ orgCode: currentOrg.code || currentOrg.orgCode, examMode: val, principalApproved: currentOrg.principalApproved, upiId: upiIdVal })
   }).then(res => res.json()).then(data => {
     if(data.status === "success") {
       currentOrg.examMode = val;
+      currentOrg.upiId = upiIdVal;
       document.getElementById("current-applicable-fee").textContent = val === "offline" ? (portalConfig.offlineFee || 120) : (portalConfig.onlineFee || 100);
       fetchRegisteredStudentsList();
     }
   });
 };
 
-window.togglePrincipalPermission = function(isChecked) {
+window.saveOrganizerUpi = function() {
   if (!currentOrg) return;
+  const upiIdVal = document.getElementById("org-upi-input")?.value.trim() || "";
   fetch(`${SERVER_URL}/api/organizer/update_profile`, {
     method: "POST", headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ orgCode: currentOrg.code || currentOrg.orgCode, examMode: currentOrg.examMode || "online", principalApproved: isChecked })
+    body: JSON.stringify({ orgCode: currentOrg.code || currentOrg.orgCode, examMode: currentOrg.examMode || "online", principalApproved: currentOrg.principalApproved, upiId: upiIdVal })
+  }).then(res => res.json()).then(data => {
+    if(data.status === "success") {
+      currentOrg.upiId = upiIdVal;
+      alert("✅ UPI ID updated successfully for payouts!");
+    }
+  });
+};
+
+window.togglePrincipalPermission = function(isChecked) {
+  if (!currentOrg) return;
+  const upiIdVal = document.getElementById("org-upi-input")?.value.trim() || "";
+  fetch(`${SERVER_URL}/api/organizer/update_profile`, {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ orgCode: currentOrg.code || currentOrg.orgCode, examMode: currentOrg.examMode || "online", principalApproved: isChecked, upiId: upiIdVal })
   }).then(res => res.json()).then(() => { currentOrg.principalApproved = isChecked; });
 };
 
@@ -145,7 +164,6 @@ function fetchRegisteredStudentsList() {
   .then(res => res.json())
   .then(data => {
     if (data.status === "success") {
-      adminUpiId = data.adminUpiId || "narmada@upi";
       if (data.financials) {
         let totalRegs = data.financials.approvedRegistrations || 0;
         let cashHeld = data.financials.cashHeld || 0;
@@ -212,7 +230,6 @@ function renderDynamicFinancialAction(netPayable, nvmsOwesOrg, isSettled) {
     actionContainer.innerHTML = `
       <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
         <div><p style="font-size: 13px; color: #f87171; font-weight: bold; margin: 0;">Net Amount Payable to NVMS:</p><h2 style="color: #f87171; margin: 5px 0 0 0;">₹${netPayable}</h2></div>
-        <button onclick="window.location.href='upi://pay?pa=${adminUpiId}&pn=NVMSO&am=${netPayable}&cu=INR'" class="btn-primary" style="background: #10b981; padding: 10px 16px; width: auto; cursor:pointer;">⚡ Pay via UPI</button>
       </div>
       <div style="margin-top: 12px; border-top: 1px dashed #334155; padding-top: 10px; display: flex; gap: 10px; flex-wrap: wrap;">
         <input type="text" id="settlement-utr-input" placeholder="Enter UTR No after paying" style="flex: 1; min-width: 180px;">
@@ -226,7 +243,7 @@ function renderDynamicFinancialAction(netPayable, nvmsOwesOrg, isSettled) {
         <div><p style="font-size: 13px; color: #4ade80; font-weight: bold; margin: 0;">NVMS Owes You (Commission Payout Receivable):</p><h2 style="color: #4ade80; margin: 5px 0 0 0;">₹${nvmsOwesOrg}</h2></div>
       </div>
       <div style="border-top: 1px dashed #334155; padding-top: 10px; margin-top: 10px; display: flex; gap: 10px; flex-wrap: wrap;">
-        <input type="text" id="payout-upi-input" placeholder="Enter your UPI ID (e.g. user@paytm)" style="flex: 1; min-width: 200px;">
+        <input type="text" id="payout-upi-input" value="${currentOrg.upiId || ''}" placeholder="Enter your UPI ID (e.g. user@paytm)" style="flex: 1; min-width: 200px;">
         <input type="number" id="payout-amount-input" value="${nvmsOwesOrg}" style="width: 100px;">
         <button onclick="requestCommissionPayout(${nvmsOwesOrg})" class="btn-primary" style="background: #f59e0b; width: auto; cursor:pointer;">📤 Request Payout</button>
       </div>
