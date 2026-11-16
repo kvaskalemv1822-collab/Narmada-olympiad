@@ -88,7 +88,7 @@ function initializeCentralPanelData() {
         const config = data.config;
         if (document.getElementById("cfg-online-fee")) document.getElementById("cfg-online-fee").value = config.onlineFee || 100;
         if (document.getElementById("cfg-offline-fee")) document.getElementById("cfg-offline-fee").value = config.offlineFee || 120;
-        if (document.getElementById("cfg-admin-upi")) document.getElementById("cfg-admin-upi").value = config.adminUpiId || "narmada@upi";
+        if (document.getElementById("cfg-duration")) document.getElementById("cfg-duration").value = config.examDurationMinutes || 30;
         
         if (document.getElementById("cfg-reg-active")) document.getElementById("cfg-reg-active").checked = !!config.isRegistrationOpen;
         if (document.getElementById("cfg-exam-active")) document.getElementById("cfg-exam-active").checked = !!config.isExamActive;
@@ -122,11 +122,19 @@ function setupSmartSwitchesExclusiveRule() {
   }
 }
 
+// 💬 COLLAPSIBLE CHAT TOGGLE FUNCTION
+window.toggleAdminChatBox = function() {
+  const area = document.getElementById("admin-chat-collapsible-area");
+  if (area) {
+    area.classList.toggle("hidden");
+  }
+};
+
 window.saveGlobalConfig = async () => {
   const payload = {
     onlineFee: Number(document.getElementById("cfg-online-fee").value),
     offlineFee: Number(document.getElementById("cfg-offline-fee").value),
-    adminUpiId: document.getElementById("cfg-admin-upi").value.trim() || "narmada@upi",
+    examDurationMinutes: Number(document.getElementById("cfg-duration").value) || 30,
     isRegistrationOpen: document.getElementById("cfg-reg-active").checked,
     isExamActive: document.getElementById("cfg-exam-active").checked,
     isResultDeclared: document.getElementById("cfg-result-allowed").checked,
@@ -141,7 +149,7 @@ window.saveGlobalConfig = async () => {
   .then(res => res.json())
   .then(data => {
     if (data.status === "success") {
-      alert("✅ Command Dispatched: Portal phases and parameters updated successfully!");
+      alert("✅ Command Dispatched: Portal phases and exam duration updated successfully!");
     }
   });
 };
@@ -187,7 +195,6 @@ function renderMergedOrganizersTable() {
 
     const examMode = (org.examMode || 'online').toLowerCase();
     
-    // Calculations as per base online fee (₹100)
     const cashGross = cashRegs * (examMode === 'offline' ? 120 : 100);
     const baseFeeTotal = totalReg * 100;
 
@@ -200,7 +207,7 @@ function renderMergedOrganizersTable() {
     const netCashToPortal = isSettled ? 0 : Math.max(0, netBalance);
 
     const sett = pendingSettlementsCache.find(s => s.orgCode === code);
-    const organizerUpi = org.upiId || org.upi || "org@upi"; 
+    const organizerUpi = org.upiId || "Not Provided"; 
 
     let settCell = isSettled ? "<span style='color:#4ade80; font-weight:bold;'>✔️ Settled (₹0 Due)</span>" : "<span style='color:#f87171;'>Pending Settlement</span>";
     if (!isSettled && sett) {
@@ -209,7 +216,6 @@ function renderMergedOrganizersTable() {
 
     let actionCell = isSettled ? "<span style='color:#38bdf8; font-weight:bold;'>Completed</span>" : (sett ? `<button onclick="approveOrganizerSettlement('${code}', '${sett.id}')" style="background:#10b981; color:#fff; border:none; padding:4px 8px; font-size:10px; border-radius:4px; font-weight:bold; cursor:pointer;">Verify UTR</button>` : "Awaiting");
 
-    // 💬 Click-to-Chat Button integration
     let chatButton = `<button onclick="openChatSession('TICKET_${code}', '${org.schoolName || code}')" style="background:#7c3aed; color:#fff; border:none; padding:4px 8px; font-size:10px; border-radius:4px; font-weight:bold; cursor:pointer; margin-top:4px;">💬 Chat</button>`;
     actionCell += `<br>${chatButton}`;
 
@@ -224,7 +230,8 @@ function renderMergedOrganizersTable() {
         </td>
         <td style="padding:10px;">
           <strong>${org.name || org.coordinatorName || 'N/A'}</strong><br>
-          <span style="font-size:11px; color:#94a3b8;">${org.contact || ''}</span>
+          <span style="font-size:11px; color:#94a3b8;">${org.contact || ''}</span><br>
+          <span style="font-size:10px; color:#facc15;">UPI: ${organizerUpi}</span>
         </td>
         <td style="padding:10px; color:#4ade80; font-weight:bold; text-align:center;">
           ${totalReg} ${pendingBadge}<br><span style="font-size:10px; color:#94a3b8;">(${onlineRegs} On / ${cashRegs} Cash)</span>
