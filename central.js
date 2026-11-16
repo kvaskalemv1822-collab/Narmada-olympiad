@@ -1,4 +1,4 @@
-Const SERVER_URL = "https://nvmso-backend.onrender.com";
+const SERVER_URL = "https://nvmso-backend.onrender.com";
 let allStudentsCache = [];
 let allOrganizersCache = [];
 let pendingSettlementsCache = [];
@@ -173,7 +173,7 @@ function renderMergedOrganizersTable() {
   tbody.innerHTML = allOrganizersCache.length ? "" : "<tr><td colspan='8' style='text-align:center; color:#64748b; padding:15px;'>No organizers registered yet.</td></tr>";
 
   allOrganizersCache.forEach(org => {
-    const code = org.code || org.orgCode;
+    const code = org.code || org.orgCode || "";
     const isSettled = org.manualSettled;
 
     const allSchoolStudents = allStudentsCache.filter(s => (s.orgCode || "").toUpperCase() === code.toUpperCase());
@@ -187,12 +187,12 @@ function renderMergedOrganizersTable() {
 
     const examMode = (org.examMode || 'online').toLowerCase();
     
-    // Calculations as per base online fee (₹100)
     const cashGross = cashRegs * (examMode === 'offline' ? 120 : 100);
     const baseFeeTotal = totalReg * 100;
 
     const directComm = int(baseFeeTotal * 0.15);
-    const hasReferral = org.refCode && org.refCode.trim().length > 0 && org.refCode.toUpperCase() !== "NONE";
+    const refCodeStr = org.refCode ? String(org.refCode).trim() : "";
+    const hasReferral = refCodeStr.length > 0 && refCodeStr.toUpperCase() !== "NONE";
     const refComm = hasReferral ? int(baseFeeTotal * 0.05) : 0; 
     const totalComm = directComm + refComm;
 
@@ -200,7 +200,6 @@ function renderMergedOrganizersTable() {
     const netCashToPortal = isSettled ? 0 : Math.max(0, netBalance);
 
     const sett = pendingSettlementsCache.find(s => s.orgCode === code);
-    const organizerUpi = org.upiId || org.upi || "org@upi"; 
 
     let settCell = isSettled ? "<span style='color:#4ade80; font-weight:bold;'>✔️ Settled (₹0 Due)</span>" : "<span style='color:#f87171;'>Pending Settlement</span>";
     if (!isSettled && sett) {
@@ -209,7 +208,6 @@ function renderMergedOrganizersTable() {
 
     let actionCell = isSettled ? "<span style='color:#38bdf8; font-weight:bold;'>Completed</span>" : (sett ? `<button onclick="approveOrganizerSettlement('${code}', '${sett.id}')" style="background:#10b981; color:#fff; border:none; padding:4px 8px; font-size:10px; border-radius:4px; font-weight:bold; cursor:pointer;">Verify UTR</button>` : "Awaiting");
 
-    // 💬 Click-to-Chat Button integration
     let chatButton = `<button onclick="openChatSession('TICKET_${code}', '${org.schoolName || code}')" style="background:#7c3aed; color:#fff; border:none; padding:4px 8px; font-size:10px; border-radius:4px; font-weight:bold; cursor:pointer; margin-top:4px;">💬 Chat</button>`;
     actionCell += `<br>${chatButton}`;
 
@@ -346,7 +344,7 @@ window.loadSchoolRankings = function() {
 
   let studentsToRank = allStudentsCache;
   if (selectedOrg !== "ALL") {
-    studentsToRank = allStudentsCache.filter(s => s.orgCode === selectedOrg);
+    studentsToRank = allStudentsCache.filter(s => (s.orgCode || "").toUpperCase() === selectedOrg.toUpperCase());
   }
 
   let schoolMap = {};
@@ -438,7 +436,7 @@ window.loadSchoolStudentLedger = function() {
 
   let students = allStudentsCache;
   if (selectedOrg !== "ALL") {
-    students = allStudentsCache.filter(s => s.orgCode === selectedOrg);
+    students = allStudentsCache.filter(s => (s.orgCode || "").toUpperCase() === selectedOrg.toUpperCase());
   }
 
   tbody.innerHTML = students.length ? "" : "<tr><td colspan='5' style='text-align:center; color:#64748b;'>No students registered under this selection.</td></tr>";
