@@ -190,6 +190,9 @@ function renderMergedOrganizersTable() {
     const totalReg = verifiedStudents.length || 0;
     const pendingReviewCount = allSchoolStudents.filter(s => s.paymentStatus && s.paymentStatus.includes("Pending")).length;
 
+    // 🎯 RULE 5: Minimum 25 Students Warning System
+    let studentWarning = totalReg < 25 ? `<br><span style="color:#f87171; font-size:10px; font-weight:bold;">⚠️ Warning: Min 25 Required (${25 - totalReg} short)</span>` : `<br><span style="color:#4ade80; font-size:10px; font-weight:bold;">✔️ Target Met (≥25)</span>`;
+
     const onlineRegs = verifiedStudents.filter(s => (s.paymentMode || 'online').toLowerCase() === 'online').length;
     const cashRegs = verifiedStudents.filter(s => (s.paymentMode || '').toLowerCase() === 'offline' || (s.paymentMode || '').toLowerCase() === 'cash').length;
 
@@ -205,11 +208,12 @@ function renderMergedOrganizersTable() {
 
     const netBalance = cashGross - totalComm;
     const netCashToPortal = isSettled ? 0 : Math.max(0, netBalance);
+    const nvmsOwesOrg = isSettled ? 0 : Math.max(0, -(netBalance));
 
     const sett = pendingSettlementsCache.find(s => s.orgCode === code);
     const organizerUpi = org.upiId || "Not Provided"; 
 
-    let settCell = isSettled ? "<span style='color:#4ade80; font-weight:bold;'>✔️ Settled (₹0 Due)</span>" : "<span style='color:#f87171;'>Pending Settlement</span>";
+    let settCell = isSettled ? "<span style='color:#4ade80; font-weight:bold;'>✔️ Settled (₹0 Due)</span>" : (netCashToPortal > 0 ? `Pay to NVMS: ₹${netCashToPortal}` : `NVMS Owes Payout: ₹${nvmsOwesOrg}`);
     if (!isSettled && sett) {
       settCell = `<code style="color:#facc15;">UTR: ${sett.utrNumber}<br>(₹${sett.amount})</code>`;
     }
@@ -234,7 +238,7 @@ function renderMergedOrganizersTable() {
           <span style="font-size:10px; color:#facc15;">UPI: ${organizerUpi}</span>
         </td>
         <td style="padding:10px; color:#4ade80; font-weight:bold; text-align:center;">
-          ${totalReg} ${pendingBadge}<br><span style="font-size:10px; color:#94a3b8;">(${onlineRegs} On / ${cashRegs} Cash)</span>
+          ${totalReg} ${studentWarning} ${pendingBadge}<br><span style="font-size:10px; color:#94a3b8;">(${onlineRegs} On / ${cashRegs} Cash)</span>
         </td>
         <td style="padding:10px; color:#facc15; font-weight:bold;">₹${directComm}</td>
         <td style="padding:10px; color:#c084fc; font-weight:bold;">₹${refComm}</td>
@@ -256,9 +260,11 @@ function fetchSupportTickets() {
     .then(res => res.json())
     .then(data => {
       const listContainer = document.getElementById("support-tickets-list");
+      const badge = document.getElementById("chat-badge");
       if (!listContainer) return;
       
       if (data.status === "success" && data.queries && data.queries.length > 0) {
+        if(badge) badge.style.display = "inline-block";
         listContainer.innerHTML = "";
         data.queries.forEach(q => {
           listContainer.innerHTML += `
@@ -278,6 +284,10 @@ window.openChatSession = function(ticketId, senderName) {
   activeTicketId = ticketId;
   activeTicketSender = senderName;
   
+  // Make sure chat box view is visible if hidden
+  const chatArea = document.getElementById("admin-chat-collapsible-area");
+  if (chatArea) chatArea.classList.remove("hidden");
+
   const chatBox = document.getElementById("active-chat-box");
   const chatInput = document.getElementById("admin-chat-input");
   const sendBtn = document.getElementById("btn-send-reply");
