@@ -479,7 +479,8 @@ window.loadSchoolStudentLedger = function() {
 
     let paymentBadge = `<span style="color:${statusColor}; font-weight:bold;">${s.paymentStatus || 'Pending Verification'} (${payMode})</span>${utrInfo}`;
 
-    let actionButtons = `<button onclick="triggerReExam('${s.id}')" style="background:#7c3aed; color:#fff; border:none; padding:4px 8px; font-size:10px; border-radius:4px; font-weight:bold; cursor:pointer; margin-right:4px;">🔄 Re-Exam</button>`;
+    let actionButtons = `<button onclick="openManualScoreModal('${s.id}', '${s.studentName}', '${s.studentClass}')" style="background:#f59e0b; color:#fff; border:none; padding:4px 8px; font-size:10px; border-radius:4px; font-weight:bold; cursor:pointer; margin-right:4px;">✍️ Manual Score</button>`;
+    actionButtons += `<button onclick="triggerReExam('${s.id}')" style="background:#7c3aed; color:#fff; border:none; padding:4px 8px; font-size:10px; border-radius:4px; font-weight:bold; cursor:pointer; margin-right:4px;">🔄 Re-Exam</button>`;
 
     if (s.paymentMode === 'online' && !isApproved && !isRejected) {
       actionButtons += `<button onclick="approveOnlinePayment('${s.id}')" style="background:#10b981; color:#fff; border:none; padding:4px 6px; font-size:10px; border-radius:4px; font-weight:bold; cursor:pointer; margin-right:4px;">✔️ Approve</button>`;
@@ -491,10 +492,44 @@ window.loadSchoolStudentLedger = function() {
         <td style="padding:10px;"><strong>${s.studentName}</strong><br><span style="font-size:11px; color:#94a3b8;">Roll: ${s.rollNumber}</span></td>
         <td style="padding:10px;">Class ${s.studentClass}</td>
         <td style="padding:10px;">${paymentBadge}</td>
-        <td style="padding:10px;"><strong style="color:#4ade80;">${s.score || 0}</strong> <span style="color:#38bdf8; font-size:11px;">(${(s.score || 0)}%)</span></td>
+        <td style="padding:10px;"><strong style="color:#4ade80;">${s.score || 0}/${s.totalMarks || 30}</strong> <span style="color:#38bdf8; font-size:11px;">(${s.percentage || 0}%)</span></td>
         <td style="padding:10px;">${actionButtons}</td>
       </tr>
     `;
+  });
+};
+
+// 🛑 MANUAL SCORE ENTRY MODAL FUNCTIONS
+window.openManualScoreModal = function(studentId, name, studentClass) {
+  document.getElementById("modal-student-id").value = studentId;
+  document.getElementById("modal-student-info").textContent = `Student: ${name} (Class ${studentClass})`;
+  document.getElementById("modal-score").value = "";
+  document.getElementById("manual-score-modal").classList.remove("hidden");
+};
+
+window.closeManualScoreModal = () => document.getElementById("manual-score-modal").classList.add("hidden");
+
+window.saveManualScore = function() {
+  const studentId = document.getElementById("modal-student-id").value;
+  const score = parseFloat(document.getElementById("modal-score").value);
+  const total = parseFloat(document.getElementById("modal-total").value) || 30;
+  
+  if (isNaN(score)) { alert("⚠️ Please enter a valid score."); return; }
+
+  fetch(`${SERVER_URL}/api/admin/manual_score_entry`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ studentId: studentId, score: score, totalMarks: total })
+  })
+  .then(res => res.json())
+  .then(data => {
+    if (data.status === "success") {
+      alert("✅ Offline student score saved successfully via Central Panel!");
+      closeManualScoreModal(); 
+      fetchAllCentralData();
+    } else { 
+      alert("❌ Error: " + data.message); 
+    }
   });
 };
 
