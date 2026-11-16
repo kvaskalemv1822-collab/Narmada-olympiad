@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>NVMSO - School Coordinator Panel</title>
-  <link rel="stylesheet" href="organizer.css?v=30">
+  <link rel="stylesheet" href="organizer.css?v=35">
   <style>
     .nvms-logo-title span:nth-child(1) { color: #38bdf8; }
     .nvms-logo-title span:nth-child(2) { color: #4ade80; }
@@ -95,11 +95,11 @@
       <div style="max-width:400px; margin: 12px 0;">
         <label>Choose Applicable Mode for Enrolled Candidates:</label>
         <select id="org-exam-mode-select" onchange="updateExamMode(this.value)" style="background:#020617; color:#fff; border:1px solid #475569; padding:10px; border-radius:6px; width:100%;">
-          <option value="online">Online Mode (Smart Smartphone/PC)</option>
-          <option value="offline">Offline Desk Mode (OMR / Physical Sheet Paper)</option>
+          <option value="online">Online Mode (Smart Smartphone/PC - ₹100 Fee)</option>
+          <option value="offline">Offline Desk Mode (OMR / Physical Sheet Paper - ₹120 Fee)</option>
         </select>
       </div>
-      <p style="font-size:13px; color:#94a3b8;">Current Student Fee Mapping: <strong style="color:#fbbf24;">₹<span id="current-applicable-fee">100</span></strong> per participant profile. <span style="font-size:11px; color:#64748b;">(Commission calculated on ₹100 base fee)</span></p>
+      <p style="font-size:13px; color:#94a3b8;">Current Fee per Student: <strong style="color:#fbbf24;">₹<span id="current-applicable-fee">100</span></strong> <span style="font-size:11px; color:#64748b;">(Commission calculated on ₹100 base fee)</span></p>
       
       <br><hr style="border-color:#1e293b;"><br>
       
@@ -113,7 +113,6 @@
     <div class="card-box" style="border:1px solid #f59e0b; margin-top: 15px;">
       <h3 style="color:#f59e0b; margin-top:0; margin-bottom:15px;">💰 Financial Ledger & Commission Matrix</h3>
       
-      <!-- 6-Card Financial Grid -->
       <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap:12px;">
         <div style="background:#020617; padding:14px; border-radius:8px; border:1px solid #334155;">
           <p style="font-size:11px; color:#94a3b8; margin:0;">Approved Registrations</p>
@@ -145,7 +144,7 @@
       <div id="dynamic-financial-action-container" style="margin-top: 18px; background: #020617; padding: 16px; border-radius: 8px; border: 1px solid #334155;"></div>
     </div>
 
-    <!-- REGISTERED STUDENTS ROSTER (WITH MARKS & PERCENTAGE COLUMN) -->
+    <!-- REGISTERED STUDENTS ROSTER -->
     <div class="card-box" style="border:1px solid #334155; margin-top: 15px;">
       <h3 style="color:#38bdf8; margin-bottom:15px;">📋 Registered Students Roster & Fee Verification Gate</h3>
       <div style="overflow-x: auto;">
@@ -166,7 +165,7 @@
       </div>
     </div>
 
-    <!-- OFFICIAL RESULT & RANKING VIEW WITH PERCENTAGE -->
+    <!-- OFFICIAL RESULT & RANKING VIEW -->
     <div id="org-result-ranking-box" class="card-box hidden" style="border:2px solid #facc15; margin-top: 15px; background: #0f172a;">
       <h3 style="color:#facc15; margin-bottom:10px;">🏆 Official Class-wise Result & Ranking</h3>
       <div id="org-ranking-content" style="font-size: 13px; color: #cbd5e1;">Result declared. Loading ranking table...</div>
@@ -194,6 +193,6 @@
   </div>
 </div>
 
-<script src="organizer.js?v=30"></script>
+<script src="organizer.js?v=35"></script>
 </body>
 </html>
