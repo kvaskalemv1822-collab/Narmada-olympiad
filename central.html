@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>NVMSO - Central Command Panel 2026</title>
-  <link rel="stylesheet" href="central.css?v=17">
+  <link rel="stylesheet" href="central.css?v=18">
   <style>
     .nvms-logo-title span:nth-child(1) { color: #38bdf8; }
     .nvms-logo-title span:nth-child(2) { color: #4ade80; }
@@ -31,7 +31,7 @@
         <label>Enter Master Admin Password:</label>
         <input type="password" id="admin-pass-input" placeholder="Enter secure password" required>
       </div>
-      <button type="submit" id="btn-admin-auth" class="btn-primary" style="width: 100%;">Authenticate Panel</button>
+      <button type="submit" id="btn-admin-auth" class="btn-primary" style="width: 100%; cursor:pointer;">Authenticate Panel</button>
     </form>
   </div>
 </div>
@@ -59,7 +59,7 @@
     <div class="admin-subtitle">Narmada Valley Maths & Science Olympiad 2026</div>
     <div style="margin-top: 12px; display: flex; justify-content: center; gap: 10px; flex-wrap: wrap;">
       <a href="question.html" class="btn-primary" style="padding: 8px 14px; background: #7c3aed; text-decoration: none; font-size: 12px; font-weight: bold;">📚 MANAGE QUESTION BANK</a>
-      <button onclick="logoutAdminSession()" style="background: #dc2626; color: #fff; padding: 8px 14px; font-size: 12px;">🔴 DISCONNECT</button>
+      <button onclick="logoutAdminSession()" style="background: #dc2626; color: #fff; padding: 8px 14px; font-size: 12px; border-radius:6px; border:none; cursor:pointer;">🔴 DISCONNECT</button>
     </div>
   </div>
 
@@ -69,7 +69,7 @@
     <div style="margin-bottom:12px;">
       <input type="text" id="admin-broadcast-input" placeholder="Type custom ticker message text...">
     </div>
-    <button onclick="saveGlobalConfig()" class="btn-primary" style="background:#f59e0b; width:auto;">Publish Live Notification Ticker</button>
+    <button onclick="saveGlobalConfig()" class="btn-primary" style="background:#f59e0b; width:auto; cursor:pointer;">Publish Live Notification Ticker</button>
   </div>
 
   <!-- PHASE INTERLOCK & FEES -->
@@ -78,15 +78,15 @@
     
     <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap:15px; background:#020617; padding:18px; border-radius:8px; border:1px solid #334155; margin-bottom:15px;">
       <div style="display:flex; align-items:center; gap:12px;">
-        <input type="checkbox" id="cfg-reg-active">
+        <input type="checkbox" id="cfg-reg-active" style="width:20px; height:20px; cursor:pointer;">
         <label style="margin-bottom:0; color:#4ade80; font-size:14px; cursor:pointer;">🟢 Turn ON Candidate Registrations</label>
       </div>
       <div style="display:flex; align-items:center; gap:12px;">
-        <input type="checkbox" id="cfg-exam-active">
+        <input type="checkbox" id="cfg-exam-active" style="width:20px; height:20px; cursor:pointer;">
         <label style="margin-bottom:0; color:#38bdf8; font-size:14px; cursor:pointer;">✍️ Turn ON Examination Desk Link</label>
       </div>
       <div style="display:flex; align-items:center; gap:12px;">
-        <input type="checkbox" id="cfg-result-allowed">
+        <input type="checkbox" id="cfg-result-allowed" style="width:20px; height:20px; cursor:pointer;">
         <label style="margin-bottom:0; color:#facc15; font-size:14px; cursor:pointer;">🏆 Turn ON Scorecards / Declaration (NEET Style Result Gate)</label>
       </div>
     </div>
@@ -94,9 +94,8 @@
     <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:15px; margin-bottom:15px;">
       <div><label>Online Mode Fee (₹):</label><input type="number" id="cfg-online-fee" value="100"></div>
       <div><label>Offline Desk Fee (₹):</label><input type="number" id="cfg-offline-fee" value="120"></div>
-      <div><label>Exam Duration (Minutes):</label><input type="number" id="cfg-duration" value="30"></div>
     </div>
-    <button onclick="saveGlobalConfig()" class="btn-primary" style="background:#10b981; width:auto;">💾 Save Master Parameters</button>
+    <button onclick="saveGlobalConfig()" class="btn-primary" style="background:#10b981; width:auto; cursor:pointer;">💾 Save Master Parameters</button>
   </div>
 
   <!-- ORGANIZERS & SETTLEMENTS -->
@@ -106,9 +105,9 @@
       <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 13px;">
         <thead>
           <tr style="border-bottom: 2px solid #334155; color: #94a3b8;">
-            <th style="padding:10px;">Org Code, School & Mode</th>
+            <th style="padding:10px;">Org Code & School</th>
             <th style="padding:10px;">Coordinator</th>
-            <th style="padding:10px;">Reg (Online/Cash)</th>
+            <th style="padding:10px;">Registrations</th>
             <th style="padding:10px;">Direct Comm.</th>
             <th style="padding:10px;">Referral Comm. (5%)</th>
             <th style="padding:10px;">Net Cash Settlement</th>
@@ -134,8 +133,8 @@
           <p style="color: #64748b; text-align: center; margin-top: 60px;">Select a query ticket to start chatting.</p>
         </div>
         <div style="display: flex; gap: 8px;">
-          <input type="text" id="admin-chat-input" placeholder="Type reply..." style="font-size: 12px; padding: 8px;" disabled>
-          <button onclick="sendAdminReply()" class="btn-primary" style="padding: 8px 14px; font-size: 12px; background: #7c3aed;" id="btn-send-reply" disabled>Send</button>
+          <input type="text" id="admin-chat-input" placeholder="Type reply..." style="font-size: 12px; padding: 8px; flex:1;" disabled>
+          <button onclick="sendAdminReply()" class="btn-primary" style="padding: 8px 14px; font-size: 12px; background: #7c3aed; cursor:pointer;" id="btn-send-reply" disabled>Send</button>
         </div>
       </div>
     </div>
@@ -145,7 +144,7 @@
   <div class="card-box" style="border: 1px solid #facc15;">
     <h3 style="color:#facc15; text-align:left; margin-bottom:12px;">🏆 School-Wise Dual-Column Split Rankings</h3>
     <div style="margin-bottom:15px;">
-      <select id="ranking-school-select" onchange="loadSchoolRankings()" style="min-width: 250px;">
+      <select id="ranking-school-select" onchange="loadSchoolRankings()" style="min-width: 250px; background:#020617; color:#fff; border:1px solid #475569; padding:8px; border-radius:6px;">
         <option value="ALL">🏫 All Schools Combined</option>
       </select>
     </div>
@@ -156,7 +155,7 @@
   <div class="card-box" style="border: 1px solid #10b981;">
     <h3 style="color:#10b981; text-align:left; margin-bottom:12px;">📋 School-Wise Student Ledger & Manual Offline Score Entry</h3>
     <div style="margin-bottom:15px;">
-      <select id="ledger-school-select" onchange="loadSchoolStudentLedger()" style="min-width: 250px;">
+      <select id="ledger-school-select" onchange="loadSchoolStudentLedger()" style="min-width: 250px; background:#020617; color:#fff; border:1px solid #475569; padding:8px; border-radius:6px;">
         <option value="ALL">📋 All Schools Ledger</option>
       </select>
     </div>
@@ -165,9 +164,9 @@
         <thead>
           <tr style="border-bottom: 2px solid #334155; color: #94a3b8;">
             <th style="padding:10px;">Student Name</th>
-            <th style="padding:10px;">Class & Mode</th>
-            <th style="padding:10px;">Payment Status & UTR</th>
-            <th style="padding:10px;">Marks / %</th>
+            <th style="padding:10px;">Class</th>
+            <th style="padding:10px;">Payment Status</th>
+            <th style="padding:10px;">Score</th>
             <th style="padding:10px;">Action / Manual Score Entry</th>
           </tr>
         </thead>
@@ -181,18 +180,18 @@
 <!-- MANUAL SCORE ENTRY MODAL -->
 <div id="manual-score-modal" class="hidden" style="position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.8); z-index:99999; display:flex; align-items:center; justify-content:center;">
   <div style="background:#0f172a; border:2px solid #38bdf8; padding:25px; border-radius:12px; width:100%; max-width:400px;">
-    <h3 style="color:#38bdf8; margin-bottom:12px;">✍️ Manual Score Entry (Offline OMR Student)</h3>
+    <h3 style="color:#38bdf8; margin-bottom:12px;">✍️ Manual Score Entry (OMR / Offline Student)</h3>
     <p id="modal-student-info" style="font-size:12px; color:#cbd5e1; margin-bottom:15px;"></p>
     <input type="hidden" id="modal-student-id">
-    <div style="margin-bottom:12px;"><label>Obtained Score:</label><input type="number" id="modal-score" step="0.5" placeholder="e.g. 85"></div>
-    <div style="margin-bottom:15px;"><label>Total Maximum Marks:</label><input type="number" id="modal-total" value="100"></div>
+    <div style="margin-bottom:12px;"><label>Obtained Score:</label><input type="number" id="modal-score" step="0.5" placeholder="e.g. 25"></div>
+    <div style="margin-bottom:15px;"><label>Total Maximum Marks:</label><input type="number" id="modal-total" value="30"></div>
     <div style="display:flex; gap:10px;">
-      <button onclick="saveManualScore()" class="btn-primary" style="background:#10b981; flex:1;">💾 Save Score</button>
-      <button onclick="closeManualScoreModal()" class="btn-primary" style="background:#dc2626; flex:1;">❌ Cancel</button>
+      <button onclick="saveManualScore()" class="btn-primary" style="background:#10b981; flex:1; cursor:pointer;">💾 Save Score</button>
+      <button onclick="closeManualScoreModal()" class="btn-primary" style="background:#dc2626; flex:1; cursor:pointer;">❌ Cancel</button>
     </div>
   </div>
 </div>
 
-<script src="central.js?v=17"></script>
+<script src="central.js?v=18"></script>
 </body>
 </html>
