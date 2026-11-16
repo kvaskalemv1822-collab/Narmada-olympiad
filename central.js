@@ -1,4 +1,4 @@
-const SERVER_URL = "https://nvmso-backend.onrender.com";
+Const SERVER_URL = "https://nvmso-backend.onrender.com";
 let allStudentsCache = [];
 let allOrganizersCache = [];
 let pendingSettlementsCache = [];
@@ -88,7 +88,7 @@ function initializeCentralPanelData() {
         const config = data.config;
         if (document.getElementById("cfg-online-fee")) document.getElementById("cfg-online-fee").value = config.onlineFee || 100;
         if (document.getElementById("cfg-offline-fee")) document.getElementById("cfg-offline-fee").value = config.offlineFee || 120;
-        if (document.getElementById("cfg-duration")) document.getElementById("cfg-duration").value = config.examDurationMinutes || 30;
+        if (document.getElementById("cfg-admin-upi")) document.getElementById("cfg-admin-upi").value = config.adminUpiId || "narmada@upi";
         
         if (document.getElementById("cfg-reg-active")) document.getElementById("cfg-reg-active").checked = !!config.isRegistrationOpen;
         if (document.getElementById("cfg-exam-active")) document.getElementById("cfg-exam-active").checked = !!config.isExamActive;
@@ -122,19 +122,11 @@ function setupSmartSwitchesExclusiveRule() {
   }
 }
 
-// 💬 COLLAPSIBLE CHAT TOGGLE FUNCTION
-window.toggleAdminChatBox = function() {
-  const area = document.getElementById("admin-chat-collapsible-area");
-  if (area) {
-    area.classList.toggle("hidden");
-  }
-};
-
 window.saveGlobalConfig = async () => {
   const payload = {
     onlineFee: Number(document.getElementById("cfg-online-fee").value),
     offlineFee: Number(document.getElementById("cfg-offline-fee").value),
-    examDurationMinutes: Number(document.getElementById("cfg-duration").value) || 30,
+    adminUpiId: document.getElementById("cfg-admin-upi").value.trim() || "narmada@upi",
     isRegistrationOpen: document.getElementById("cfg-reg-active").checked,
     isExamActive: document.getElementById("cfg-exam-active").checked,
     isResultDeclared: document.getElementById("cfg-result-allowed").checked,
@@ -149,7 +141,7 @@ window.saveGlobalConfig = async () => {
   .then(res => res.json())
   .then(data => {
     if (data.status === "success") {
-      alert("✅ Command Dispatched: Portal phases and exam duration updated successfully!");
+      alert("✅ Command Dispatched: Portal phases and parameters updated successfully!");
     }
   });
 };
@@ -190,14 +182,12 @@ function renderMergedOrganizersTable() {
     const totalReg = verifiedStudents.length || 0;
     const pendingReviewCount = allSchoolStudents.filter(s => s.paymentStatus && s.paymentStatus.includes("Pending")).length;
 
-    // 🎯 RULE 5: Minimum 25 Students Warning System
-    let studentWarning = totalReg < 25 ? `<br><span style="color:#f87171; font-size:10px; font-weight:bold;">⚠️ Warning: Min 25 Required (${25 - totalReg} short)</span>` : `<br><span style="color:#4ade80; font-size:10px; font-weight:bold;">✔️ Target Met (≥25)</span>`;
-
     const onlineRegs = verifiedStudents.filter(s => (s.paymentMode || 'online').toLowerCase() === 'online').length;
     const cashRegs = verifiedStudents.filter(s => (s.paymentMode || '').toLowerCase() === 'offline' || (s.paymentMode || '').toLowerCase() === 'cash').length;
 
     const examMode = (org.examMode || 'online').toLowerCase();
     
+    // Calculations as per base online fee (₹100)
     const cashGross = cashRegs * (examMode === 'offline' ? 120 : 100);
     const baseFeeTotal = totalReg * 100;
 
@@ -208,18 +198,18 @@ function renderMergedOrganizersTable() {
 
     const netBalance = cashGross - totalComm;
     const netCashToPortal = isSettled ? 0 : Math.max(0, netBalance);
-    const nvmsOwesOrg = isSettled ? 0 : Math.max(0, -(netBalance));
 
     const sett = pendingSettlementsCache.find(s => s.orgCode === code);
-    const organizerUpi = org.upiId || "Not Provided"; 
+    const organizerUpi = org.upiId || org.upi || "org@upi"; 
 
-    let settCell = isSettled ? "<span style='color:#4ade80; font-weight:bold;'>✔️ Settled (₹0 Due)</span>" : (netCashToPortal > 0 ? `Pay to NVMS: ₹${netCashToPortal}` : `NVMS Owes Payout: ₹${nvmsOwesOrg}`);
+    let settCell = isSettled ? "<span style='color:#4ade80; font-weight:bold;'>✔️ Settled (₹0 Due)</span>" : "<span style='color:#f87171;'>Pending Settlement</span>";
     if (!isSettled && sett) {
       settCell = `<code style="color:#facc15;">UTR: ${sett.utrNumber}<br>(₹${sett.amount})</code>`;
     }
 
     let actionCell = isSettled ? "<span style='color:#38bdf8; font-weight:bold;'>Completed</span>" : (sett ? `<button onclick="approveOrganizerSettlement('${code}', '${sett.id}')" style="background:#10b981; color:#fff; border:none; padding:4px 8px; font-size:10px; border-radius:4px; font-weight:bold; cursor:pointer;">Verify UTR</button>` : "Awaiting");
 
+    // 💬 Click-to-Chat Button integration
     let chatButton = `<button onclick="openChatSession('TICKET_${code}', '${org.schoolName || code}')" style="background:#7c3aed; color:#fff; border:none; padding:4px 8px; font-size:10px; border-radius:4px; font-weight:bold; cursor:pointer; margin-top:4px;">💬 Chat</button>`;
     actionCell += `<br>${chatButton}`;
 
@@ -234,11 +224,10 @@ function renderMergedOrganizersTable() {
         </td>
         <td style="padding:10px;">
           <strong>${org.name || org.coordinatorName || 'N/A'}</strong><br>
-          <span style="font-size:11px; color:#94a3b8;">${org.contact || ''}</span><br>
-          <span style="font-size:10px; color:#facc15;">UPI: ${organizerUpi}</span>
+          <span style="font-size:11px; color:#94a3b8;">${org.contact || ''}</span>
         </td>
         <td style="padding:10px; color:#4ade80; font-weight:bold; text-align:center;">
-          ${totalReg} ${studentWarning} ${pendingBadge}<br><span style="font-size:10px; color:#94a3b8;">(${onlineRegs} On / ${cashRegs} Cash)</span>
+          ${totalReg} ${pendingBadge}<br><span style="font-size:10px; color:#94a3b8;">(${onlineRegs} On / ${cashRegs} Cash)</span>
         </td>
         <td style="padding:10px; color:#facc15; font-weight:bold;">₹${directComm}</td>
         <td style="padding:10px; color:#c084fc; font-weight:bold;">₹${refComm}</td>
@@ -260,11 +249,9 @@ function fetchSupportTickets() {
     .then(res => res.json())
     .then(data => {
       const listContainer = document.getElementById("support-tickets-list");
-      const badge = document.getElementById("chat-badge");
       if (!listContainer) return;
       
       if (data.status === "success" && data.queries && data.queries.length > 0) {
-        if(badge) badge.style.display = "inline-block";
         listContainer.innerHTML = "";
         data.queries.forEach(q => {
           listContainer.innerHTML += `
@@ -284,10 +271,6 @@ window.openChatSession = function(ticketId, senderName) {
   activeTicketId = ticketId;
   activeTicketSender = senderName;
   
-  // Make sure chat box view is visible if hidden
-  const chatArea = document.getElementById("admin-chat-collapsible-area");
-  if (chatArea) chatArea.classList.remove("hidden");
-
   const chatBox = document.getElementById("active-chat-box");
   const chatInput = document.getElementById("admin-chat-input");
   const sendBtn = document.getElementById("btn-send-reply");
