@@ -171,7 +171,8 @@ def secure_registration():
         if student_ref.get().exists:
             return jsonify({"status": "cyber_attack", "message": "🚫 Roll Number already registered under this school!"}), 400
 
-        initial_status = "Approved" if payment_mode == "online" else "Pending Organizer Approval"
+        initial_status = "Pending Payment Verification" if payment_mode == "online" else "Pending Organizer Cash Approval"
+        is_verified = False # Must be explicitly approved by Admin (Online) or Organizer (Cash)
 
         student_payload = {
             "studentId": student_id,
@@ -187,7 +188,7 @@ def secure_registration():
             "paymentMode": payment_mode,
             "utrNumber": utr_number,
             "paymentStatus": initial_status,
-            "paymentVerified": True if payment_mode == "online" else False,
+            "paymentVerified": is_verified,
             "examCompleted": False,
             "score": 0,
             "percentage": 0,
@@ -202,7 +203,7 @@ def secure_registration():
         return jsonify({"status": "glitch", "message": str(e)}), 500
 
 # ==========================================================================
-# 4. STUDENT EXAM LOGIN & ASSESSMENT ROUTERS
+# 4. STUDENT EXAM LOGIN & ASSESSMENT ROUTERS (WITH PAYMENT APPROVAL GATE)
 # ==========================================================================
 @app.route('/api/student/login', methods=['POST'])
 def student_login():
@@ -222,6 +223,16 @@ def student_login():
             return jsonify({"status": "error", "message": "Student record not found. Check School Code & Roll No."}), 404
 
         s_data = student_doc.to_dict()
+
+        # 🛑 STRICT PAYMENT APPROVAL GATE CHECK
+        is_verified = bool(s_data.get('paymentVerified', False) or s_data.get('paymentStatus') == 'Approved')
+        pay_mode = str(s_data.get('paymentMode', 'online')).lower()
+
+        if not is_verified:
+            if pay_mode == 'online':
+                return jsonify({"status": "error", "message": "🔒 Exam Locked! Your online payment UTR is pending Central Admin verification."}), 403
+            else:
+                return jsonify({"status": "error", "message": "🔒 Exam Locked! Your cash payment is pending School Organizer approval."}), 403
 
         if s_data.get('examCompleted', False):
             return jsonify({"status": "error", "message": "⚠️ You have already submitted your exam! Multiple attempts are not allowed."}), 403
@@ -384,6 +395,27 @@ def admin_reject_online_payment():
         return jsonify({"status": "success", "message": "Payment rejected"})
     return jsonify({"status": "error", "message": "Missing ID"}), 400
 
+# 🛑 MANUAL SCORE ENTRY ROUTE FOR OFFLINE / OMR STUDENTS
+@app.route('/api/admin/manual_score_entry', methods=['POST'])
+def admin_manual_score_entry():
+    try:
+        data = request.json or {}
+        student_id = data.get('studentId')
+        score = float(data.get('score', 0))
+        total_marks = float(data.get('totalMarks', 30))
+        percentage = round((score / total_marks) * 100, 2) if total_marks > 0 else 0
+        
+        db.collection('students').document(student_id).update({
+            "score": score,
+            "totalMarks": total_marks,
+            "percentage": percentage,
+            "examCompleted": True,
+            "manualEntry": True
+        })
+        return jsonify({"status": "success", "message": "Score saved successfully"}), 200
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
 @app.route('/api/admin/reexam', methods=['POST'])
 def admin_trigger_reexam():
     data = request.json or {}
@@ -517,11 +549,15 @@ def organizer_get_students():
         }
     }), 200
 
+# 🛑 ORGANIZER CASH APPROVAL ROUTE
 @app.route('/api/organizer/approve_cash', methods=['POST'])
 def organizer_approve_cash():
     data = request.json or {}
-    db.collection('students').document(data.get('studentId')).update({"paymentVerified": True, "paymentStatus": "Approved"})
-    return jsonify({"status": "success", "message": "Cash approved"})
+    student_id = data.get('studentId')
+    if student_id:
+        db.collection('students').document(student_id).update({"paymentVerified": True, "paymentStatus": "Approved"})
+        return jsonify({"status": "success", "message": "Cash approved"})
+    return jsonify({"status": "error", "message": "Missing student ID"}), 400
 
 @app.route('/api/organizer/submit_settlement', methods=['POST'])
 def organizer_submit_settlement():
