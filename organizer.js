@@ -211,7 +211,7 @@ function renderDynamicFinancialAction(netPayable, nvmsOwesOrg, isSettled) {
   } else if (netPayable > 0) {
     actionContainer.innerHTML = `
       <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
-        <div><p style="font-size: 13px; color: #f87171; font-weight: bold; margin: 0;">Net Amount Payable to NVMS (Cash Held - Commission):</p><h2 style="color: #f87171; margin: 5px 0 0 0;">₹${netPayable}</h2></div>
+        <div><p style="font-size: 13px; color: #f87171; font-weight: bold; margin: 0;">Net Amount Payable to NVMS:</p><h2 style="color: #f87171; margin: 5px 0 0 0;">₹${netPayable}</h2></div>
         <button onclick="window.location.href='upi://pay?pa=${adminUpiId}&pn=NVMSO&am=${netPayable}&cu=INR'" class="btn-primary" style="background: #10b981; padding: 10px 16px; width: auto; cursor:pointer;">⚡ Pay via UPI</button>
       </div>
       <div style="margin-top: 12px; border-top: 1px dashed #334155; padding-top: 10px; display: flex; gap: 10px; flex-wrap: wrap;">
@@ -222,7 +222,9 @@ function renderDynamicFinancialAction(netPayable, nvmsOwesOrg, isSettled) {
     `;
   } else if (nvmsOwesOrg > 0) {
     actionContainer.innerHTML = `
-      <div><p style="font-size: 13px; color: #4ade80; font-weight: bold; margin: 0;">NVMS Owes You (Commission Payout Request):</p><h2 style="color: #4ade80; margin: 5px 0 0 0;">₹${nvmsOwesOrg}</h2></div>
+      <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+        <div><p style="font-size: 13px; color: #4ade80; font-weight: bold; margin: 0;">NVMS Owes You (Commission Payout Receivable):</p><h2 style="color: #4ade80; margin: 5px 0 0 0;">₹${nvmsOwesOrg}</h2></div>
+      </div>
       <div style="border-top: 1px dashed #334155; padding-top: 10px; margin-top: 10px; display: flex; gap: 10px; flex-wrap: wrap;">
         <input type="text" id="payout-upi-input" placeholder="Enter your UPI ID (e.g. user@paytm)" style="flex: 1; min-width: 200px;">
         <input type="number" id="payout-amount-input" value="${nvmsOwesOrg}" style="width: 100px;">
