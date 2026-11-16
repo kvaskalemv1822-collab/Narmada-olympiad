@@ -1,4 +1,4 @@
-Import os
+import os
 import json
 import random
 import requests
@@ -135,7 +135,6 @@ def verify_school_code():
             config_doc = db.collection('settings').document('portal_config').get()
             g_cfg = config_doc.to_dict() if config_doc.exists else {}
             
-            # 🎯 RULE 2 & 3: Fee mapping strictly based on Organizer's chosen examMode
             exam_mode = (org_data.get('examMode') or 'online').lower()
             fee = g_cfg.get('offlineFee', 120) if exam_mode == 'offline' else g_cfg.get('onlineFee', 100)
             
@@ -446,7 +445,7 @@ def admin_complete_payout():
     return jsonify({"status": "success", "message": "Payout completed"})
 
 # ==========================================================================
-# 6. ORGANIZER PORTAL & STUDENTS MATRIX (PRECISE FEE & COMMISSION LOGIC)
+# 6. ORGANIZER PORTAL & STUDENTS MATRIX
 # ==========================================================================
 @app.route('/api/organizer/login', methods=['POST'])
 def organizer_login():
@@ -458,7 +457,8 @@ def organizer_login():
         return jsonify({"status": "error", "message": "Invalid credentials"}), 401
     org_data = org_doc.to_dict()
     org_data['code'] = org_code
-    if "password" in org_data: del org_data["password"]
+    if "password" in org_data: 
+        del org_data["password"]
     return jsonify({"status": "success", "data": org_data}), 200
 
 @app.route('/api/organizer/register', methods=['POST'])
@@ -516,7 +516,8 @@ def organizer_get_students():
                 sd['id'] = doc.id
                 students.append(sd)
 
-    org_data = db.collection('organizers').document(org_code).get().to_dict() or {}
+    org_doc = db.collection('organizers').document(org_code).get()
+    org_data = org_doc.to_dict() if org_doc.exists else {}
     is_settled = bool(org_data.get('manualSettled', False))
     ref_code = str(org_data.get('refCode', '')).strip()
     g_cfg = db.collection('settings').document('portal_config').get().to_dict() or {}
@@ -527,10 +528,8 @@ def organizer_get_students():
     online_fee = g_cfg.get('onlineFee', 100)
     offline_fee = g_cfg.get('offlineFee', 120)
     
-    # 🎯 FEE MAPPING: Online mode = ₹100 flat fee per student (chahe cash ho ya online). Offline mode = ₹120 fee per student.
     current_fee_per_student = offline_fee if exam_mode == 'offline' else online_fee
 
-    # Separate Cash (Offline) vs Online approved registrations
     cash_approved = [s for s in approved if (s.get('paymentMode') or '').lower() in ['offline', 'cash']]
     online_approved = [s for s in approved if (s.get('paymentMode') or '').lower() == 'online']
     
@@ -538,13 +537,11 @@ def organizer_get_students():
     online_collected_by_nvms = len(online_approved) * current_fee_per_student
     gross_total = len(approved) * current_fee_per_student
 
-    # 🎯 COMMISSION FIXED ON ONLINE EXAM BASE FEE (online_fee = ₹100 per student)
     base_fee_total = len(approved) * online_fee
-    direct_comm = int(base_fee_total * 0.15)  # 15% of base online fee
-    ref_comm = int(base_fee_total * 0.05) if (ref_code and ref_code.toUpperCase() != "NONE") else 0
+    direct_comm = int(base_fee_total * 0.15)  
+    ref_comm = int(base_fee_total * 0.05) if (ref_code and ref_code.upper() != "NONE") else 0
     total_commission = direct_comm + ref_comm
 
-    # Net Balance = Cash Held minus Total Commission
     net_balance = cash_held - total_commission
 
     net_payable_to_nvms = 0
@@ -619,7 +616,10 @@ def get_queries():
 
 @app.route('/api/admin/query_messages', methods=['GET'])
 def get_query_messages():
-    msgs = [doc.to_dict() for doc in db.collection('supportTickets').document(request.args.get('ticketId')).collection('messages').order_by('createdAt').stream()]
+    ticket_id = request.args.get('ticketId')
+    if not ticket_id:
+        return jsonify({"status": "error", "message": "Missing ticketId"}), 400
+    msgs = [doc.to_dict() for doc in db.collection('supportTickets').document(ticket_id).collection('messages').order_by('createdAt').stream()]
     return jsonify({"status": "success", "messages": msgs})
 
 @app.route('/api/admin/reply_query', methods=['POST'])
@@ -627,6 +627,8 @@ def reply_query():
     data = request.json or {}
     t_id = data.get('ticketId')
     msg = data.get('message', '')
+    if not t_id:
+        return jsonify({"status": "error", "message": "Missing ticketId"}), 400
     db.collection('supportTickets').document(t_id).collection('messages').add({"text": msg, "imageUrl": data.get('imageUrl', ''), "isAdmin": True, "createdAt": firestore.SERVER_TIMESTAMP})
     db.collection('supportTickets').document(t_id).set({"lastMessage": msg}, merge=True)
     return jsonify({"status": "success", "message": "Replied"})
@@ -643,6 +645,8 @@ def organizer_send_query():
 @app.route('/api/organizer/query_messages', methods=['GET'])
 def organizer_get_query_messages():
     org_code = request.args.get('orgCode', '').strip().upper()
+    if not org_code:
+        return jsonify({"status": "error", "message": "Missing orgCode"}), 400
     msgs = [doc.to_dict() for doc in db.collection('supportTickets').document(f"TICKET_{org_code}").collection('messages').order_by('createdAt').stream()]
     return jsonify({"status": "success", "messages": msgs})
 
