@@ -27,6 +27,7 @@ function fetchPortalConfig() {
   const examView = document.getElementById("exam-login-view");
   const resultView = document.getElementById("result-view");
 
+  // Strict mutual exclusivity: hide all first
   [regView, examView, resultView].forEach(v => v?.classList.add("hidden"));
 
   fetch(`${SERVER_URL}/api/portal/config`)
@@ -83,7 +84,7 @@ window.fetchSchoolName = function(val) {
       if (document.getElementById("payment-mode").value === "online") onlineSection.style.display = "block";
       renderDynamicUPIQR();
     } else {
-      display.innerText = data.status === "locked" ? `🔒 ${data.message}` : "❌ Invalid Organizer Code!";
+      display.innerText = "❌ Invalid Organizer Code!";
       isOrganizerVerified = false;
       onlineSection.style.display = "none";
     }
@@ -106,7 +107,6 @@ window.openDirectUpiApp = function() {
   window.location.href = `upi://pay?pa=${encodeURIComponent(activeUpiString)}&pn=NVMSO&am=${fee}&cu=INR`;
 };
 
-// COMPACT & PROFESSIONAL REVIEW DETAILS FORMATTING
 window.showReviewDetailsModal = function() {
   if (!isOrganizerVerified) { alert("⚠️ Enter valid School Organizer Code first!"); return; }
   const fields = ['org-code', 'std-name', 'std-mother', 'std-father', 'std-class', 'std-roll', 'std-contact'];
@@ -185,7 +185,7 @@ window.submitStudentRegistration = function() {
   const utrInput = document.getElementById('std-utr') ? document.getElementById('std-utr').value.trim() : '';
 
   if (payMode === "online" && (!utrInput || utrInput.length < 6)) {
-    alert("❌ Error: Online payment selected! Please enter a valid 12-digit UTR / Transaction Reference Number before submitting.");
+    alert("❌ Error: Online payment selected! Please enter a valid UTR / Transaction Reference Number.");
     return;
   }
 
@@ -209,12 +209,8 @@ window.submitStudentRegistration = function() {
   .then(res => res.json())
   .then(data => {
     if (data.status === "success") {
-      alert("🎉 Registration Submitted! Status is Pending until UTR/Cash verification.");
-      document.getElementById('reg-form').reset();
-      document.getElementById('payment-section').style.display = 'none';
-      document.getElementById('details-section').style.display = 'block';
-      isOrganizerVerified = false;
-      document.getElementById("school-name-display").innerText = "";
+      alert("🎉 Registration Submitted Successfully!");
+      location.reload();
     } else { alert("❌ Error: " + data.message); }
   });
 };
@@ -235,23 +231,19 @@ window.verifyStudentLoginAndStartExam = function() {
       studentSessionData = data.student;
 
       if (studentSessionData.examMode && studentSessionData.examMode.toLowerCase() === 'offline') {
-        alert("❌ Access Denied: Your school has selected OFFLINE mode for examinations. You cannot take the exam online!");
+        alert("❌ Access Denied: Your school has selected OFFLINE mode for examinations.");
         return;
       }
 
       document.getElementById("student-auth-box").classList.add("hidden");
       document.getElementById("exam-instructions-modal").classList.remove("hidden");
-
     } else { alert("❌ Login Failed: " + data.message); }
   });
 };
 
 window.proceedToActualExamPaper = function() {
   const agreeCheck = document.getElementById("agree-instructions");
-  if (!agreeCheck.checked) {
-    alert("⚠️ Please check the box to confirm you have read all exam rules and instructions.");
-    return;
-  }
+  if (!agreeCheck.checked) { alert("⚠️ Please check the box to confirm exam rules."); return; }
 
   document.getElementById("exam-instructions-modal").classList.add("hidden");
   document.getElementById("active-exam-container").classList.remove("hidden");
@@ -268,31 +260,8 @@ function loadExamQuestionsForClass(studentClass) {
       const qContainer = document.getElementById("exam-questions-list");
       if (!qContainer) return;
       if (data.status === "success" && data.questions) {
-        let allQuestions = data.questions;
-        
-        let filteredQuestions = allQuestions.filter(q => {
-          let range = (q.classRange || "").toString();
-          if (range.includes("-")) {
-            let parts = range.split("-");
-            let min = parseInt(parts[0], 10);
-            let max = parseInt(parts[1], 10);
-            let c = parseInt(studentClass, 10);
-            return c >= min && c <= max;
-          }
-          return range === studentClass.toString();
-        });
-
-        if (filteredQuestions.length === 0) {
-          filteredQuestions = allQuestions;
-        }
-
-        currentExamQuestions = filteredQuestions;
-        qContainer.innerHTML = `
-          <div style="background: #0f172a; color: #38bdf8; padding: 10px; border-radius: 6px; margin-bottom: 15px; font-size: 13px; text-align: center;">
-            📊 Total Question Bank: ${allQuestions.length} | Showing <strong>${filteredQuestions.length}</strong> Questions for Class ${studentClass}
-          </div>
-        `;
-
+        currentExamQuestions = data.questions;
+        qContainer.innerHTML = "";
         currentExamQuestions.forEach((q, idx) => {
           qContainer.innerHTML += `
             <div style="background: #ffffff; border: 1px solid #ccc; padding: 15px; border-radius: 8px; margin-bottom: 12px; color: #333;">
@@ -335,7 +304,7 @@ window.submitExamAnswers = function() {
   .then(res => res.json())
   .then(data => {
     if (data.status === "success") { 
-      alert("✅ Exam Submitted Successfully! Your answers have been securely recorded. Results will be displayed once officially declared."); 
+      alert("✅ Exam Submitted Successfully!"); 
       location.reload(); 
     } else { alert("❌ Error: " + data.message); }
   });
@@ -361,17 +330,8 @@ window.fetchStudentResult = function() {
           <h4 style="color: #facc15; margin-bottom: 8px;">📊 Scorecard Summary</h4>
           <p><strong>Name:</strong> ${resData.studentName}</p>
           <p><strong>Class:</strong> ${resData.studentClass}</p>
-          <p><strong>Score:</strong> <span style="color: #10b981; font-weight: bold;">${resData.score} / ${resData.totalMarks || 100} (${resData.percentage}%)</span></p>
+          <p><strong>Score:</strong> <span style="color: #10b981; font-weight: bold;">${resData.score} / ${resData.totalMarks || 30} (${resData.percentage}%)</span></p>
         </div>
-        <div class="certificate-wrapper" id="printable-certificate-area">
-          <img src="certificate-template.png" alt="Certificate" class="cert-img">
-          <div class="cert-text-overlay">
-            <h2 class="cert-student-name">${resData.studentName}</h2>
-            <div class="cert-student-class">Class: ${resData.studentClass}</div>
-            <div class="cert-school-name">${resData.schoolName}</div>
-          </div>
-        </div>
-        <button onclick="window.print()" class="cert-download-btn no-print" style="margin-top: 20px;">🖨️ Print Certificate (Landscape A4)</button>
       `;
     } else { scorecardBox.innerHTML = `<p style="color: #d9534f; text-align: center; padding: 20px;">❌ ${data.message}</p>`; }
   });
