@@ -1,4 +1,4 @@
-import os
+Import os
 import json
 import random
 import requests
@@ -105,7 +105,7 @@ def update_master_portal_settings():
         update_payload = {
             "onlineFee": int(data.get('onlineFee', 100)),
             "offlineFee": int(data.get('offlineFee', 120)),
-            "examDurationMinutes": int(data.get('examDurationMinutes', 30)),
+            "adminUpiId": str(data.get('adminUpiId', 'narmada@upi')).strip(),
             "isRegistrationOpen": is_reg,
             "isExamActive": is_exam,
             "isResultDeclared": is_result,
@@ -135,6 +135,7 @@ def verify_school_code():
             config_doc = db.collection('settings').document('portal_config').get()
             g_cfg = config_doc.to_dict() if config_doc.exists else {}
             
+            # 🎯 RULE 2 & 3: Fee mapping strictly based on Organizer's chosen examMode
             exam_mode = (org_data.get('examMode') or 'online').lower()
             fee = g_cfg.get('offlineFee', 120) if exam_mode == 'offline' else g_cfg.get('onlineFee', 100)
             
@@ -199,9 +200,6 @@ def secure_registration():
         
         student_ref.set(student_payload)
         backup_data_to_sheets("STUDENT_REGISTRATION", student_payload)
-
-        # 🎯 DYNAMIC RECALCULATION RESET: New registration sets manualSettled to False
-        db.collection('organizers').document(org_code).set({"manualSettled": False}, merge=True)
 
         return jsonify({"status": "success", "message": "Registration successful!", "studentId": student_id}), 200
     except Exception as e:
@@ -472,7 +470,6 @@ def organizer_register():
     password = str(data.get('password', '')).strip()
     pin = str(data.get('pin', '')).strip()
     ref_code = str(data.get('refCode', '')).strip().upper()
-    upi_id = str(data.get('upiId', '')).strip()
 
     rand_num = random.randint(100, 999)
     org_code = f"NVMS{rand_num}"
@@ -486,7 +483,6 @@ def organizer_register():
         "password": password,
         "pin": pin,
         "refCode": ref_code,
-        "upiId": upi_id,
         "examMode": "online",
         "principalApproved": False,
         "manualSettled": False,
@@ -500,13 +496,10 @@ def organizer_register():
 def organizer_update_profile():
     data = request.json or {}
     org_code = str(data.get('orgCode', '')).strip().upper()
-    update_data = {
+    db.collection('organizers').document(org_code).update({
         "examMode": str(data.get('examMode', 'online')).lower(),
         "principalApproved": bool(data.get('principalApproved', False))
-    }
-    if data.get('upiId') is not None:
-        update_data["upiId"] = str(data.get('upiId', '')).strip()
-    db.collection('organizers').document(org_code).update(update_data)
+    })
     return jsonify({"status": "success", "message": "Updated"})
 
 @app.route('/api/organizer/students', methods=['POST'])
@@ -533,8 +526,11 @@ def organizer_get_students():
     
     online_fee = g_cfg.get('onlineFee', 100)
     offline_fee = g_cfg.get('offlineFee', 120)
+    
+    # 🎯 FEE MAPPING: Online mode = ₹100 flat fee per student (chahe cash ho ya online). Offline mode = ₹120 fee per student.
     current_fee_per_student = offline_fee if exam_mode == 'offline' else online_fee
 
+    # Separate Cash (Offline) vs Online approved registrations
     cash_approved = [s for s in approved if (s.get('paymentMode') or '').lower() in ['offline', 'cash']]
     online_approved = [s for s in approved if (s.get('paymentMode') or '').lower() == 'online']
     
@@ -542,12 +538,15 @@ def organizer_get_students():
     online_collected_by_nvms = len(online_approved) * current_fee_per_student
     gross_total = len(approved) * current_fee_per_student
 
+    # 🎯 COMMISSION FIXED ON ONLINE EXAM BASE FEE (online_fee = ₹100 per student)
     base_fee_total = len(approved) * online_fee
-    direct_comm = int(base_fee_total * 0.15)
+    direct_comm = int(base_fee_total * 0.15)  # 15% of base online fee
     ref_comm = int(base_fee_total * 0.05) if (ref_code and ref_code.toUpperCase() != "NONE") else 0
     total_commission = direct_comm + ref_comm
 
+    # Net Balance = Cash Held minus Total Commission
     net_balance = cash_held - total_commission
+
     net_payable_to_nvms = 0
     nvms_owes_organizer = 0
 
@@ -561,6 +560,8 @@ def organizer_get_students():
         "status": "success",
         "students": students,
         "isSettled": is_settled,
+        "adminUpiId": g_cfg.get('adminUpiId', 'narmada@upi'),
+        "isResultDeclared": bool(g_cfg.get('isResultDeclared', False)),
         "financials": {
             "totalRegistrations": len(students),
             "approvedRegistrations": len(approved),
