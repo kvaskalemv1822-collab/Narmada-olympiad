@@ -106,6 +106,7 @@ def update_master_portal_settings():
         update_payload = {
             "onlineFee": int(data.get('onlineFee', 100)),
             "offlineFee": int(data.get('offlineFee', 120)),
+            "adminUpiId": str(data.get('adminUpiId', 'narmada@upi')).strip(),
             "isRegistrationOpen": is_reg,
             "isExamActive": is_exam,
             "isResultDeclared": is_result,
@@ -172,7 +173,7 @@ def secure_registration():
             return jsonify({"status": "cyber_attack", "message": "🚫 Roll Number already registered under this school!"}), 400
 
         initial_status = "Pending Payment Verification" if payment_mode == "online" else "Pending Organizer Cash Approval"
-        is_verified = False # Must be explicitly approved by Admin (Online) or Organizer (Cash)
+        is_verified = False
 
         student_payload = {
             "studentId": student_id,
@@ -224,7 +225,6 @@ def student_login():
 
         s_data = student_doc.to_dict()
 
-        # 🛑 STRICT PAYMENT APPROVAL GATE CHECK
         is_verified = bool(s_data.get('paymentVerified', False) or s_data.get('paymentStatus') == 'Approved')
         pay_mode = str(s_data.get('paymentMode', 'online')).lower()
 
@@ -395,7 +395,6 @@ def admin_reject_online_payment():
         return jsonify({"status": "success", "message": "Payment rejected"})
     return jsonify({"status": "error", "message": "Missing ID"}), 400
 
-# 🛑 MANUAL SCORE ENTRY ROUTE FOR OFFLINE / OMR STUDENTS
 @app.route('/api/admin/manual_score_entry', methods=['POST'])
 def admin_manual_score_entry():
     try:
@@ -445,7 +444,7 @@ def admin_complete_payout():
     return jsonify({"status": "success", "message": "Payout completed"})
 
 # ==========================================================================
-# 6. ORGANIZER PORTAL & STUDENTS MATRIX
+# 6. ORGANIZER PORTAL & STUDENTS MATRIX (WITH MIXED FINANCIAL CALCULATIONS)
 # ==========================================================================
 @app.route('/api/organizer/login', methods=['POST'])
 def organizer_login():
@@ -524,13 +523,30 @@ def organizer_get_students():
     exam_mode = (org_data.get('examMode') or 'online').lower()
     fee = g_cfg.get('offlineFee', 120) if exam_mode == 'offline' else g_cfg.get('onlineFee', 100)
     
-    cash_approved = [s for s in approved if (s.get('paymentMode') or '').lower() == 'offline']
+    # Separate Cash (Offline) vs Online approved registrations
+    cash_approved = [s for s in approved if (s.get('paymentMode') or '').lower() in ['offline', 'cash']]
+    online_approved = [s for s in approved if (s.get('paymentMode') or '').lower() == 'online']
+    
     cash_held = len(cash_approved) * fee
-    gross = len(approved) * fee
+    online_collected_by_nvms = len(online_approved) * fee
+    gross_total = len(approved) * fee
 
-    direct_comm = len(approved) * 15 if exam_mode == 'offline' else int(gross * 0.15)
-    ref_comm = int(gross * 0.05) if (ref_code and ref_code != "NONE") else 0
-    net_payable = 0 if is_settled else max(0, cash_held - direct_comm)
+    # Commission Calculations (15% direct + 5% referral if refCode exists)
+    direct_comm = int(gross_total * 0.15)
+    ref_comm = int(gross_total * 0.05) if (ref_code and ref_code.toUpperCase() != "NONE") else 0
+    total_commission = direct_comm + ref_comm
+
+    # Net Balance = Cash Held with Organizer minus Total Commission
+    net_balance = cash_held - total_commission
+
+    net_payable_to_nvms = 0
+    nvms_owes_organizer = 0
+
+    if not is_settled:
+        if net_balance >= 0:
+            net_payable_to_nvms = net_balance
+        else:
+            nvms_owes_organizer = abs(net_balance)
 
     return jsonify({
         "status": "success",
@@ -541,15 +557,17 @@ def organizer_get_students():
         "financials": {
             "totalRegistrations": len(students),
             "approvedRegistrations": len(approved),
-            "totalFees": gross,
+            "totalFees": gross_total,
             "cashHeld": cash_held,
+            "onlineCollected": online_collected_by_nvms,
+            "totalCommission": total_commission,
             "directCommission": direct_comm,
             "referralCommission": ref_comm,
-            "netPayableToNvms": net_payable
+            "netPayableToNvms": net_payable_to_nvms,
+            "nvmsOwesOrganizer": nvms_owes_organizer
         }
     }), 200
 
-# 🛑 ORGANIZER CASH APPROVAL ROUTE
 @app.route('/api/organizer/approve_cash', methods=['POST'])
 def organizer_approve_cash():
     data = request.json or {}
