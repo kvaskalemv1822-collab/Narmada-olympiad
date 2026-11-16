@@ -18,7 +18,7 @@ document.addEventListener("DOMContentLoaded", () => {
 window.verifyAdminPassword = async () => {
   const passInput = document.getElementById("admin-pass-input").value.trim();
   const alertBox = document.getElementById("login-security-alert");
-  if (!passInput) { alert("Please input master authorization key."); return; }
+  if (!passInput) return;
 
   fetch(`${SERVER_URL}/api/admin/authenticate`, {
     method: "POST", headers: { "Content-Type": "application/json" },
@@ -87,11 +87,12 @@ function initializeCentralPanelData() {
         fetchAllCentralData();
         fetchSupportTickets();
 
+        // REAL-TIME AUTO-SYNC TIMER (4 seconds interval for master panel coordination)
         if (!autoRefreshTimer) {
           autoRefreshTimer = setInterval(() => {
             fetchAllCentralData();
             fetchSupportTickets();
-          }, 8000);
+          }, 4000);
         }
       }
     });
@@ -151,7 +152,7 @@ function renderMergedOrganizersTable() {
 
   allOrganizersCache.forEach(org => {
     const code = org.code || org.orgCode;
-    const isSettled = org.manualSettled;
+    const isSettled = org.manualSettled; // SETTLED FIELD FOR ZERO-BALANCE LOGIC
     const verifiedStudents = allStudentsCache.filter(s => (s.orgCode || "").toUpperCase() === code.toUpperCase() && (s.paymentStatus === 'Approved' || s.paymentVerified === true));
     const allSchoolStudents = allStudentsCache.filter(s => (s.orgCode || "").toUpperCase() === code.toUpperCase());
     const totalReg = verifiedStudents.length;
@@ -167,29 +168,43 @@ function renderMergedOrganizersTable() {
     const directComm = examMode === 'offline' ? (totalReg * 15) : (grossTotal * 0.15);
     const hasReferral = org.refCode && org.refCode.trim().length > 0 && org.refCode.toUpperCase() !== "NONE";
     const refComm = hasReferral ? (grossTotal * 0.05) : 0; 
+    
+    // ZERO-BALANCE SETTLEMENT: IF SETTLED, NET CASH BECOMES 0
     const netCashToPortal = isSettled ? 0 : Math.max(0, cashGross - directComm);
 
     const sett = pendingSettlementsCache.find(s => s.orgCode === code);
     let settCell = isSettled ? "<span style='color:#4ade80; font-weight:bold;'>✔️ Settled (₹0 Due)</span>" : "<span style='color:#f87171;'>Pending Settlement</span>";
     if (!isSettled && sett) settCell = `<code style="color:#facc15;">UTR: ${sett.utrNumber}<br>(₹${sett.amount})</code>`;
 
-    let actionCell = isSettled ? "<span style='color:#38bdf8; font-weight:bold;'>Completed</span>" : (sett ? `<button onclick="approveOrganizerSettlement('${code}', '${sett.id}')" style="background:#10b981; color:#fff; border:none; padding:4px 8px; font-size:10px; border-radius:4px; font-weight:bold; cursor:pointer;">Verify UTR</button>` : "Awaiting");
+    let actionCell = isSettled ? "<span style='color:#38bdf8; font-weight:bold;'>Completed</span>" : (sett ? `<button onclick="approveOrganizerSettlement('${code}', '${sett.id}')" style="background:#10b981; color:#fff; border:none; padding:4px 8px; font-size:10px; border-radius:4px; font-weight:bold; cursor:pointer;">Verify & Zero Out</button>` : "Awaiting");
     let pendingBadge = pendingReviewCount > 0 ? `<br><span style="font-size:9px; color:#f59e0b; font-weight:bold;">(${pendingReviewCount} Pending)</span>` : "";
 
     tbody.innerHTML += `
       <tr style="border-bottom:1px solid #1e293b;">
-        <td style="padding:10px;"><code style="color:#38bdf8; font-weight:bold;">${code}</code><br><span style="font-size:12px; color:#cbd5e1;">${org.schoolName || 'School'}</span><br><span style="background:#1e293b; padding:1px 6px; border-radius:4px; font-size:10px; color:${examMode=='offline'?'#fbbf24':'#38bdf8'}">${examMode.toUpperCase()}</span></td>
-        <td style="padding:10px;"><strong>${org.name || 'N/A'}</strong><br><span style="font-size:11px; color:#94a3b8;">${org.contact || ''}</span></td>
-        <td style="padding:10px; color:#4ade80; font-weight:bold; text-align:center;">${totalReg} ${pendingBadge}<br><span style="font-size:10px; color:#94a3b8;">(${onlineRegs} On / ${cashRegs} Cash)</span></td>
-        <td style="padding:10px; color:#facc15;">₹${directComm.toFixed(0)}</td>
-        <td style="padding:10px; color:#c084fc;">₹${refComm.toFixed(0)}</td>
-        <td style="padding:10px;"><strong style="color:${netCashToPortal > 0 ? '#f87171' : '#4ade80'};">₹${netCashToPortal.toFixed(0)}</strong><br><span style="font-size:10px; color:#94a3b8;">Cash Held: ₹${cashGross}</span></td>
+        <td style="padding:10px;"><code style="color:#38bdf8; font-weight:bold;">${code}</code><br><span style="font-size:12px; color:#cbd5e1;">${org.schoolName || 'School'}</span></td>
+        <td style="padding:10px;"><strong>${org.name || 'N/A'}</strong></td>
+        <td style="padding:10px; color:#4ade80; font-weight:bold; text-align:center;">${totalReg} ${pendingBadge}</td>
+        <td style="padding:10px; color:#facc15;">₹${isSettled ? 0 : directComm.toFixed(0)}</td>
+        <td style="padding:10px; color:#c084fc;">₹${isSettled ? 0 : refComm.toFixed(0)}</td>
+        <td style="padding:10px;"><strong style="color:${netCashToPortal > 0 ? '#f87171' : '#4ade80'};">₹${netCashToPortal.toFixed(0)}</strong></td>
         <td style="padding:10px;">${settCell}</td>
         <td style="padding:10px;">${actionCell}</td>
       </tr>
     `;
   });
 }
+
+window.approveOrganizerSettlement = (orgCode, reqId) => {
+  if (!confirm(`Approve settlement and reset balance to ₹0 for ${orgCode}?`)) return;
+  fetch(`${SERVER_URL}/api/admin/approve_settlement`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ orgCode: orgCode, requestId: reqId }) })
+  .then(res => res.json())
+  .then(data => {
+    if (data.status === "success") {
+      alert("✅ Settlement verified successfully! Balance reset to ₹0.");
+      fetchAllCentralData();
+    }
+  });
+};
 
 function fetchSupportTickets() {
   fetch(`${SERVER_URL}/api/admin/queries`)
@@ -200,14 +215,9 @@ function fetchSupportTickets() {
       if (data.status === "success" && data.queries && data.queries.length > 0) {
         listContainer.innerHTML = "";
         data.queries.forEach(q => {
-          listContainer.innerHTML += `
-            <div onclick="openChatSession('${q.ticketId}', '${q.senderName || q.orgCode}')" style="padding: 8px; margin-bottom: 6px; background: #0f172a; border: 1px solid #334155; border-radius: 6px; cursor: pointer;">
-              <p style="font-weight: bold; color: #38bdf8; font-size: 11px;">${q.senderName || q.orgCode}</p>
-              <p style="color: #cbd5e1; font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${q.lastMessage || 'New Query'}</p>
-            </div>
-          `;
+          listContainer.innerHTML += `<div onclick="openChatSession('${q.ticketId}', '${q.senderName || q.orgCode}')" style="padding: 8px; margin-bottom: 6px; background: #0f172a; border: 1px solid #334155; border-radius: 6px; cursor: pointer;"><p style="font-weight: bold; color: #38bdf8; font-size: 11px;">${q.senderName || q.orgCode}</p></div>`;
         });
-      } else { listContainer.innerHTML = `<p style="font-size: 11px; color: #64748b; text-align: center; margin-top: 20px;">No pending support queries.</p>`; }
+      }
     }).catch(() => {});
 }
 
@@ -216,7 +226,6 @@ window.openChatSession = function(ticketId, senderName) {
   const chatBox = document.getElementById("active-chat-box");
   document.getElementById("admin-chat-input").disabled = false;
   document.getElementById("btn-send-reply").disabled = false;
-  chatBox.innerHTML = `<p style="color: #4ade80; font-size: 11px; text-align: center;">-- Connected with ${senderName} --</p>`;
   
   fetch(`${SERVER_URL}/api/admin/query_messages?ticketId=${ticketId}`)
     .then(res => res.json())
@@ -225,8 +234,7 @@ window.openChatSession = function(ticketId, senderName) {
         chatBox.innerHTML = "";
         data.messages.forEach(m => {
           let align = m.isAdmin ? "right" : "left", bg = m.isAdmin ? "#0369a1" : "#1e293b";
-          let imageHtml = m.imageUrl ? `<br><a href="${m.imageUrl}" target="_blank"><img src="${m.imageUrl}" style="max-width: 140px; border-radius: 4px; margin-top: 5px;" /></a>` : "";
-          chatBox.innerHTML += `<div style="text-align: ${align}; margin-bottom: 8px;"><span style="display: inline-block; background: ${bg}; padding: 6px 10px; border-radius: 6px; max-width: 80%; text-align: left; color: #fff; font-size: 11px;">${m.text}${imageHtml}</span></div>`;
+          chatBox.innerHTML += `<div style="text-align: ${align}; margin-bottom: 8px;"><span style="display: inline-block; background: ${bg}; padding: 6px 10px; border-radius: 6px; max-width: 80%; color: #fff; font-size: 11px;">${m.text}</span></div>`;
         });
         chatBox.scrollTop = chatBox.scrollHeight;
       }
@@ -263,46 +271,23 @@ window.loadSchoolRankings = function() {
   let studentsToRank = selectedOrg === "ALL" ? allStudentsCache : allStudentsCache.filter(s => s.orgCode === selectedOrg);
   let schoolMap = {};
   studentsToRank.forEach(s => {
+    if (!s.examCompleted) return;
     let code = (s.orgCode || "UNKNOWN").toUpperCase();
     if (!schoolMap[code]) schoolMap[code] = [];
     schoolMap[code].push(s);
   });
 
-  gridContainer.innerHTML = Object.keys(schoolMap).length ? "" : "<div style='grid-column: 1 / -1; text-align: center; color: #64748b; padding: 20px;'>No ranked students found.</div>";
+  gridContainer.innerHTML = Object.keys(schoolMap).length ? "" : "<div style='grid-column: 1 / -1; text-align: center; color: #64748b; padding: 20px;'>No ranked records found.</div>";
 
   Object.keys(schoolMap).forEach(code => {
     let students = schoolMap[code];
     let orgInfo = allOrganizersCache.find(o => (o.code || o.orgCode || "").toUpperCase() === code) || {};
-    let schoolName = orgInfo.schoolName || `School Code: ${code}`;
+    let schoolName = orgInfo.schoolName || `School: ${code}`;
     students.sort((a, b) => (parseFloat(b.score) || 0) - (parseFloat(a.score) || 0));
-
-    let classes = students.map(s => parseInt(s.studentClass, 10)).filter(c => !isNaN(c));
-    let minClass = classes.length ? Math.min(...classes) : 3;
-    let maxClass = classes.length ? Math.max(...classes) : 12;
-    let midClass = Math.floor((minClass + maxClass) / 2);
-
-    let group1 = students.filter(s => { let c = parseInt(s.studentClass, 10); return c >= minClass && c <= midClass; });
-    let group2 = students.filter(s => { let c = parseInt(s.studentClass, 10); return c > midClass && c <= maxClass; });
-
-    const getRewardBadge = (idx) => {
-      if (idx === 0) return `<br><span style="color:#facc15; font-size:9px;">🥇 Gold Medal</span>`;
-      if (idx === 1) return `<br><span style="color:#e2e8f0; font-size:9px;">🥈 Silver Medal</span>`;
-      if (idx === 2) return `<br><span style="color:#cd7f32; font-size:9px;">🥉 Bronze Medal</span>`;
-      return `<br><span style="color:#38bdf8; font-size:9px;">📜 Certificate</span>`;
-    };
 
     let card = document.createElement("div");
     card.style.cssText = "background: rgba(2, 6, 23, 0.9); border: 1px solid #334155; border-radius: 10px; padding: 15px;";
-    card.innerHTML = `
-      <h4 style="color: #38bdf8; margin-bottom: 10px;">🏫 ${schoolName}</h4>
-      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-        <div style="background: #0b0f19; padding: 8px; border-radius: 6px;"><div style="color: #10b981; font-size: 11px; margin-bottom: 6px;">Class ${minClass}-${midClass}</div>
-          ${group1.map((s, idx) => `<div style="font-size:11px; margin-bottom:4px;">#${idx+1} ${s.studentName} (${s.score || 0})${getRewardBadge(idx)}</div>`).join('') || '<span style="color:#64748b; font-size:10px;">No records</span>'}
-        </div>
-        <div style="background: #0b0f19; padding: 8px; border-radius: 6px;"><div style="color: #38bdf8; font-size: 11px; margin-bottom: 6px;">Class ${midClass+1}-${maxClass}</div>
-          ${group2.map((s, idx) => `<div style="font-size:11px; margin-bottom:4px;">#${idx+1} ${s.studentName} (${s.score || 0})${getRewardBadge(idx)}</div>`).join('') || '<span style="color:#64748b; font-size:10px;">No records</span>'}
-        </div>
-      </div>`;
+    card.innerHTML = `<h4 style="color: #38bdf8; margin-bottom: 10px;">🏫 ${schoolName}</h4>` + students.map((s, idx) => `<div style="font-size:11px; margin-bottom:4px;">#${idx+1} ${s.studentName} - Score: ${s.score || 0}</div>`).join('');
     gridContainer.appendChild(card);
   });
 };
@@ -317,29 +302,12 @@ window.loadSchoolStudentLedger = function() {
 
   students.forEach(s => {
     const isApproved = s.paymentStatus === "Approved" || s.paymentVerified === true;
-    const payMode = (s.paymentMode || 'online').toUpperCase();
-    let utrInfo = s.utrNumber ? `<br><code style="color:#facc15; font-size:11px;">UTR: ${s.utrNumber}</code>` : "";
-
-    let actionButtons = `<button onclick="openManualScoreModal('${s.id}', '${s.studentName}', '${s.studentClass}')" style="background:#f59e0b; color:#fff; padding:4px 8px; font-size:10px; border-radius:4px; font-weight:bold; cursor:pointer; margin-right:4px;">✍️ Manual Score</button>`;
-    actionButtons += `<button onclick="triggerReExam('${s.id}')" style="background:#7c3aed; color:#fff; padding:4px 8px; font-size:10px; border-radius:4px; font-weight:bold; cursor:pointer;">🔄 Re-Exam</button>`;
-
-    if (s.paymentMode === 'online' && !isApproved) {
-      actionButtons += `<br><button onclick="approveOnlinePayment('${s.id}')" style="background:#10b981; color:#fff; padding:3px 6px; font-size:9px; margin-top:4px;">✔️ Approve UTR</button>`;
-    }
-
-    tbody.innerHTML += `
-      <tr style="border-bottom:1px solid #1e293b;">
-        <td style="padding:10px;"><strong>${s.studentName}</strong><br><span style="font-size:11px; color:#94a3b8;">Roll: ${s.rollNumber}</span></td>
-        <td style="padding:10px;">Class ${s.studentClass}<br><span style="font-size:10px; color:#38bdf8;">${payMode}</span></td>
-        <td style="padding:10px;"><span style="color:${isApproved ? '#4ade80' : '#f59e0b'};">${s.paymentStatus || 'Pending'}</span>${utrInfo}</td>
-        <td style="padding:10px;"><strong style="color:#4ade80;">${s.score || 0}</strong> <span style="font-size:11px; color:#38bdf8;">(${s.percentage || 0}%)</span> ${s.manualEntry ? '<span style="color:#f59e0b; font-size:9px;">(Manual)</span>' : ''}</td>
-        <td style="padding:10px;">${actionButtons}</td>
-      </tr>
-    `;
+    let actionButtons = `<button onclick="openManualScoreModal('${s.studentId || s.id}', '${s.studentName}', '${s.studentClass}')" style="background:#f59e0b; color:#fff; padding:4px 8px; font-size:10px; border-radius:4px; font-weight:bold; cursor:pointer;">✍️ Manual Score</button>`;
+    
+    tbody.innerHTML += `<tr style="border-bottom:1px solid #1e293b;"><td style="padding:10px;"><strong>${s.studentName}</strong></td><td style="padding:10px;">Class ${s.studentClass}</td><td style="padding:10px;"><span style="color:${isApproved ? '#4ade80' : '#f59e0b'};">${s.paymentStatus || 'Pending'}</span></td><td style="padding:10px;"><strong style="color:#4ade80;">${s.score || 0}</strong></td><td style="padding:10px;">${actionButtons}</td></tr>`;
   });
 };
 
-// MANUAL SCORE MODAL HANDLERS
 window.openManualScoreModal = function(studentId, name, studentClass) {
   document.getElementById("modal-student-id").value = studentId;
   document.getElementById("modal-student-info").textContent = `Student: ${name} (Class ${studentClass})`;
@@ -347,44 +315,18 @@ window.openManualScoreModal = function(studentId, name, studentClass) {
   document.getElementById("manual-score-modal").classList.remove("hidden");
 };
 
-window.closeManualScoreModal = function() {
-  document.getElementById("manual-score-modal").classList.add("hidden");
-};
+window.closeManualScoreModal = () => document.getElementById("manual-score-modal").classList.add("hidden");
 
 window.saveManualScore = function() {
   const studentId = document.getElementById("modal-student-id").value;
   const score = parseFloat(document.getElementById("modal-score").value);
   const total = parseFloat(document.getElementById("modal-total").value) || 100;
-  if (isNaN(score)) { alert("Please enter a valid score."); return; }
+  if (isNaN(score)) return;
 
   fetch(`${SERVER_URL}/api/admin/manual_score_entry`, {
     method: "POST", headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ studentId: studentId, score: score, totalMarks: total })
-  })
-  .then(res => res.json())
-  .then(data => {
-    if (data.status === "success") {
-      alert("✅ Manual score saved successfully!");
-      closeManualScoreModal();
-      fetchAllCentralData();
-    } else { alert("❌ Error: " + data.message); }
-  });
-};
-
-window.approveOnlinePayment = (id) => {
-  fetch(`${SERVER_URL}/api/admin/approve_payment`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ studentId: id }) })
-  .then(() => fetchAllCentralData());
-};
-
-window.triggerReExam = (id) => {
-  if(!confirm("Reset exam status?")) return;
-  fetch(`${SERVER_URL}/api/admin/reexam`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ studentId: id }) })
-  .then(() => alert("✅ Re-Exam triggered!"));
-};
-
-window.approveOrganizerSettlement = (orgCode, reqId) => {
-  fetch(`${SERVER_URL}/api/admin/approve_settlement`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ orgCode: orgCode, requestId: reqId }) })
-  .then(() => fetchAllCentralData());
+  }).then(() => { closeManualScoreModal(); fetchAllCentralData(); });
 };
 
 window.logoutAdminSession = () => { sessionStorage.removeItem("nvmso_admin_logged"); location.reload(); };
