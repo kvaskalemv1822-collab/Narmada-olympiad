@@ -444,7 +444,7 @@ def admin_complete_payout():
     return jsonify({"status": "success", "message": "Payout completed"})
 
 # ==========================================================================
-# 6. ORGANIZER PORTAL & STUDENTS MATRIX (WITH MIXED FINANCIAL CALCULATIONS)
+# 6. ORGANIZER PORTAL & STUDENTS MATRIX (COMMISSION BASED ON ONLINE BASE FEE)
 # ==========================================================================
 @app.route('/api/organizer/login', methods=['POST'])
 def organizer_login():
@@ -521,22 +521,25 @@ def organizer_get_students():
     
     approved = [s for s in students if s.get('paymentStatus') == 'Approved' or s.get('paymentVerified') is True]
     exam_mode = (org_data.get('examMode') or 'online').lower()
-    fee = g_cfg.get('offlineFee', 120) if exam_mode == 'offline' else g_cfg.get('onlineFee', 100)
+    
+    online_fee = g_cfg.get('onlineFee', 100)
+    offline_fee = g_cfg.get('offlineFee', 120)
     
     # Separate Cash (Offline) vs Online approved registrations
     cash_approved = [s for s in approved if (s.get('paymentMode') or '').lower() in ['offline', 'cash']]
     online_approved = [s for s in approved if (s.get('paymentMode') or '').lower() == 'online']
     
-    cash_held = len(cash_approved) * fee
-    online_collected_by_nvms = len(online_approved) * fee
-    gross_total = len(approved) * fee
+    cash_held = len(cash_approved) * offline_fee
+    online_collected_by_nvms = len(online_approved) * online_fee
+    gross_total = (len(cash_approved) * offline_fee) + (len(online_approved) * online_fee)
 
-    # Commission Calculations (15% direct + 5% referral if refCode exists)
-    direct_comm = int(gross_total * 0.15)
-    ref_comm = int(gross_total * 0.05) if (ref_code and ref_code.toUpperCase() != "NONE") else 0
+    # 🎯 COMMISSION FIXED ON ONLINE EXAM BASE FEE (online_fee = ₹100 per student)
+    base_fee_total = len(approved) * online_fee
+    direct_comm = int(base_fee_total * 0.15)  # 15% of base online fee
+    ref_comm = int(base_fee_total * 0.05) if (ref_code and ref_code.toUpperCase() != "NONE") else 0
     total_commission = direct_comm + ref_comm
 
-    # Net Balance = Cash Held with Organizer minus Total Commission
+    # Net Balance = Cash Held minus Total Commission
     net_balance = cash_held - total_commission
 
     net_payable_to_nvms = 0
