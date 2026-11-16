@@ -178,6 +178,7 @@ function fetchRegisteredStudentsList() {
         let netPayableToNvms = data.financials.netPayableToNvms || 0;
         let nvmsOwesOrganizer = data.financials.nvmsOwesOrganizer || 0;
         let isSettled = data.isSettled || false;
+        let adminUpi = data.adminUpiId || "narmada@upi";
 
         document.getElementById("fin-total-regs").textContent = totalRegs;
         document.getElementById("fin-cash-held").textContent = `₹${cashHeld}`;
@@ -186,7 +187,7 @@ function fetchRegisteredStudentsList() {
         document.getElementById("fin-ref-comm").textContent = `₹${refComm}`;
         document.getElementById("fin-total-comm").textContent = `₹${totalComm}`;
 
-        renderDynamicFinancialAction(netPayableToNvms, nvmsOwesOrganizer, isSettled);
+        renderDynamicFinancialAction(netPayableToNvms, nvmsOwesOrganizer, isSettled, adminUpi);
       }
 
       container.innerHTML = data.students.length ? "" : `<tr><td colspan="7" style="text-align:center; color:#64748b; padding:15px;">No students registered.</td></tr>`;
@@ -224,16 +225,24 @@ function fetchRegisteredStudentsList() {
   });
 }
 
-function renderDynamicFinancialAction(netPayable, nvmsOwesOrg, isSettled) {
+function renderDynamicFinancialAction(netPayable, nvmsOwesOrg, isSettled, adminUpi) {
   const actionContainer = document.getElementById("dynamic-financial-action-container");
   if (!actionContainer) return;
+
+  const upiPayLink = `upi://pay?pa=${encodeURIComponent(adminUpi)}&pn=${encodeURIComponent('NVMSO Central Admin')}&am=${netPayable}&cu=INR`;
 
   if (isSettled) {
     actionContainer.innerHTML = `<p style="text-align: center; color: #4ade80; font-size: 13px; font-weight: bold; margin: 0;">✅ Account Settled & Verified by Central Admin! (Balance: ₹0)</p>`;
   } else if (netPayable > 0) {
     actionContainer.innerHTML = `
       <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
-        <div><p style="font-size: 13px; color: #f87171; font-weight: bold; margin: 0;">Net Amount Payable to NVMS:</p><h2 style="color: #f87171; margin: 5px 0 0 0;">₹${netPayable}</h2></div>
+        <div>
+          <p style="font-size: 13px; color: #f87171; font-weight: bold; margin: 0;">Net Amount Payable to NVMS:</p>
+          <h2 style="color: #f87171; margin: 5px 0 0 0;">₹${netPayable}</h2>
+        </div>
+        <div>
+          <a href="${upiPayLink}" class="btn-primary" style="background: #10b981; padding: 8px 14px; font-size: 12px; text-decoration: none; display: inline-block; border-radius: 6px; font-weight: bold;">📲 Pay ₹${netPayable} via UPI</a>
+        </div>
       </div>
       <div style="margin-top: 12px; border-top: 1px dashed #334155; padding-top: 10px; display: flex; gap: 10px; flex-wrap: wrap;">
         <input type="text" id="settlement-utr-input" placeholder="Enter UTR No after paying" style="flex: 1; min-width: 180px;">
