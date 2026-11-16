@@ -2,7 +2,6 @@ const SERVER_URL = "https://nvmso-backend.onrender.com";
 let allStudentsCache = [];
 let allOrganizersCache = [];
 let pendingSettlementsCache = [];
-let pendingPayoutsCache = [];
 let activeTicketId = null;
 let activeTicketSender = null;
 let autoRefreshTimer = null;
@@ -87,7 +86,7 @@ function initializeCentralPanelData() {
         fetchAllCentralData();
         fetchSupportTickets();
 
-        // REAL-TIME AUTO-SYNC TIMER (4 seconds interval for master panel coordination)
+        // 4-SECOND REAL-TIME AUTO-SYNC TIMER
         if (!autoRefreshTimer) {
           autoRefreshTimer = setInterval(() => {
             fetchAllCentralData();
@@ -136,13 +135,12 @@ function fetchAllCentralData() {
     }
     if (data2.status === "success") {
       pendingSettlementsCache = data2.settlements || [];
-      pendingPayoutsCache = data2.payouts || [];
     }
     renderMergedOrganizersTable();
     populateSchoolDropdowns();
     loadSchoolRankings();
     loadSchoolStudentLedger();
-  });
+  }).catch(() => {});
 }
 
 function renderMergedOrganizersTable() {
@@ -152,13 +150,12 @@ function renderMergedOrganizersTable() {
 
   allOrganizersCache.forEach(org => {
     const code = org.code || org.orgCode;
-    const isSettled = org.manualSettled; // SETTLED FIELD FOR ZERO-BALANCE LOGIC
+    const isSettled = org.manualSettled; 
     const verifiedStudents = allStudentsCache.filter(s => (s.orgCode || "").toUpperCase() === code.toUpperCase() && (s.paymentStatus === 'Approved' || s.paymentVerified === true));
     const allSchoolStudents = allStudentsCache.filter(s => (s.orgCode || "").toUpperCase() === code.toUpperCase());
     const totalReg = verifiedStudents.length;
     const pendingReviewCount = allSchoolStudents.filter(s => s.paymentStatus && s.paymentStatus.includes("Pending")).length;
 
-    const onlineRegs = verifiedStudents.filter(s => (s.paymentMode || 'online').toLowerCase() === 'online').length;
     const cashRegs = verifiedStudents.filter(s => (s.paymentMode || '').toLowerCase() === 'offline' || (s.paymentMode || '').toLowerCase() === 'cash').length;
     const examMode = (org.examMode || 'online').toLowerCase();
     const feePerStudent = examMode === 'offline' ? 120 : 100;
@@ -169,15 +166,14 @@ function renderMergedOrganizersTable() {
     const hasReferral = org.refCode && org.refCode.trim().length > 0 && org.refCode.toUpperCase() !== "NONE";
     const refComm = hasReferral ? (grossTotal * 0.05) : 0; 
     
-    // ZERO-BALANCE SETTLEMENT: IF SETTLED, NET CASH BECOMES 0
     const netCashToPortal = isSettled ? 0 : Math.max(0, cashGross - directComm);
 
-    const sett = pendingSettlementsCache.find(s => s.orgCode === code);
+    const sett = pendingSettlementsCache.find(s => s.orgCode === code && s.status === "Pending");
     let settCell = isSettled ? "<span style='color:#4ade80; font-weight:bold;'>✔️ Settled (₹0 Due)</span>" : "<span style='color:#f87171;'>Pending Settlement</span>";
     if (!isSettled && sett) settCell = `<code style="color:#facc15;">UTR: ${sett.utrNumber}<br>(₹${sett.amount})</code>`;
 
-    let actionCell = isSettled ? "<span style='color:#38bdf8; font-weight:bold;'>Completed</span>" : (sett ? `<button onclick="approveOrganizerSettlement('${code}', '${sett.id}')" style="background:#10b981; color:#fff; border:none; padding:4px 8px; font-size:10px; border-radius:4px; font-weight:bold; cursor:pointer;">Verify & Zero Out</button>` : "Awaiting");
-    let pendingBadge = pendingReviewCount > 0 ? `<br><span style="font-size:9px; color:#f59e0b; font-weight:bold;">(${pendingReviewCount} Pending)</span>` : "";
+    let actionCell = isSettled ? "<span style='color:#38bdf8; font-weight:bold;'>Completed</span>" : (sett ? `<button onclick="approveOrganizerSettlement('${code}', '${sett.id}')" style="background:#10b981; color:#fff; border:none; padding:5px 10px; font-size:11px; border-radius:4px; font-weight:bold; cursor:pointer;">Verify & Zero Out</button>` : "Awaiting");
+    let pendingBadge = pendingReviewCount > 0 ? `<br><span style="font-size:10px; color:#f59e0b; font-weight:bold;">(${pendingReviewCount} Pending)</span>` : "";
 
     tbody.innerHTML += `
       <tr style="border-bottom:1px solid #1e293b;">
@@ -287,7 +283,7 @@ window.loadSchoolRankings = function() {
 
     let card = document.createElement("div");
     card.style.cssText = "background: rgba(2, 6, 23, 0.9); border: 1px solid #334155; border-radius: 10px; padding: 15px;";
-    card.innerHTML = `<h4 style="color: #38bdf8; margin-bottom: 10px;">🏫 ${schoolName}</h4>` + students.map((s, idx) => `<div style="font-size:11px; margin-bottom:4px;">#${idx+1} ${s.studentName} - Score: ${s.score || 0}</div>`).join('');
+    card.innerHTML = `<h4 style="color: #38bdf8; margin-bottom: 10px;">🏫 ${schoolName}</h4>` + students.map((s, idx) => `<div style="font-size:11px; margin-bottom:4px;">#${idx+1} ${s.studentName} - Score: ${s.score || 0}/${s.totalMarks || 30}</div>`).join('');
     gridContainer.appendChild(card);
   });
 };
@@ -304,7 +300,7 @@ window.loadSchoolStudentLedger = function() {
     const isApproved = s.paymentStatus === "Approved" || s.paymentVerified === true;
     let actionButtons = `<button onclick="openManualScoreModal('${s.studentId || s.id}', '${s.studentName}', '${s.studentClass}')" style="background:#f59e0b; color:#fff; padding:4px 8px; font-size:10px; border-radius:4px; font-weight:bold; cursor:pointer;">✍️ Manual Score</button>`;
     
-    tbody.innerHTML += `<tr style="border-bottom:1px solid #1e293b;"><td style="padding:10px;"><strong>${s.studentName}</strong></td><td style="padding:10px;">Class ${s.studentClass}</td><td style="padding:10px;"><span style="color:${isApproved ? '#4ade80' : '#f59e0b'};">${s.paymentStatus || 'Pending'}</span></td><td style="padding:10px;"><strong style="color:#4ade80;">${s.score || 0}</strong></td><td style="padding:10px;">${actionButtons}</td></tr>`;
+    tbody.innerHTML += `<tr style="border-bottom:1px solid #1e293b;"><td style="padding:10px;"><strong>${s.studentName}</strong></td><td style="padding:10px;">Class ${s.studentClass}</td><td style="padding:10px;"><span style="color:${isApproved ? '#4ade80' : '#f59e0b'};">${s.paymentStatus || 'Pending'}</span></td><td style="padding:10px;"><strong style="color:#4ade80;">${s.score || 0}/${s.totalMarks || 30}</strong></td><td style="padding:10px;">${actionButtons}</td></tr>`;
   });
 };
 
@@ -320,13 +316,19 @@ window.closeManualScoreModal = () => document.getElementById("manual-score-modal
 window.saveManualScore = function() {
   const studentId = document.getElementById("modal-student-id").value;
   const score = parseFloat(document.getElementById("modal-score").value);
-  const total = parseFloat(document.getElementById("modal-total").value) || 100;
-  if (isNaN(score)) return;
+  const total = parseFloat(document.getElementById("modal-total").value) || 30;
+  if (isNaN(score)) { alert("⚠️ Enter valid score."); return; }
 
   fetch(`${SERVER_URL}/api/admin/manual_score_entry`, {
     method: "POST", headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ studentId: studentId, score: score, totalMarks: total })
-  }).then(() => { closeManualScoreModal(); fetchAllCentralData(); });
+  }).then(res => res.json()).then(data => {
+    if (data.status === "success") {
+      alert("✅ Score saved successfully!");
+      closeManualScoreModal(); 
+      fetchAllCentralData();
+    } else { alert("❌ Error: " + data.message); }
+  });
 };
 
 window.logoutAdminSession = () => { sessionStorage.removeItem("nvmso_admin_logged"); location.reload(); };
