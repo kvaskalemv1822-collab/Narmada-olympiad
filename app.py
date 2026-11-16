@@ -528,15 +528,15 @@ def organizer_get_students():
     ref_code = str(org_data.get('refCode', '')).strip()
     g_cfg = db.collection('settings').document('portal_config').get().to_dict() or {}
     
-    approved = [s for s in students if s.get('paymentStatus'] == 'Approved' or s.get('paymentVerified') is True]
+    approved = [s for s in students if s.get('paymentStatus') == 'Approved' or s.get('paymentVerified') is True]
     exam_mode = (org_data.get('examMode') or 'online').lower()
     
     online_fee = g_cfg.get('onlineFee', 100)
     offline_fee = g_cfg.get('offlineFee', 120)
     current_fee_per_student = offline_fee if exam_mode == 'offline' else online_fee
 
-    cash_approved = [s for s in approved if (s.get('paymentMode'] or '').lower() in ['offline', 'cash']]
-    online_approved = [s for s in approved if (s.get('paymentMode'] or '').lower() == 'online']
+    cash_approved = [s for s in approved if (s.get('paymentMode') or '').lower() in ['offline', 'cash']]
+    online_approved = [s for s in approved if (s.get('paymentMode') or '').lower() == 'online']
     
     cash_held = len(cash_approved) * current_fee_per_student
     online_collected_by_nvms = len(online_approved) * current_fee_per_student
