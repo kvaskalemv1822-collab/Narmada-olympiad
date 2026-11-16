@@ -213,6 +213,21 @@ function renderMergedOrganizersTable() {
 
     let pendingBadge = pendingReviewCount > 0 ? `<br><span style="font-size:9px; color:#f59e0b; font-weight:bold;">(${pendingReviewCount} Pending)</span>` : "";
 
+    // 📲 UPI Deep-Link Pay URLs for Direct & Referral Commissions
+    const orgUpi = org.upiId || 'narmada@upi';
+    const directUpiLink = `upi://pay?pa=${encodeURIComponent(orgUpi)}&pn=${encodeURIComponent(org.schoolName || 'Organizer')}&am=${directComm}&cu=INR`;
+    const refUpiLink = `upi://pay?pa=${encodeURIComponent(orgUpi)}&pn=${encodeURIComponent(org.schoolName || 'Organizer')}&am=${refComm}&cu=INR`;
+
+    let directCommHtml = `₹${directComm}`;
+    if (directComm > 0 && !isSettled) {
+      directCommHtml += `<br><a href="${directUpiLink}" style="background:#10b981; color:#fff; padding:2px 6px; font-size:9px; border-radius:3px; text-decoration:none; display:inline-block; margin-top:2px;">📲 Pay UPI</a>`;
+    }
+
+    let refCommHtml = `₹${refComm}`;
+    if (refComm > 0 && !isSettled) {
+      refCommHtml += `<br><a href="${refUpiLink}" style="background:#f59e0b; color:#fff; padding:2px 6px; font-size:9px; border-radius:3px; text-decoration:none; display:inline-block; margin-top:2px;">📲 Pay UPI</a>`;
+    }
+
     tbody.innerHTML += `
       <tr style="border-bottom:1px solid #1e293b;">
         <td style="padding:10px;">
@@ -227,8 +242,8 @@ function renderMergedOrganizersTable() {
         <td style="padding:10px; color:#4ade80; font-weight:bold; text-align:center;">
           ${totalReg} ${pendingBadge}<br><span style="font-size:10px; color:#94a3b8;">(${onlineRegs} On / ${cashRegs} Cash)</span>
         </td>
-        <td style="padding:10px; color:#facc15; font-weight:bold;">₹${directComm}</td>
-        <td style="padding:10px; color:#c084fc; font-weight:bold;">₹${refComm}</td>
+        <td style="padding:10px; color:#facc15; font-weight:bold;">${directCommHtml}</td>
+        <td style="padding:10px; color:#c084fc; font-weight:bold;">${refCommHtml}</td>
         <td style="padding:10px;">
           <strong style="color:${netCashToPortal > 0 ? '#f87171' : '#4ade80'}; font-size:14px;">₹${netCashToPortal}</strong><br>
           <span style="font-size:10px; color:#94a3b8;">Cash Held: ₹${cashGross}</span>
