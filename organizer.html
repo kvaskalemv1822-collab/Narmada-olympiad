@@ -4,13 +4,14 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>NVMSO - School Coordinator Panel</title>
-  <link rel="stylesheet" href="organizer.css?v=29">
+  <link rel="stylesheet" href="organizer.css?v=30">
   <style>
     .nvms-logo-title span:nth-child(1) { color: #38bdf8; }
     .nvms-logo-title span:nth-child(2) { color: #4ade80; }
     .nvms-logo-title span:nth-child(3) { color: #facc15; }
     .nvms-logo-title span:nth-child(4) { color: #f87171; }
     .nvms-logo-title span:nth-child(5) { color: #c084fc; }
+    .hidden { display: none !important; }
   </style>
 </head>
 <body style="background:#0b0f19; padding:15px; color:#fff;">
@@ -98,7 +99,7 @@
           <option value="offline">Offline Desk Mode (OMR / Physical Sheet Paper)</option>
         </select>
       </div>
-      <p style="font-size:13px; color:#94a3b8;">Current Student Fee Mapping: <strong style="color:#fbbf24;">₹<span id="current-applicable-fee">100</span></strong> per participant profile.</p>
+      <p style="font-size:13px; color:#94a3b8;">Current Student Fee Mapping: <strong style="color:#fbbf24;">₹<span id="current-applicable-fee">100</span></strong> per participant profile. <span style="font-size:11px; color:#64748b;">(Commission calculated on ₹100 base fee)</span></p>
       
       <br><hr style="border-color:#1e293b;"><br>
       
@@ -111,15 +112,37 @@
     <!-- FINANCIAL LEDGER & COMMISSION MATRIX -->
     <div class="card-box" style="border:1px solid #f59e0b; margin-top: 15px;">
       <h3 style="color:#f59e0b; margin-top:0; margin-bottom:15px;">💰 Financial Ledger & Commission Matrix</h3>
-      <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:15px;">
-        <div style="background:#020617; padding:15px; border-radius:8px; border:1px solid #334155;"><p style="font-size:12px; color:#94a3b8;">Total Registrations</p><h2 id="fin-total-regs" style="color:#ffffff; margin:5px 0 0 0;">0</h2></div>
-        <div style="background:#020617; padding:15px; border-radius:8px; border:1px solid #334155;"><p style="font-size:12px; color:#94a3b8;">Total Fees Collected</p><h2 id="fin-total-fees" style="color:#38bdf8; margin:5px 0 0 0;">₹0</h2></div>
-        <div style="background:#020617; padding:15px; border-radius:8px; border:1px solid #334155;"><p style="font-size:12px; color:#94a3b8;">Direct Commission</p><h2 id="fin-direct-comm" style="color:#4ade80; margin:5px 0 0 0;">₹0</h2></div>
-        <div style="background:#020617; padding:15px; border-radius:8px; border:1px solid #334155;"><p style="font-size:12px; color:#94a3b8;">Referral Commission (5%)</p><h2 id="fin-ref-comm" style="color:#facc15; margin:5px 0 0 0;">₹0</h2></div>
+      
+      <!-- 6-Card Financial Grid -->
+      <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap:12px;">
+        <div style="background:#020617; padding:14px; border-radius:8px; border:1px solid #334155;">
+          <p style="font-size:11px; color:#94a3b8; margin:0;">Approved Registrations</p>
+          <h2 id="fin-total-regs" style="color:#ffffff; margin:5px 0 0 0; font-size:20px;">0</h2>
+        </div>
+        <div style="background:#020617; padding:14px; border-radius:8px; border:1px solid #334155;">
+          <p style="font-size:11px; color:#94a3b8; margin:0;">Cash Collected (By You)</p>
+          <h2 id="fin-cash-held" style="color:#fbbf24; margin:5px 0 0 0; font-size:20px;">₹0</h2>
+        </div>
+        <div style="background:#020617; padding:14px; border-radius:8px; border:1px solid #334155;">
+          <p style="font-size:11px; color:#94a3b8; margin:0;">Online Collected (NVMS)</p>
+          <h2 id="fin-online-collected" style="color:#38bdf8; margin:5px 0 0 0; font-size:20px;">₹0</h2>
+        </div>
+        <div style="background:#020617; padding:14px; border-radius:8px; border:1px solid #334155;">
+          <p style="font-size:11px; color:#94a3b8; margin:0;">Direct Comm. (15% Base)</p>
+          <h2 id="fin-direct-comm" style="color:#4ade80; margin:5px 0 0 0; font-size:20px;">₹0</h2>
+        </div>
+        <div style="background:#020617; padding:14px; border-radius:8px; border:1px solid #334155;">
+          <p style="font-size:11px; color:#94a3b8; margin:0;">Referral Comm. (5% Base)</p>
+          <h2 id="fin-ref-comm" style="color:#c084fc; margin:5px 0 0 0; font-size:20px;">₹0</h2>
+        </div>
+        <div style="background:#020617; padding:14px; border-radius:8px; border:1px solid #334155;">
+          <p style="font-size:11px; color:#94a3b8; margin:0;">Total Commission Earned</p>
+          <h2 id="fin-total-comm" style="color:#facc15; margin:5px 0 0 0; font-size:20px;">₹0</h2>
+        </div>
       </div>
 
-      <!-- DYNAMIC FINANCIAL ACTION CONTAINER -->
-      <div id="dynamic-financial-action-container" style="margin-top: 20px; background: #020617; padding: 15px; border-radius: 8px; border: 1px solid #334155;"></div>
+      <!-- DYNAMIC FINANCIAL ACTION CONTAINER (UTR SETTLEMENT OR UPI PAYOUT REQUEST) -->
+      <div id="dynamic-financial-action-container" style="margin-top: 18px; background: #020617; padding: 16px; border-radius: 8px; border: 1px solid #334155;"></div>
     </div>
 
     <!-- REGISTERED STUDENTS ROSTER (WITH MARKS & PERCENTAGE COLUMN) -->
@@ -171,6 +194,6 @@
   </div>
 </div>
 
-<script src="organizer.js?v=29"></script>
+<script src="organizer.js?v=30"></script>
 </body>
 </html>
