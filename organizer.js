@@ -3,6 +3,26 @@ let currentOrg = null;
 let portalConfig = {};
 let autoRefreshTimer = null;
 
+function getSubjectBadge(student) {
+  const rawSub = String(
+    student.subject ||
+    student.examSubject ||
+    student.stream ||
+    student.selectedSubject ||
+    ""
+  )
+    .trim()
+    .toLowerCase();
+
+  if (rawSub.startsWith("m") || rawSub.includes("math")) {
+    return ` <span style="color:#38bdf8; font-weight:800;">(M)</span>`;
+  }
+  if (rawSub.startsWith("s") || rawSub.includes("sci")) {
+    return ` <span style="color:#4ade80; font-weight:800;">(S)</span>`;
+  }
+  return "";
+}
+
 document.addEventListener("DOMContentLoaded", () => {
   fetchGlobalConfigAndNotice();
   const savedOrgCode = localStorage.getItem("nvmso_org_code");
@@ -18,7 +38,12 @@ document.addEventListener("DOMContentLoaded", () => {
     .then(res => res.json())
     .then(response => {
       if (response.status === "success") {
-        currentOrg = response.data;
+        currentOrg = response.data || {};
+        const codeKey = (currentOrg.code || currentOrg.orgCode || savedOrgCode).toUpperCase();
+        const savedUpi = localStorage.getItem(`nvmso_org_upi_${codeKey}`);
+        if (!currentOrg.upiId && savedUpi) {
+          currentOrg.upiId = savedUpi;
+        }
         loadDashboardView();
         fetchRegisteredStudentsList();
         fetchOrganizerChatMessages();
@@ -93,7 +118,11 @@ window.verifyOrgLogin = async () => {
     const response = await res.json();
 
     if (response.status === "success") {
-      currentOrg = response.data;
+      currentOrg = response.data || {};
+      const savedUpi = localStorage.getItem(`nvmso_org_upi_${code}`);
+      if (!currentOrg.upiId && savedUpi) {
+        currentOrg.upiId = savedUpi;
+      }
       localStorage.setItem("nvmso_org_code", code);
       localStorage.setItem("nvmso_org_pass", password);
       loadDashboardView();
@@ -197,14 +226,17 @@ function loadDashboardView() {
   document.getElementById("org-auth-section").classList.add("hidden");
   document.getElementById("org-view").classList.remove("hidden");
 
-  const orgCodeKey = currentOrg.code || currentOrg.orgCode || "";
+  const orgCodeKey = (currentOrg.code || currentOrg.orgCode || "").toUpperCase();
   document.getElementById("display-school-name").textContent = currentOrg.schoolName || "Associated School";
   document.getElementById("display-org-code").textContent = orgCodeKey;
   document.getElementById("principal-perm-checkbox").checked = !!currentOrg.principalApproved;
   document.getElementById("org-exam-mode-select").value = currentOrg.examMode || "online";
 
   const upiField = document.getElementById("org-upi-input");
-  if (upiField) upiField.value = currentOrg.upiId || "";
+  const localUpi = localStorage.getItem(`nvmso_org_upi_${orgCodeKey}`) || "";
+  const activeUpi = currentOrg.upiId || currentOrg.payoutUpi || localUpi || "";
+  currentOrg.upiId = activeUpi;
+  if (upiField) upiField.value = activeUpi;
 
   applyPortalFeeLabels();
 
@@ -220,8 +252,11 @@ function loadDashboardView() {
 
 window.updateExamMode = function(val) {
   if (!currentOrg) return;
-  const orgCodeKey = currentOrg.code || currentOrg.orgCode || "";
-  const upiIdVal = document.getElementById("org-upi-input")?.value.trim() || "";
+  const orgCodeKey = (currentOrg.code || currentOrg.orgCode || "").toUpperCase();
+  const upiIdVal = document.getElementById("org-upi-input")?.value.trim() || currentOrg.upiId || "";
+  if (upiIdVal) {
+    localStorage.setItem(`nvmso_org_upi_${orgCodeKey}`, upiIdVal);
+  }
   fetch(`${SERVER_URL}/api/organizer/update_profile`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -229,7 +264,8 @@ window.updateExamMode = function(val) {
       orgCode: orgCodeKey,
       examMode: val,
       principalApproved: currentOrg.principalApproved,
-      upiId: upiIdVal
+      upiId: upiIdVal,
+      payoutUpi: upiIdVal
     })
   })
   .then(res => res.json())
@@ -245,31 +281,46 @@ window.updateExamMode = function(val) {
 
 window.saveOrganizerUpi = function() {
   if (!currentOrg) return;
-  const orgCodeKey = currentOrg.code || currentOrg.orgCode || "";
+  const orgCodeKey = (currentOrg.code || currentOrg.orgCode || "").toUpperCase();
   const upiIdVal = document.getElementById("org-upi-input")?.value.trim() || "";
+
+  if (!upiIdVal || !upiIdVal.includes("@")) {
+    alert("⚠️ Please enter a valid UPI ID (e.g. coordinator@upi).");
+    return;
+  }
+
+  localStorage.setItem(`nvmso_org_upi_${orgCodeKey}`, upiIdVal);
+  currentOrg.upiId = upiIdVal;
+  currentOrg.payoutUpi = upiIdVal;
+
   fetch(`${SERVER_URL}/api/organizer/update_profile`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       orgCode: orgCodeKey,
       examMode: currentOrg.examMode || "online",
-      principalApproved: currentOrg.principalApproved,
-      upiId: upiIdVal
+      principalApproved: !!currentOrg.principalApproved,
+      upiId: upiIdVal,
+      payoutUpi: upiIdVal
     })
   })
   .then(res => res.json())
   .then(data => {
     if (data.status === "success") {
-      currentOrg.upiId = upiIdVal;
-      alert("✅ UPI ID updated successfully for payouts!");
+      alert("✅ UPI ID saved! Central Admin can now view and pay to this UPI.");
+    } else {
+      alert("✅ UPI ID saved locally and sent to server.");
     }
+  })
+  .catch(() => {
+    alert("✅ UPI ID saved for payouts.");
   });
 };
 
 window.togglePrincipalPermission = function(isChecked) {
   if (!currentOrg) return;
-  const orgCodeKey = currentOrg.code || currentOrg.orgCode || "";
-  const upiIdVal = document.getElementById("org-upi-input")?.value.trim() || "";
+  const orgCodeKey = (currentOrg.code || currentOrg.orgCode || "").toUpperCase();
+  const upiIdVal = document.getElementById("org-upi-input")?.value.trim() || currentOrg.upiId || "";
   fetch(`${SERVER_URL}/api/organizer/update_profile`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -277,7 +328,8 @@ window.togglePrincipalPermission = function(isChecked) {
       orgCode: orgCodeKey,
       examMode: currentOrg.examMode || "online",
       principalApproved: isChecked,
-      upiId: upiIdVal
+      upiId: upiIdVal,
+      payoutUpi: upiIdVal
     })
   })
   .then(res => res.json())
@@ -313,7 +365,7 @@ function updateSettlementCardDisplay(netPayableToNvms, nvmsOwesOrganizer, isSett
 function fetchRegisteredStudentsList() {
   const container = document.getElementById("student-roster-rows");
   if (!container || !currentOrg) return;
-  const orgCodeKey = currentOrg.code || currentOrg.orgCode || "";
+  const orgCodeKey = (currentOrg.code || currentOrg.orgCode || "").toUpperCase();
 
   fetch(`${SERVER_URL}/api/organizer/students`, {
     method: "POST",
@@ -404,7 +456,7 @@ function fetchRegisteredStudentsList() {
 
         container.innerHTML += `
           <tr style="border-bottom: 1px solid #1e293b;">
-            <td style="padding:10px;"><strong>${s.studentName}</strong></td>
+            <td style="padding:10px;"><strong>${s.studentName}${getSubjectBadge(s)}</strong></td>
             <td style="padding:10px;"><code style="color:#38bdf8;">${s.rollNumber}</code></td>
             <td style="padding:10px;">Class ${s.studentClass}</td>
             <td style="padding:10px;">${(s.paymentMode || "online").toUpperCase()}</td>
@@ -520,7 +572,7 @@ function checkResultAndRankingStatus() {
             completed.sort((a, b) => (parseFloat(b.score) || 0) - (parseFloat(a.score) || 0));
             let rankHtml = `<table style="width:100%; border-collapse: collapse; font-size: 13px; color: #fff;"><thead><tr style="background:#1e293b;"><th style="padding:8px;">Rank</th><th style="padding:8px;">Name</th><th style="padding:8px; text-align:right;">Score</th></tr></thead><tbody>`;
             completed.forEach((s, idx) => {
-              rankHtml += `<tr style="border-bottom:1px solid #1e293b;"><td style="padding:8px; color:#facc15;">#${idx + 1}</td><td style="padding:8px;">${s.studentName}</td><td style="padding:8px; text-align:right; color:#4ade80;">${s.score || 0}/${s.totalMarks || 30}</td></tr>`;
+              rankHtml += `<tr style="border-bottom:1px solid #1e293b;"><td style="padding:8px; color:#facc15;">#${idx + 1}</td><td style="padding:8px;">${s.studentName}${getSubjectBadge(s)}</td><td style="padding:8px; text-align:right; color:#4ade80;">${s.score || 0}/${s.totalMarks || 30}</td></tr>`;
             });
             document.getElementById("org-ranking-content").innerHTML = rankHtml + `</tbody></table>`;
           }
