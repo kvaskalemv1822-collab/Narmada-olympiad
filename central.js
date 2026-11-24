@@ -1,14 +1,14 @@
-Const SERVER_URL = "https://nvmso-backend.onrender.com";
+const SERVER_URL = "https://nvmso-backend.onrender.com";
 let allStudentsCache = [];
 let allOrganizersCache = [];
 let pendingSettlementsCache = [];
 let pendingPayoutsCache = [];
-let activeTicketId = null;
-let activeTicketSender = null;
 let autoRefreshTimer = null;
 
 // 🔄 PERSISTENT SESSION CHECK ON PAGE LOAD
 document.addEventListener("DOMContentLoaded", () => {
+  startLiveClockTracker();
+
   if (sessionStorage.getItem("nvmso_admin_logged") === "true") {
     const loginScreen = document.getElementById("admin-login-screen");
     const mainContainer = document.getElementById("admin-main-container");
@@ -18,33 +18,63 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 });
 
+function startLiveClockTracker() {
+  const clockEl = document.getElementById("admin-live-clock");
+  if (!clockEl) return;
+
+  const updateClock = () => {
+    const now = new Date();
+    clockEl.textContent = now.toLocaleTimeString() + " (" + now.toLocaleDateString() + ")";
+  };
+
+  updateClock();
+  setInterval(updateClock, 1000);
+}
+
 window.verifyAdminPassword = async () => {
-  const passInput = document.getElementById("admin-pass-input").value.trim();
+  const passInputEl = document.getElementById("admin-pass-input");
   const alertBox = document.getElementById("login-security-alert");
+  const submitBtn = document.getElementById("btn-admin-auth");
+  const passInput = passInputEl ? passInputEl.value.trim() : "";
 
-  if (!passInput) { alert("Please input master authorization key."); return; }
+  if (!passInput) {
+    if (alertBox) {
+      alertBox.textContent = "⚠️ Please input master authorization key.";
+      alertBox.style.display = "block";
+    }
+    return;
+  }
 
-  fetch(`${SERVER_URL}/api/admin/authenticate`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ password: passInput })
-  })
-  .then(res => {
+  if (alertBox) alertBox.style.display = "none";
+  if (submitBtn) {
+    submitBtn.disabled = true;
+    submitBtn.textContent = "Authenticating...";
+  }
+
+  try {
+    const res = await fetch(`${SERVER_URL}/api/admin/authenticate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ password: passInput })
+    });
+
     if (res.status === 200) {
       sessionStorage.setItem("nvmso_admin_logged", "true");
-      if (alertBox) alertBox.style.display = "none";
-      triggerGrandWelcome(); 
-      initializeCentralPanelData(); 
+      triggerGrandWelcome();
+      initializeCentralPanelData();
     } else {
-      throw new Error();
+      throw new Error("Master Password Verification Failed");
     }
-  })
-  .catch(() => {
+  } catch (err) {
     if (alertBox) {
       alertBox.textContent = "🚨 Security Alert: Master Password Verification Failed!";
       alertBox.style.display = "block";
     }
-  });
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.textContent = "Authenticate Panel";
+    }
+  }
 };
 
 function triggerGrandWelcome() {
@@ -53,24 +83,33 @@ function triggerGrandWelcome() {
 
   const welcomeScreen = document.getElementById("grand-welcome-screen");
   const mainContainer = document.getElementById("admin-main-container");
-  if (welcomeScreen) welcomeScreen.classList.remove("hidden");
+  if (welcomeScreen) {
+    welcomeScreen.classList.remove("reveal-open");
+    welcomeScreen.classList.remove("hidden");
+  }
 
   let countdown = 3;
   let progressWidth = 0;
   const countdownEl = document.getElementById("welcome-countdown");
   const progressEl = document.getElementById("welcome-progress");
 
+  if (countdownEl) countdownEl.textContent = countdown;
+  if (progressEl) progressEl.style.width = "0%";
+
   const progressInterval = setInterval(() => {
-    progressWidth += 3.33;
-    if (progressEl) progressEl.style.width = `${Math.min(progressWidth, 100)}%`;
+    progressWidth += 3.34;
+    if (progressEl) {
+      progressEl.style.width = `${Math.min(progressWidth, 100)}%`;
+    }
   }, 100);
 
   const countdownInterval = setInterval(() => {
     countdown--;
-    if (countdownEl) countdownEl.textContent = countdown;
+    if (countdownEl) countdownEl.textContent = Math.max(countdown, 0);
     if (countdown <= 0) {
       clearInterval(countdownInterval);
       clearInterval(progressInterval);
+      if (progressEl) progressEl.style.width = "100%";
       if (welcomeScreen) welcomeScreen.classList.add("reveal-open");
       setTimeout(() => {
         if (welcomeScreen) welcomeScreen.classList.add("hidden");
@@ -85,29 +124,38 @@ function initializeCentralPanelData() {
     .then(res => res.json())
     .then(data => {
       if (data.status === "success") {
-        const config = data.config;
-        if (document.getElementById("cfg-online-fee")) document.getElementById("cfg-online-fee").value = config.onlineFee || 100;
-        if (document.getElementById("cfg-offline-fee")) document.getElementById("cfg-offline-fee").value = config.offlineFee || 120;
-        if (document.getElementById("cfg-admin-upi")) document.getElementById("cfg-admin-upi").value = config.adminUpiId || "narmada@upi";
-        
-        if (document.getElementById("cfg-reg-active")) document.getElementById("cfg-reg-active").checked = !!config.isRegistrationOpen;
-        if (document.getElementById("cfg-exam-active")) document.getElementById("cfg-exam-active").checked = !!config.isExamActive;
-        if (document.getElementById("cfg-result-allowed")) document.getElementById("cfg-result-allowed").checked = !!config.isResultDeclared;
-        if (document.getElementById("admin-broadcast-input")) document.getElementById("admin-broadcast-input").value = config.broadcastNotice || "";
+        const config = data.config || {};
+        if (document.getElementById("cfg-online-fee")) {
+          document.getElementById("cfg-online-fee").value = config.onlineFee || 100;
+        }
+        if (document.getElementById("cfg-offline-fee")) {
+          document.getElementById("cfg-offline-fee").value = config.offlineFee || 120;
+        }
+        if (document.getElementById("cfg-reg-active")) {
+          document.getElementById("cfg-reg-active").checked = !!config.isRegistrationOpen;
+        }
+        if (document.getElementById("cfg-exam-active")) {
+          document.getElementById("cfg-exam-active").checked = !!config.isExamActive;
+        }
+        if (document.getElementById("cfg-result-allowed")) {
+          document.getElementById("cfg-result-allowed").checked = !!config.isResultDeclared;
+        }
+        if (document.getElementById("admin-broadcast-input")) {
+          document.getElementById("admin-broadcast-input").value = config.broadcastNotice || "";
+        }
 
         setupSmartSwitchesExclusiveRule();
         fetchAllCentralData();
-        fetchSupportTickets();
 
         // 🔄 AUTO-REFRESH LIVE SYNC (8s poll)
         if (!autoRefreshTimer) {
           autoRefreshTimer = setInterval(() => {
             fetchAllCentralData();
-            fetchSupportTickets();
           }, 8000);
         }
       }
-    });
+    })
+    .catch(() => {});
 }
 
 function setupSmartSwitchesExclusiveRule() {
@@ -115,18 +163,34 @@ function setupSmartSwitchesExclusiveRule() {
   const examChk = document.getElementById("cfg-exam-active");
   const resultChk = document.getElementById("cfg-result-allowed");
 
-  if(regChk && examChk && resultChk) {
-    regChk.addEventListener("change", () => { if(regChk.checked) { examChk.checked = false; resultChk.checked = false; } });
-    examChk.addEventListener("change", () => { if(examChk.checked) { regChk.checked = false; resultChk.checked = false; } });
-    resultChk.addEventListener("change", () => { if(resultChk.checked) { regChk.checked = false; examChk.checked = false; } });
+  if (regChk && examChk && resultChk) {
+    regChk.addEventListener("change", () => {
+      if (regChk.checked) {
+        examChk.checked = false;
+        resultChk.checked = false;
+      }
+    });
+    examChk.addEventListener("change", () => {
+      if (examChk.checked) {
+        regChk.checked = false;
+        resultChk.checked = false;
+      }
+    });
+    resultChk.addEventListener("change", () => {
+      if (resultChk.checked) {
+        regChk.checked = false;
+        examChk.checked = false;
+      }
+    });
   }
 }
 
 window.saveGlobalConfig = async () => {
+  const adminUpiEl = document.getElementById("cfg-admin-upi");
   const payload = {
     onlineFee: Number(document.getElementById("cfg-online-fee").value),
     offlineFee: Number(document.getElementById("cfg-offline-fee").value),
-    adminUpiId: document.getElementById("cfg-admin-upi").value.trim() || "narmada@upi",
+    adminUpiId: adminUpiEl ? (adminUpiEl.value.trim() || "narmada@upi") : "narmada@upi",
     isRegistrationOpen: document.getElementById("cfg-reg-active").checked,
     isExamActive: document.getElementById("cfg-exam-active").checked,
     isResultDeclared: document.getElementById("cfg-result-allowed").checked,
@@ -151,11 +215,11 @@ function fetchAllCentralData() {
     fetch(`${SERVER_URL}/api/admin/all_data`, { method: "POST" }).then(res => res.json()),
     fetch(`${SERVER_URL}/api/admin/financial_requests`).then(res => res.json())
   ]).then(([data1, data2]) => {
-    if (data1.status === "success") {
+    if (data1 && data1.status === "success") {
       allOrganizersCache = data1.organizers || [];
       allStudentsCache = data1.students || [];
     }
-    if (data2.status === "success") {
+    if (data2 && data2.status === "success") {
       pendingSettlementsCache = data2.settlements || [];
       pendingPayoutsCache = data2.payouts || [];
     }
@@ -164,36 +228,50 @@ function fetchAllCentralData() {
     populateSchoolDropdowns();
     loadSchoolRankings();
     loadSchoolStudentLedger();
-  });
+  }).catch(() => {});
 }
 
 function renderMergedOrganizersTable() {
   const tbody = document.getElementById("admin-organizers-rows");
-  if(!tbody) return;
-  tbody.innerHTML = allOrganizersCache.length ? "" : "<tr><td colspan='8' style='text-align:center; color:#64748b; padding:15px;'>No organizers registered yet.</td></tr>";
+  if (!tbody) return;
+  tbody.innerHTML = allOrganizersCache.length
+    ? ""
+    : "<tr><td colspan='8' style='text-align:center; color:#64748b; padding:15px;'>No organizers registered yet.</td></tr>";
 
   allOrganizersCache.forEach(org => {
     const code = org.code || org.orgCode || "";
-    const isSettled = org.manualSettled;
+    const isSettled = !!org.manualSettled;
 
-    const allSchoolStudents = allStudentsCache.filter(s => (s.orgCode || "").toUpperCase() === code.toUpperCase());
-    const verifiedStudents = allSchoolStudents.filter(s => s.paymentStatus === 'Approved' || s.paymentVerified === true);
+    const allSchoolStudents = allStudentsCache.filter(
+      s => (s.orgCode || "").toUpperCase() === code.toUpperCase()
+    );
+    const verifiedStudents = allSchoolStudents.filter(
+      s => s.paymentStatus === "Approved" || s.paymentVerified === true
+    );
 
     const totalReg = verifiedStudents.length || 0;
-    const pendingReviewCount = allSchoolStudents.filter(s => s.paymentStatus && s.paymentStatus.includes("Pending")).length;
+    const pendingReviewCount = allSchoolStudents.filter(
+      s => s.paymentStatus && s.paymentStatus.includes("Pending")
+    ).length;
 
-    const onlineRegs = verifiedStudents.filter(s => (s.paymentMode || 'online').toLowerCase() === 'online').length;
-    const cashRegs = verifiedStudents.filter(s => (s.paymentMode || '').toLowerCase() === 'offline' || (s.paymentMode || '').toLowerCase() === 'cash').length;
+    const onlineRegs = verifiedStudents.filter(
+      s => (s.paymentMode || "online").toLowerCase() === "online"
+    ).length;
+    const cashRegs = verifiedStudents.filter(
+      s =>
+        (s.paymentMode || "").toLowerCase() === "offline" ||
+        (s.paymentMode || "").toLowerCase() === "cash"
+    ).length;
 
-    const examMode = (org.examMode || 'online').toLowerCase();
-    
-    const cashGross = cashRegs * (examMode === 'offline' ? 120 : 100);
+    const examMode = (org.examMode || "online").toLowerCase();
+
+    const cashGross = cashRegs * (examMode === "offline" ? 120 : 100);
     const baseFeeTotal = totalReg * 100;
 
     const directComm = int(baseFeeTotal * 0.15);
     const refCodeStr = org.refCode ? String(org.refCode).trim() : "";
     const hasReferral = refCodeStr.length > 0 && refCodeStr.toUpperCase() !== "NONE";
-    const refComm = hasReferral ? int(baseFeeTotal * 0.05) : 0; 
+    const refComm = hasReferral ? int(baseFeeTotal * 0.05) : 0;
     const totalComm = directComm + refComm;
 
     const netBalance = cashGross - totalComm;
@@ -201,43 +279,50 @@ function renderMergedOrganizersTable() {
 
     const sett = pendingSettlementsCache.find(s => s.orgCode === code);
 
-    let settCell = isSettled ? "<span style='color:#4ade80; font-weight:bold;'>✔️ Settled (₹0 Due)</span>" : "<span style='color:#f87171;'>Pending Settlement</span>";
+    let settCell = isSettled
+      ? "<span style='color:#4ade80; font-weight:bold;'>✔️ Settled (₹0 Due)</span>"
+      : "<span style='color:#f87171;'>Pending Settlement</span>";
+
     if (!isSettled && sett) {
       settCell = `<code style="color:#facc15;">UTR: ${sett.utrNumber}<br>(₹${sett.amount})</code>`;
     }
 
-    let actionCell = isSettled ? "<span style='color:#38bdf8; font-weight:bold;'>Completed</span>" : (sett ? `<button onclick="approveOrganizerSettlement('${code}', '${sett.id}')" style="background:#10b981; color:#fff; border:none; padding:4px 8px; font-size:10px; border-radius:4px; font-weight:bold; cursor:pointer;">Verify UTR</button>` : "Awaiting");
+    let actionCell = isSettled
+      ? "<span style='color:#38bdf8; font-weight:bold;'>Completed</span>"
+      : sett
+      ? `<button type="button" onclick="approveOrganizerSettlement('${code}', '${sett.id}')" style="background:#10b981; color:#fff; border:none; padding:4px 8px; font-size:10px; border-radius:4px; font-weight:bold; cursor:pointer;">Verify UTR</button>`
+      : "Awaiting";
 
-    let chatButton = `<button onclick="openChatSession('TICKET_${code}', '${org.schoolName || code}')" style="background:#7c3aed; color:#fff; border:none; padding:4px 8px; font-size:10px; border-radius:4px; font-weight:bold; cursor:pointer; margin-top:4px;">💬 Chat</button>`;
-    actionCell += `<br>${chatButton}`;
-
-    let pendingBadge = pendingReviewCount > 0 ? `<br><span style="font-size:9px; color:#f59e0b; font-weight:bold;">(${pendingReviewCount} Pending)</span>` : "";
+    const pendingBadge =
+      pendingReviewCount > 0
+        ? `<br><span style="font-size:9px; color:#f59e0b; font-weight:bold;">(${pendingReviewCount} Pending)</span>`
+        : "";
 
     // 📲 UPI Deep-Link Pay URLs for Direct & Referral Commissions
-    const orgUpi = org.upiId || 'narmada@upi';
-    const directUpiLink = `upi://pay?pa=${encodeURIComponent(orgUpi)}&pn=${encodeURIComponent(org.schoolName || 'Organizer')}&am=${directComm}&cu=INR`;
-    const refUpiLink = `upi://pay?pa=${encodeURIComponent(orgUpi)}&pn=${encodeURIComponent(org.schoolName || 'Organizer')}&am=${refComm}&cu=INR`;
+    const orgUpi = org.upiId || "narmada@upi";
+    const directUpiLink = `upi://pay?pa=${encodeURIComponent(orgUpi)}&pn=${encodeURIComponent(org.schoolName || "Organizer")}&am=${directComm}&cu=INR`;
+    const refUpiLink = `upi://pay?pa=${encodeURIComponent(orgUpi)}&pn=${encodeURIComponent(org.schoolName || "Organizer")}&am=${refComm}&cu=INR`;
 
     let directCommHtml = `₹${directComm}`;
     if (directComm > 0 && !isSettled) {
-      directCommHtml += `<br><a href="${directUpiLink}" style="background:#10b981; color:#fff; padding:2px 6px; font-size:9px; border-radius:3px; text-decoration:none; display:inline-block; margin-top:2px;">📲 Pay UPI</a>`;
+      directCommHtml += `<br><a href="${directUpiLink}" style="background:#10b981; color:#fff; padding:2px 6px; font-size:9px; border-radius:3px; text-decoration:none; display:inline-block; margin-top:3px;">📲 Pay UPI</a>`;
     }
 
     let refCommHtml = `₹${refComm}`;
     if (refComm > 0 && !isSettled) {
-      refCommHtml += `<br><a href="${refUpiLink}" style="background:#f59e0b; color:#fff; padding:2px 6px; font-size:9px; border-radius:3px; text-decoration:none; display:inline-block; margin-top:2px;">📲 Pay UPI</a>`;
+      refCommHtml += `<br><a href="${refUpiLink}" style="background:#f59e0b; color:#fff; padding:2px 6px; font-size:9px; border-radius:3px; text-decoration:none; display:inline-block; margin-top:3px;">📲 Pay UPI</a>`;
     }
 
     tbody.innerHTML += `
       <tr style="border-bottom:1px solid #1e293b;">
         <td style="padding:10px;">
           <code style="color:#38bdf8; font-weight:bold; font-size:13px;">${code}</code><br>
-          <span style="font-size:12px; color:#cbd5e1; font-weight:600;">${org.schoolName || 'School'}</span><br>
-          <span style="background:#1e293b; padding:1px 6px; border-radius:4px; font-size:10px; font-weight:bold; color:${examMode=='offline'?'#fbbf24':'#38bdf8'}">${examMode.toUpperCase()}</span>
+          <span style="font-size:12px; color:#cbd5e1; font-weight:600;">${org.schoolName || "School"}</span><br>
+          <span style="background:#1e293b; padding:1px 6px; border-radius:4px; font-size:10px; font-weight:bold; color:${examMode === "offline" ? "#fbbf24" : "#38bdf8"}">${examMode.toUpperCase()}</span>
         </td>
         <td style="padding:10px;">
-          <strong>${org.name || org.coordinatorName || 'N/A'}</strong><br>
-          <span style="font-size:11px; color:#94a3b8;">${org.contact || ''}</span>
+          <strong>${org.name || org.coordinatorName || "N/A"}</strong><br>
+          <span style="font-size:11px; color:#94a3b8;">${org.contact || ""}</span>
         </td>
         <td style="padding:10px; color:#4ade80; font-weight:bold; text-align:center;">
           ${totalReg} ${pendingBadge}<br><span style="font-size:10px; color:#94a3b8;">(${onlineRegs} On / ${cashRegs} Cash)</span>
@@ -245,7 +330,7 @@ function renderMergedOrganizersTable() {
         <td style="padding:10px; color:#facc15; font-weight:bold;">${directCommHtml}</td>
         <td style="padding:10px; color:#c084fc; font-weight:bold;">${refCommHtml}</td>
         <td style="padding:10px;">
-          <strong style="color:${netCashToPortal > 0 ? '#f87171' : '#4ade80'}; font-size:14px;">₹${netCashToPortal}</strong><br>
+          <strong style="color:${netCashToPortal > 0 ? "#f87171" : "#4ade80"}; font-size:14px;">₹${netCashToPortal}</strong><br>
           <span style="font-size:10px; color:#94a3b8;">Cash Held: ₹${cashGross}</span>
         </td>
         <td style="padding:10px;">${settCell}</td>
@@ -255,138 +340,70 @@ function renderMergedOrganizersTable() {
   });
 }
 
-function int(val) { return Math.floor(val); }
-
-function fetchSupportTickets() {
-  fetch(`${SERVER_URL}/api/admin/queries`)
-    .then(res => res.json())
-    .then(data => {
-      const listContainer = document.getElementById("support-tickets-list");
-      if (!listContainer) return;
-      
-      if (data.status === "success" && data.queries && data.queries.length > 0) {
-        listContainer.innerHTML = "";
-        data.queries.forEach(q => {
-          listContainer.innerHTML += `
-            <div onclick="openChatSession('${q.ticketId}', '${q.senderName || q.orgCode}')" style="padding: 8px; margin-bottom: 6px; background: #0f172a; border: 1px solid #334155; border-radius: 6px; cursor: pointer;">
-              <p style="font-weight: bold; color: #38bdf8; font-size: 11px;">${q.senderName || q.orgCode}</p>
-              <p style="color: #cbd5e1; font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${q.lastMessage || 'New Query'}</p>
-            </div>
-          `;
-        });
-      } else {
-        listContainer.innerHTML = `<p style="font-size: 11px; color: #64748b; text-align: center; margin-top: 20px;">No pending support queries.</p>`;
-      }
-    }).catch(() => {});
+function int(val) {
+  return Math.floor(val);
 }
-
-window.openChatSession = function(ticketId, senderName) {
-  activeTicketId = ticketId;
-  activeTicketSender = senderName;
-  
-  const chatBox = document.getElementById("active-chat-box");
-  const chatInput = document.getElementById("admin-chat-input");
-  const sendBtn = document.getElementById("btn-send-reply");
-
-  if(chatInput) chatInput.disabled = false;
-  if(sendBtn) sendBtn.disabled = false;
-
-  chatBox.innerHTML = `<p style="color: #4ade80; font-size: 11px; text-align: center; margin-bottom: 10px;">-- Connected with ${senderName} --</p>`;
-  
-  fetch(`${SERVER_URL}/api/admin/query_messages?ticketId=${ticketId}`)
-    .then(res => res.json())
-    .then(data => {
-      if (data.status === "success" && data.messages) {
-        chatBox.innerHTML = "";
-        data.messages.forEach(m => {
-          let align = m.isAdmin ? "right" : "left";
-          let bg = m.isAdmin ? "#0369a1" : "#1e293b";
-          let imageHtml = m.imageUrl ? `<br><a href="${m.imageUrl}" target="_blank"><img src="${m.imageUrl}" style="max-width: 140px; max-height: 140px; border-radius: 4px; margin-top: 5px; border: 1px solid #38bdf8;" /></a>` : "";
-
-          chatBox.innerHTML += `
-            <div style="text-align: ${align}; margin-bottom: 8px;">
-              <span style="display: inline-block; background: ${bg}; padding: 6px 10px; border-radius: 6px; max-width: 80%; text-align: left; color: #fff; font-size: 11px;">
-                ${m.text}${imageHtml}
-              </span>
-            </div>
-          `;
-        });
-        chatBox.scrollTop = chatBox.scrollHeight;
-      }
-    }).catch(() => {});
-};
-
-window.sendAdminReply = function() {
-  const chatInput = document.getElementById("admin-chat-input");
-  const chatBox = document.getElementById("active-chat-box");
-  const msgText = chatInput ? chatInput.value.trim() : "";
-
-  if (!msgText || !activeTicketId) return;
-
-  chatBox.innerHTML += `
-    <div style="text-align: right; margin-bottom: 8px;">
-      <span style="display: inline-block; background: #0369a1; padding: 6px 10px; border-radius: 6px; max-width: 80%; text-align: left; color: #fff; font-size: 11px;">${msgText}</span>
-    </div>
-  `;
-  chatBox.scrollTop = chatBox.scrollHeight;
-  chatInput.value = "";
-
-  fetch(`${SERVER_URL}/api/admin/reply_query`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ ticketId: activeTicketId, message: msgText })
-  }).then(res => res.json());
-};
 
 function populateSchoolDropdowns() {
   const rankSelect = document.getElementById("ranking-school-select");
   const ledgerSelect = document.getElementById("ledger-school-select");
-  
+
   let optionsHtml = '<option value="ALL">-- All Schools Combined --</option>';
   allOrganizersCache.forEach(org => {
     const code = org.code || org.orgCode;
     optionsHtml += `<option value="${code}">${code} - ${org.schoolName}</option>`;
   });
 
-  if(rankSelect) rankSelect.innerHTML = optionsHtml;
-  if(ledgerSelect) ledgerSelect.innerHTML = optionsHtml;
+  if (rankSelect) rankSelect.innerHTML = optionsHtml;
+  if (ledgerSelect) ledgerSelect.innerHTML = optionsHtml;
 }
 
 window.loadSchoolRankings = function() {
-  const selectedOrg = document.getElementById("ranking-school-select").value;
+  const selectedOrg = document.getElementById("ranking-school-select")?.value || "ALL";
   const gridContainer = document.getElementById("school-rankings-grid");
-  if(!gridContainer) return;
+  if (!gridContainer) return;
 
   let studentsToRank = allStudentsCache;
   if (selectedOrg !== "ALL") {
-    studentsToRank = allStudentsCache.filter(s => (s.orgCode || "").toUpperCase() === selectedOrg.toUpperCase());
+    studentsToRank = allStudentsCache.filter(
+      s => (s.orgCode || "").toUpperCase() === selectedOrg.toUpperCase()
+    );
   }
 
-  let schoolMap = {};
+  const schoolMap = {};
   studentsToRank.forEach(s => {
-    let code = (s.orgCode || "UNKNOWN").toUpperCase();
+    const code = (s.orgCode || "UNKNOWN").toUpperCase();
     if (!schoolMap[code]) schoolMap[code] = [];
     schoolMap[code].push(s);
   });
 
-  gridContainer.innerHTML = Object.keys(schoolMap).length ? "" : "<div style='grid-column: 1 / -1; text-align: center; color: #64748b; padding: 20px;'>No ranked students found for this selection.</div>";
+  gridContainer.innerHTML = Object.keys(schoolMap).length
+    ? ""
+    : "<div style='grid-column: 1 / -1; text-align: center; color: #64748b; padding: 20px;'>No ranked students found for this selection.</div>";
 
   Object.keys(schoolMap).forEach(code => {
-    let students = schoolMap[code];
-    let orgInfo = allOrganizersCache.find(o => (o.code || o.orgCode || "").toUpperCase() === code) || {};
-    let schoolName = orgInfo.schoolName || `School Code: ${code}`;
+    const students = schoolMap[code];
+    const orgInfo =
+      allOrganizersCache.find(o => (o.code || o.orgCode || "").toUpperCase() === code) || {};
+    const schoolName = orgInfo.schoolName || `School Code: ${code}`;
 
     students.sort((a, b) => (parseFloat(b.score) || 0) - (parseFloat(a.score) || 0));
 
-    let classes = students.map(s => parseInt(s.studentClass, 10)).filter(c => !isNaN(c));
-    let minClass = classes.length > 0 ? Math.min(...classes) : 3;
-    let maxClass = classes.length > 0 ? Math.max(...classes) : 12;
-    let midClass = Math.floor((minClass + maxClass) / 2);
+    const classes = students.map(s => parseInt(s.studentClass, 10)).filter(c => !isNaN(c));
+    const minClass = classes.length > 0 ? Math.min(...classes) : 3;
+    const maxClass = classes.length > 0 ? Math.max(...classes) : 12;
+    const midClass = Math.floor((minClass + maxClass) / 2);
 
-    let group1 = students.filter(s => { let c = parseInt(s.studentClass, 10); return c >= minClass && c <= midClass; });
-    let group2 = students.filter(s => { let c = parseInt(s.studentClass, 10); return c > midClass && c <= maxClass; });
+    const group1 = students.filter(s => {
+      const c = parseInt(s.studentClass, 10);
+      return c >= minClass && c <= midClass;
+    });
+    const group2 = students.filter(s => {
+      const c = parseInt(s.studentClass, 10);
+      return c > midClass && c <= maxClass;
+    });
 
-    const getRewardBadge = (index) => {
+    const getRewardBadge = index => {
       const rank = index + 1;
       if (rank === 1) return `<br><span style="color:#facc15; font-size:9px; font-weight:bold;">🥇 Gold Medal + Physical Cert</span>`;
       if (rank === 2) return `<br><span style="color:#e2e8f0; font-size:9px; font-weight:bold;">🥈 Silver Medal + Physical Cert</span>`;
@@ -395,8 +412,9 @@ window.loadSchoolRankings = function() {
       return `<br><span style="color:#94a3b8; font-size:9px; font-weight:bold;">📱 Digital Certificate</span>`;
     };
 
-    let card = document.createElement("div");
-    card.style.cssText = "background: rgba(2, 6, 23, 0.9); border: 1px solid #334155; border-radius: 10px; padding: 15px;";
+    const card = document.createElement("div");
+    card.style.cssText =
+      "background: rgba(2, 6, 23, 0.9); border: 1px solid #334155; border-radius: 10px; padding: 15px;";
 
     card.innerHTML = `
       <div style="border-bottom: 1px solid #334155; padding-bottom: 8px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center;">
@@ -410,14 +428,19 @@ window.loadSchoolRankings = function() {
           </div>
           <table style="width: 100%; font-size: 11px; text-align: left; border-collapse: collapse;">
             <tbody>
-              ${group1.length === 0 ? `<tr><td colspan="3" style="text-align:center; color:#64748b; padding:8px;">No records</td></tr>` : 
-                group1.map((s, idx) => `
+              ${group1.length === 0
+                ? `<tr><td colspan="3" style="text-align:center; color:#64748b; padding:8px;">No records</td></tr>`
+                : group1
+                    .map(
+                      (s, idx) => `
                   <tr style="border-bottom: 1px solid #0f172a;">
-                    <td style="padding:4px 3px; color:#facc15; font-weight:bold; vertical-align:top;">#${idx+1}</td>
+                    <td style="padding:4px 3px; color:#facc15; font-weight:bold; vertical-align:top;">#${idx + 1}</td>
                     <td style="padding:4px 3px; color:#fff; vertical-align:top;">${s.studentName} <span style="color:#94a3b8;">(${s.studentClass})</span>${getRewardBadge(idx)}</td>
                     <td style="padding:4px 3px; text-align:right; color:#38bdf8; font-weight:bold; vertical-align:top;">${s.score || 0}</td>
                   </tr>
-                `).join('')}
+                `
+                    )
+                    .join("")}
             </tbody>
           </table>
         </div>
@@ -427,14 +450,19 @@ window.loadSchoolRankings = function() {
           </div>
           <table style="width: 100%; font-size: 11px; text-align: left; border-collapse: collapse;">
             <tbody>
-              ${group2.length === 0 ? `<tr><td colspan="3" style="text-align:center; color:#64748b; padding:8px;">No records</td></tr>` : 
-                group2.map((s, idx) => `
+              ${group2.length === 0
+                ? `<tr><td colspan="3" style="text-align:center; color:#64748b; padding:8px;">No records</td></tr>`
+                : group2
+                    .map(
+                      (s, idx) => `
                   <tr style="border-bottom: 1px solid #0f172a;">
-                    <td style="padding:4px 3px; color:#facc15; font-weight:bold; vertical-align:top;">#${idx+1}</td>
+                    <td style="padding:4px 3px; color:#facc15; font-weight:bold; vertical-align:top;">#${idx + 1}</td>
                     <td style="padding:4px 3px; color:#fff; vertical-align:top;">${s.studentName} <span style="color:#94a3b8;">(${s.studentClass})</span>${getRewardBadge(idx)}</td>
                     <td style="padding:4px 3px; text-align:right; color:#38bdf8; font-weight:bold; vertical-align:top;">${s.score || 0}</td>
                   </tr>
-                `).join('')}
+                `
+                    )
+                    .join("")}
             </tbody>
           </table>
         </div>
@@ -445,39 +473,48 @@ window.loadSchoolRankings = function() {
 };
 
 window.loadSchoolStudentLedger = function() {
-  const selectedOrg = document.getElementById("ledger-school-select").value;
+  const selectedOrg = document.getElementById("ledger-school-select")?.value || "ALL";
   const tbody = document.getElementById("ledger-student-rows");
-  if(!tbody) return;
+  if (!tbody) return;
 
   let students = allStudentsCache;
   if (selectedOrg !== "ALL") {
-    students = allStudentsCache.filter(s => (s.orgCode || "").toUpperCase() === selectedOrg.toUpperCase());
+    students = allStudentsCache.filter(
+      s => (s.orgCode || "").toUpperCase() === selectedOrg.toUpperCase()
+    );
   }
 
-  tbody.innerHTML = students.length ? "" : "<tr><td colspan='5' style='text-align:center; color:#64748b;'>No students registered under this selection.</td></tr>";
+  tbody.innerHTML = students.length
+    ? ""
+    : "<tr><td colspan='5' style='text-align:center; color:#64748b;'>No students registered under this selection.</td></tr>";
 
   students.forEach(s => {
-    const isApproved = s.paymentStatus === "Approved" || s.paymentStatus === "Cash Handover" || s.paymentVerified === true;
+    const isApproved =
+      s.paymentStatus === "Approved" ||
+      s.paymentStatus === "Cash Handover" ||
+      s.paymentVerified === true;
     const isRejected = s.paymentStatus === "Rejected";
-    const payMode = (s.paymentMode || 'online').toUpperCase();
-    
-    let utrInfo = s.utrNumber ? `<br><code style="color:#facc15; font-size:11px;">UTR: ${s.utrNumber}</code>` : "<br><span style='color:#f87171; font-size:10px;'>No UTR Provided</span>";
+    const payMode = (s.paymentMode || "online").toUpperCase();
+
+    let utrInfo = s.utrNumber
+      ? `<br><code style="color:#facc15; font-size:11px;">UTR: ${s.utrNumber}</code>`
+      : "<br><span style='color:#f87171; font-size:10px;'>No UTR Provided</span>";
     if (isRejected && s.rejectionReason) {
       utrInfo += `<br><span style="color:#f87171; font-size:11px; font-weight:bold;">Reason: ${s.rejectionReason}</span>`;
     }
 
-    let statusColor = '#f59e0b';
-    if (isApproved) statusColor = '#4ade80';
-    if (isRejected) statusColor = '#f87171';
+    let statusColor = "#f59e0b";
+    if (isApproved) statusColor = "#4ade80";
+    if (isRejected) statusColor = "#f87171";
 
-    let paymentBadge = `<span style="color:${statusColor}; font-weight:bold;">${s.paymentStatus || 'Pending Verification'} (${payMode})</span>${utrInfo}`;
+    const paymentBadge = `<span style="color:${statusColor}; font-weight:bold;">${s.paymentStatus || "Pending Verification"} (${payMode})</span>${utrInfo}`;
 
-    let actionButtons = `<button onclick="openManualScoreModal('${s.id}', '${s.studentName}', '${s.studentClass}')" style="background:#f59e0b; color:#fff; border:none; padding:4px 8px; font-size:10px; border-radius:4px; font-weight:bold; cursor:pointer; margin-right:4px;">✍️ Manual Score</button>`;
-    actionButtons += `<button onclick="triggerReExam('${s.id}')" style="background:#7c3aed; color:#fff; border:none; padding:4px 8px; font-size:10px; border-radius:4px; font-weight:bold; cursor:pointer; margin-right:4px;">🔄 Re-Exam</button>`;
+    let actionButtons = `<button type="button" onclick="openManualScoreModal('${s.id}', '${s.studentName}', '${s.studentClass}')" style="background:#f59e0b; color:#fff; border:none; padding:4px 8px; font-size:10px; border-radius:4px; font-weight:bold; cursor:pointer; margin-right:4px;">✍️ Manual Score</button>`;
+    actionButtons += `<button type="button" onclick="triggerReExam('${s.id}')" style="background:#7c3aed; color:#fff; border:none; padding:4px 8px; font-size:10px; border-radius:4px; font-weight:bold; cursor:pointer; margin-right:4px;">🔄 Re-Exam</button>`;
 
-    if (s.paymentMode === 'online' && !isApproved && !isRejected) {
-      actionButtons += `<button onclick="approveOnlinePayment('${s.id}')" style="background:#10b981; color:#fff; border:none; padding:4px 6px; font-size:10px; border-radius:4px; font-weight:bold; cursor:pointer; margin-right:4px;">✔️ Approve</button>`;
-      actionButtons += `<button onclick="rejectOnlinePayment('${s.id}')" style="background:#dc2626; color:#fff; border:none; padding:4px 6px; font-size:10px; border-radius:4px; font-weight:bold; cursor:pointer;">❌ Reject</button>`;
+    if (s.paymentMode === "online" && !isApproved && !isRejected) {
+      actionButtons += `<button type="button" onclick="approveOnlinePayment('${s.id}')" style="background:#10b981; color:#fff; border:none; padding:4px 6px; font-size:10px; border-radius:4px; font-weight:bold; cursor:pointer; margin-right:4px;">✔️ Approve</button>`;
+      actionButtons += `<button type="button" onclick="rejectOnlinePayment('${s.id}')" style="background:#dc2626; color:#fff; border:none; padding:4px 6px; font-size:10px; border-radius:4px; font-weight:bold; cursor:pointer;">❌ Reject</button>`;
     }
 
     tbody.innerHTML += `
@@ -500,14 +537,18 @@ window.openManualScoreModal = function(studentId, name, studentClass) {
   document.getElementById("manual-score-modal").classList.remove("hidden");
 };
 
-window.closeManualScoreModal = () => document.getElementById("manual-score-modal").classList.add("hidden");
+window.closeManualScoreModal = () =>
+  document.getElementById("manual-score-modal").classList.add("hidden");
 
 window.saveManualScore = function() {
   const studentId = document.getElementById("modal-student-id").value;
   const score = parseFloat(document.getElementById("modal-score").value);
   const total = parseFloat(document.getElementById("modal-total").value) || 30;
-  
-  if (isNaN(score)) { alert("⚠️ Please enter a valid score."); return; }
+
+  if (isNaN(score)) {
+    alert("⚠️ Please enter a valid score.");
+    return;
+  }
 
   fetch(`${SERVER_URL}/api/admin/manual_score_entry`, {
     method: "POST",
@@ -518,16 +559,16 @@ window.saveManualScore = function() {
   .then(data => {
     if (data.status === "success") {
       alert("✅ Offline student score saved successfully via Central Panel!");
-      closeManualScoreModal(); 
+      closeManualScoreModal();
       fetchAllCentralData();
-    } else { 
-      alert("❌ Error: " + data.message); 
+    } else {
+      alert("❌ Error: " + data.message);
     }
   });
 };
 
 window.approveOnlinePayment = function(studentId) {
-  if (!confirm(`Are you sure you want to approve this online payment UTR?`)) return;
+  if (!confirm("Are you sure you want to approve this online payment UTR?")) return;
 
   fetch(`${SERVER_URL}/api/admin/approve_payment`, {
     method: "POST",
@@ -544,7 +585,10 @@ window.approveOnlinePayment = function(studentId) {
 };
 
 window.rejectOnlinePayment = function(studentId) {
-  let reason = prompt("Enter reason for rejecting this UTR (e.g., Fake UTR / Payment not received):", "Fake or Invalid UTR Number");
+  const reason = prompt(
+    "Enter reason for rejecting this UTR (e.g., Fake UTR / Payment not received):",
+    "Fake or Invalid UTR Number"
+  );
   if (!reason) return;
 
   fetch(`${SERVER_URL}/api/admin/reject_payment`, {
@@ -562,31 +606,35 @@ window.rejectOnlinePayment = function(studentId) {
 };
 
 window.triggerReExam = function(studentId) {
-  if(!confirm("Reset this student's exam status to allow Re-Exam?")) return;
+  if (!confirm("Reset this student's exam status to allow Re-Exam?")) return;
   fetch(`${SERVER_URL}/api/admin/reexam`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ studentId: studentId })
-  }).then(res => res.json()).then(d => {
-    if(d.status === "success") alert("✅ Re-Exam triggered successfully!");
+  })
+  .then(res => res.json())
+  .then(d => {
+    if (d.status === "success") alert("✅ Re-Exam triggered successfully!");
   });
 };
 
 window.approveOrganizerSettlement = function(orgCode, reqId) {
-  if(!confirm(`Confirm settlement approval for ${orgCode}? This will reset their Net Payable balance to ₹0.`)) return;
+  if (!confirm(`Confirm settlement approval for ${orgCode}? This will reset their Net Payable balance to ₹0.`)) return;
   fetch(`${SERVER_URL}/api/admin/approve_settlement`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ orgCode: orgCode, requestId: reqId })
-  }).then(res => res.json()).then(d => {
-    if(d.status === "success") {
+  })
+  .then(res => res.json())
+  .then(d => {
+    if (d.status === "success") {
       alert("✅ Settlement Verified & Account Reset to ₹0 Payable!");
       fetchAllCentralData();
     }
   });
 };
 
-window.logoutAdminSession = () => { 
-  sessionStorage.removeItem("nvmso_admin_logged"); 
-  location.reload(); 
+window.logoutAdminSession = () => {
+  sessionStorage.removeItem("nvmso_admin_logged");
+  location.reload();
 };
