@@ -560,13 +560,22 @@ window.loadSchoolStudentLedger = function() {
     : "<tr><td colspan='5' style='text-align:center; color:#64748b;'>No students registered under this selection.</td></tr>";
 
   students.forEach(s => {
+    const orgCodeUpper = (s.orgCode || "").toUpperCase();
+    const orgObj =
+      allOrganizersCache.find(o => (o.code || o.orgCode || "").toUpperCase() === orgCodeUpper) || {};
+
+    // Manual score option appears only when the coordinator's exam mode is OFFLINE
+    const orgExamMode = String(orgObj.examMode || s.examMode || "online")
+      .trim()
+      .toLowerCase();
+    const isOfflineExam = orgExamMode === "offline";
+
     const isApproved =
       s.paymentStatus === "Approved" ||
       s.paymentStatus === "Cash Handover" ||
       s.paymentVerified === true;
     const isRejected = s.paymentStatus === "Rejected";
     const payMode = (s.paymentMode || "online").toUpperCase();
-    const isOffline = payMode === "OFFLINE" || payMode === "CASH";
 
     const maxQ = getConfiguredTotalQuestions(s);
     const scoreVal = parseFloat(s.score) || 0;
@@ -591,7 +600,7 @@ window.loadSchoolStudentLedger = function() {
     const paymentBadge = `<span style="color:${statusColor}; font-weight:bold;">${s.paymentStatus || "Pending Verification"} (${payMode})</span>${utrInfo}`;
 
     let actionButtons = "";
-    if (isOffline) {
+    if (isOfflineExam) {
       actionButtons += `<button type="button" onclick="openManualScoreModal('${s.id}', '${s.studentName}', '${s.studentClass}', ${maxQ})" style="background:#f59e0b; color:#fff; border:none; padding:4px 8px; font-size:10px; border-radius:4px; font-weight:bold; cursor:pointer; margin-right:4px;">✍️ Manual Score</button>`;
     } else {
       actionButtons += `<span style="color:#38bdf8; font-size:10px; font-weight:bold; margin-right:6px;">⚡ Auto Score</span>`;
