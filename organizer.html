@@ -2,9 +2,9 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=1280, initial-scale=1.0, maximum-scale=2.0, user-scalable=yes">
   <title>NVMSO - School Coordinator Panel</title>
-  <link rel="stylesheet" href="organizer.css?v=35">
+  <link rel="stylesheet" href="organizer.css?v=37">
   <style>
     .nvms-logo-title span:nth-child(1) { color: #38bdf8; }
     .nvms-logo-title span:nth-child(2) { color: #4ade80; }
@@ -12,11 +12,16 @@
     .nvms-logo-title span:nth-child(4) { color: #f87171; }
     .nvms-logo-title span:nth-child(5) { color: #c084fc; }
     .hidden { display: none !important; }
+    html, body {
+      min-width: 1180px;
+      width: 100%;
+      overflow-x: auto;
+    }
   </style>
 </head>
 <body style="background:#0b0f19; padding:15px; color:#fff;">
 
-<div id="org-main-container" class="container" style="max-width: 1100px; margin: 0 auto;">
+<div id="org-main-container" class="container" style="width: 100%; max-width: 1240px; margin: 0 auto;">
   
   <div style="text-align: center; border-bottom: 1px solid #374151; padding-bottom: 15px; margin-bottom: 20px;">
     <h1 class="nvms-logo-title" style="margin: 0; font-size: 26px; font-weight: 900; letter-spacing: 2px;">
@@ -28,22 +33,56 @@
   <!-- AUTH SECTION -->
   <div id="org-auth-section" class="login-card" style="max-width:450px; margin: 30px auto 0 auto; background:#0f172a; padding:25px; border-radius:12px; border:1px solid #334155;">
     
+    <!-- LOGIN BOX -->
     <div id="org-login-box">
       <h3 style="color:#38bdf8; text-align:center; margin-bottom:15px;">🔑 Coordinator Security Login</h3>
-      <div style="margin-bottom:14px;">
-        <label>Enter Registered Organizer Code:</label>
-        <input type="text" id="org-code-input" placeholder="e.g. NVMS301">
-      </div>
-      <div style="margin-bottom:16px;">
-        <label>Enter Dashboard Password:</label>
-        <input type="password" id="org-pass-input" placeholder="Password">
-      </div>
-      <button onclick="verifyOrgLogin()" class="btn-primary" style="background:#38bdf8; color:#020617; cursor:pointer;">Authenticate Dashboard</button>
+      <form onsubmit="event.preventDefault(); verifyOrgLogin();">
+        <div style="margin-bottom:14px;">
+          <label>Enter Registered Organizer Code:</label>
+          <input type="text" id="org-code-input" placeholder="e.g. NVMS301" required>
+        </div>
+        <div style="margin-bottom:10px;">
+          <label>Enter Dashboard Password:</label>
+          <input type="password" id="org-pass-input" placeholder="Password" required>
+        </div>
+        <div style="text-align:right; margin-bottom:16px;">
+          <a href="#" style="color:#facc15; font-size:12px; font-weight:600; text-decoration:none;" onclick="event.preventDefault(); switchOrgTab('forgot');">🔒 Forgot Password?</a>
+        </div>
+        <button type="submit" class="btn-primary" style="background:#38bdf8; color:#020617; width:100%; cursor:pointer;">Authenticate Dashboard</button>
+      </form>
       <p style="margin-top:16px; text-align:center; font-size:13px; color:#94a3b8;">
-        New Coordinator School? <a href="#" style="color:#38bdf8; font-weight:bold; text-decoration:none;" onclick="switchOrgTab('reg')">Create Profile Account</a>
+        New Coordinator School? <a href="#" style="color:#38bdf8; font-weight:bold; text-decoration:none;" onclick="event.preventDefault(); switchOrgTab('reg');">Create Profile Account</a>
       </p>
     </div>
 
+    <!-- FORGOT PASSWORD BOX -->
+    <div id="org-forgot-box" class="hidden">
+      <h3 style="color:#facc15; text-align:center; margin-bottom:15px;">🔓 Recover Password via PIN & Mobile</h3>
+      <form onsubmit="event.preventDefault(); handleForgotPassword();">
+        <div style="margin-bottom:10px;">
+          <label>Organizer Code:</label>
+          <input type="text" id="forgot-org-code" placeholder="e.g. NVMS301" required>
+        </div>
+        <div style="margin-bottom:10px;">
+          <label>Registered Mobile Number:</label>
+          <input type="tel" id="forgot-mobile" maxlength="10" placeholder="10-digit mobile number" required>
+        </div>
+        <div style="margin-bottom:12px;">
+          <label>6-Digit Security PIN:</label>
+          <input type="password" id="forgot-pin" maxlength="6" placeholder="6-digit PIN" required>
+        </div>
+        <div style="margin-bottom:14px;">
+          <label>New Password (Optional - leave blank to view/reset):</label>
+          <input type="password" id="forgot-new-pass" placeholder="Enter new password">
+        </div>
+        <button type="submit" class="btn-primary" style="background:#facc15; color:#020617; width:100%; cursor:pointer;">Verify & Recover Password</button>
+      </form>
+      <p style="margin-top:14px; text-align:center; font-size:13px;">
+        <a href="#" style="color:#94a3b8; text-decoration:none;" onclick="event.preventDefault(); switchOrgTab('login');">⬅ Back to Login</a>
+      </p>
+    </div>
+
+    <!-- REGISTER BOX -->
     <div id="org-reg-box" class="hidden">
       <h3 style="color:#4ade80; text-align:center; margin-bottom:15px;">📝 Create Associated Desk Account</h3>
       <form id="org-reg-form" onsubmit="event.preventDefault(); handleOrganizerRegister();">
@@ -52,19 +91,20 @@
         <div style="margin-bottom:10px;"><label>WhatsApp Contact Number:</label><input type="tel" id="new-org-contact" maxlength="10" required></div>
         <div style="margin-bottom:10px;"><label>Create Secure Password:</label><input type="password" id="new-org-pass" required></div>
         <div style="margin-bottom:10px;"><label>Secret Security PIN (Strictly 6-Digits):</label><input type="password" id="new-org-pin" maxlength="6" placeholder="e.g. 123456" required></div>
+        <div style="margin-bottom:10px;"><label>UPI ID for Commission Payouts (Optional):</label><input type="text" id="new-org-upi" placeholder="e.g. name@upi"></div>
         <div style="margin-bottom:10px;"><label>Referral Code (Optional):</label><input type="text" id="new-org-ref"></div>
         
-        <!-- Terms & Conditions Checkbox -->
+        <!-- Terms & Conditions Checkbox + Link -->
         <div style="display: flex; align-items: flex-start; gap: 10px; margin: 12px 0; background: #020617; padding: 10px; border-radius: 6px; border: 1px solid #334155;">
           <input type="checkbox" id="org-terms-check" style="width: 20px; height: 20px; cursor: pointer; margin-top: 2px;" required>
           <label for="org-terms-check" style="font-size: 12px; color: #cbd5e1; cursor: pointer; line-height: 1.5; margin-bottom: 0;">
-            I agree to the NVMSO 2026 Terms & Conditions, examination guidelines, financial commission structure, and data security policies.
+            I agree to the <a href="terms.html" target="_blank" style="color:#38bdf8; text-decoration:underline; font-weight:700;">NVMSO 2026 Terms & Conditions</a>, examination guidelines, financial commission structure, and data security policies.
           </label>
         </div>
 
-        <button type="submit" class="btn-primary" style="background:#10b981; color:#fff; cursor:pointer;">Register Dashboard Account</button>
+        <button type="submit" class="btn-primary" style="background:#10b981; color:#fff; width:100%; cursor:pointer;">Register Dashboard Account</button>
       </form>
-      <p style="margin-top:14px; text-align:center; font-size:13px;"><a href="#" style="color:#94a3b8; text-decoration:none;" onclick="switchOrgTab('login')">⬅ Back to Login</a></p>
+      <p style="margin-top:14px; text-align:center; font-size:13px;"><a href="#" style="color:#94a3b8; text-decoration:none;" onclick="event.preventDefault(); switchOrgTab('login');">⬅ Back to Login</a></p>
     </div>
 
   </div>
@@ -73,8 +113,11 @@
   <div id="org-view" class="hidden" style="margin-top:20px;">
     
     <div class="card-box" style="display: flex; justify-content: space-between; align-items: center; background: #0f172a; padding: 12px 20px; border-radius: 10px; margin-bottom: 15px; border: 1px solid #334155;">
-      <span style="font-size: 13px; color: #4ade80; font-weight: bold;">🟢 Panel Active & Auto-Synced</span>
-      <button onclick="logoutOrganizerSession()" style="background: #dc2626; color: #fff; padding: 8px 14px; font-size: 12px; border-radius: 6px; border:none; cursor:pointer;">🔴 Logout</button>
+      <span style="font-size: 13px; color: #4ade80; font-weight: bold;">🟢 Panel Active & Auto-Synced (Full Landscape Mode)</span>
+      <div style="display:flex; gap:10px; align-items:center;">
+        <a href="terms.html" target="_blank" style="color:#38bdf8; font-size:12px; text-decoration:none; font-weight:700;">📜 Terms & Conditions</a>
+        <button onclick="logoutOrganizerSession()" style="background: #dc2626; color: #fff; padding: 8px 14px; font-size: 12px; border-radius: 6px; border:none; cursor:pointer;">🔴 Logout</button>
+      </div>
     </div>
 
     <!-- BROADCAST NOTICE -->
@@ -89,23 +132,32 @@
       <p style="margin: 0; font-size: 15px; color: #f8fafc;">Organizer Assigned Code: <strong id="display-org-code" style="color:#facc15; background:#1e293b; padding:3px 10px; border-radius:6px; font-size:16px;">--</strong></p>
     </div>
 
-    <!-- EXAM PARAMETERS -->
+    <!-- EXAM PARAMETERS & UPI PROFILE -->
     <div class="card-box" style="border:1px solid #10b981; margin-top: 15px;">
-      <h3 style="color:#10b981; margin-top:0;">⚙️ Student Examination Parameters</h3>
-      <div style="max-width:400px; margin: 12px 0;">
-        <label>Choose Applicable Mode for Enrolled Candidates:</label>
-        <select id="org-exam-mode-select" onchange="updateExamMode(this.value)" style="background:#020617; color:#fff; border:1px solid #475569; padding:10px; border-radius:6px; width:100%;">
-          <option value="online">Online Mode (Smart Smartphone/PC - ₹100 Fee)</option>
-          <option value="offline">Offline Desk Mode (OMR / Physical Sheet Paper - ₹120 Fee)</option>
-        </select>
+      <h3 style="color:#10b981; margin-top:0;">⚙️ Student Examination Parameters & Payout UPI</h3>
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin: 12px 0;">
+        <div>
+          <label>Choose Applicable Mode for Enrolled Candidates:</label>
+          <select id="org-exam-mode-select" onchange="updateExamMode(this.value)" style="background:#020617; color:#fff; border:1px solid #475569; padding:10px; border-radius:6px; width:100%;">
+            <option value="online">Online Mode (Smart Smartphone/PC - ₹100 Fee)</option>
+            <option value="offline">Offline Desk Mode (OMR / Physical Sheet Paper - ₹120 Fee)</option>
+          </select>
+        </div>
+        <div>
+          <label>Your Registered UPI ID (For Commission Payouts):</label>
+          <div style="display: flex; gap: 8px;">
+            <input type="text" id="org-upi-input" placeholder="e.g. coordinator@upi" style="flex: 1;">
+            <button type="button" onclick="saveOrganizerUpi()" class="btn-primary" style="background:#10b981; padding: 10px 16px; width:auto;">💾 Save UPI</button>
+          </div>
+        </div>
       </div>
       <p style="font-size:13px; color:#94a3b8;">Current Fee per Student: <strong style="color:#fbbf24;">₹<span id="current-applicable-fee">100</span></strong> <span style="font-size:11px; color:#64748b;">(Commission calculated on ₹100 base fee)</span></p>
       
-      <br><hr style="border-color:#1e293b;"><br>
+      <hr style="border-color:#1e293b; margin: 15px 0;">
       
       <div style="display:flex; align-items:center; gap:12px; background:#020617; padding:15px; border-radius:8px; border:1px solid #334155;">
         <input type="checkbox" id="principal-perm-checkbox" style="width:22px; height:22px; cursor:pointer;" onchange="togglePrincipalPermission(this.checked)">
-        <label style="margin-bottom:0; cursor:pointer; color:#e2e8f0; font-size:13px;">I verify that the School Principal approval signed authorization certificate has been uploaded/confirmed.</label>
+        <label for="principal-perm-checkbox" style="margin-bottom:0; cursor:pointer; color:#e2e8f0; font-size:13px;">I verify that the School Principal approval signed authorization certificate has been uploaded/confirmed.</label>
       </div>
     </div>
 
@@ -113,7 +165,7 @@
     <div class="card-box" style="border:1px solid #f59e0b; margin-top: 15px;">
       <h3 style="color:#f59e0b; margin-top:0; margin-bottom:15px;">💰 Financial Ledger & Commission Matrix</h3>
       
-      <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap:12px;">
+      <div style="display:grid; grid-template-columns: repeat(6, 1fr); gap:12px;">
         <div style="background:#020617; padding:14px; border-radius:8px; border:1px solid #334155;">
           <p style="font-size:11px; color:#94a3b8; margin:0;">Approved Registrations</p>
           <h2 id="fin-total-regs" style="color:#ffffff; margin:5px 0 0 0; font-size:20px;">0</h2>
@@ -147,8 +199,8 @@
     <!-- REGISTERED STUDENTS ROSTER -->
     <div class="card-box" style="border:1px solid #334155; margin-top: 15px;">
       <h3 style="color:#38bdf8; margin-bottom:15px;">📋 Registered Students Roster & Fee Verification Gate</h3>
-      <div style="overflow-x: auto;">
-        <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 13px;">
+      <div style="width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch;">
+        <table style="width: 100%; min-width: 950px; border-collapse: collapse; text-align: left; font-size: 13px;">
           <thead>
             <tr style="border-bottom: 2px solid #334155; color: #94a3b8;">
               <th style="padding: 10px;">Student Name</th>
@@ -193,6 +245,6 @@
   </div>
 </div>
 
-<script src="organizer.js?v=35"></script>
+<script src="organizer.js?v=37"></script>
 </body>
 </html>
