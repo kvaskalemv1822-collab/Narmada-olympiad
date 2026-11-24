@@ -5,6 +5,38 @@ let pendingSettlementsCache = [];
 let pendingPayoutsCache = [];
 let autoRefreshTimer = null;
 
+function int(val) {
+  return Math.floor(val);
+}
+
+function getSubjectBadge(student) {
+  const rawSub = String(
+    student.subject ||
+    student.examSubject ||
+    student.stream ||
+    student.selectedSubject ||
+    student.course ||
+    ""
+  )
+    .trim()
+    .toLowerCase();
+
+  if (rawSub === "m" || rawSub.startsWith("math") || rawSub.includes("maths")) {
+    return ` <span style="color:#38bdf8; font-weight:800;">(M)</span>`;
+  }
+  if (rawSub === "s" || rawSub.startsWith("sci")) {
+    return ` <span style="color:#4ade80; font-weight:800;">(S)</span>`;
+  }
+  return "";
+}
+
+function getOrganizerPayoutUpi(org) {
+  const code = (org.code || org.orgCode || "").toUpperCase();
+  const fromObj = String(org.upiId || org.payoutUpi || org.upi || "").trim();
+  const fromLocal = String(localStorage.getItem(`nvmso_org_upi_${code}`) || "").trim();
+  return fromObj || fromLocal || "";
+}
+
 // 🔄 PERSISTENT SESSION CHECK ON PAGE LOAD
 document.addEventListener("DOMContentLoaded", () => {
   startLiveClockTracker();
@@ -206,6 +238,7 @@ window.saveGlobalConfig = async () => {
   .then(data => {
     if (data.status === "success") {
       alert("✅ Command Dispatched: Portal phases and parameters updated successfully!");
+      renderMergedOrganizersTable();
     }
   });
 };
@@ -238,12 +271,15 @@ function renderMergedOrganizersTable() {
     ? ""
     : "<tr><td colspan='8' style='text-align:center; color:#64748b; padding:15px;'>No organizers registered yet.</td></tr>";
 
+  const onlineFeeConfig = Number(document.getElementById("cfg-online-fee")?.value) || 100;
+  const offlineFeeConfig = Number(document.getElementById("cfg-offline-fee")?.value) || 120;
+
   allOrganizersCache.forEach(org => {
-    const code = org.code || org.orgCode || "";
+    const code = (org.code || org.orgCode || "").toUpperCase();
     const isSettled = !!org.manualSettled;
 
     const allSchoolStudents = allStudentsCache.filter(
-      s => (s.orgCode || "").toUpperCase() === code.toUpperCase()
+      s => (s.orgCode || "").toUpperCase() === code
     );
     const verifiedStudents = allSchoolStudents.filter(
       s => s.paymentStatus === "Approved" || s.paymentVerified === true
@@ -265,8 +301,8 @@ function renderMergedOrganizersTable() {
 
     const examMode = (org.examMode || "online").toLowerCase();
 
-    const cashGross = cashRegs * (examMode === "offline" ? 120 : 100);
-    const baseFeeTotal = totalReg * 100;
+    const cashGross = cashRegs * (examMode === "offline" ? offlineFeeConfig : onlineFeeConfig);
+    const baseFeeTotal = totalReg * onlineFeeConfig;
 
     const directComm = int(baseFeeTotal * 0.15);
     const refCodeStr = org.refCode ? String(org.refCode).trim() : "";
@@ -277,7 +313,7 @@ function renderMergedOrganizersTable() {
     const netBalance = cashGross - totalComm;
     const netCashToPortal = isSettled ? 0 : Math.max(0, netBalance);
 
-    const sett = pendingSettlementsCache.find(s => s.orgCode === code);
+    const sett = pendingSettlementsCache.find(s => (s.orgCode || "").toUpperCase() === code);
 
     let settCell = isSettled
       ? "<span style='color:#4ade80; font-weight:bold;'>✔️ Settled (₹0 Due)</span>"
@@ -298,19 +334,27 @@ function renderMergedOrganizersTable() {
         ? `<br><span style="font-size:9px; color:#f59e0b; font-weight:bold;">(${pendingReviewCount} Pending)</span>`
         : "";
 
-    // 📲 UPI Deep-Link Pay URLs for Direct & Referral Commissions
-    const orgUpi = org.upiId || "narmada@upi";
-    const directUpiLink = `upi://pay?pa=${encodeURIComponent(orgUpi)}&pn=${encodeURIComponent(org.schoolName || "Organizer")}&am=${directComm}&cu=INR`;
-    const refUpiLink = `upi://pay?pa=${encodeURIComponent(orgUpi)}&pn=${encodeURIComponent(org.schoolName || "Organizer")}&am=${refComm}&cu=INR`;
+    // Coordinator's own saved UPI ID (never fallback to admin UPI)
+    const orgUpi = getOrganizerPayoutUpi(org);
 
     let directCommHtml = `₹${directComm}`;
     if (directComm > 0 && !isSettled) {
-      directCommHtml += `<br><a href="${directUpiLink}" style="background:#10b981; color:#fff; padding:2px 6px; font-size:9px; border-radius:3px; text-decoration:none; display:inline-block; margin-top:3px;">📲 Pay UPI</a>`;
+      if (orgUpi) {
+        const directUpiLink = `upi://pay?pa=${encodeURIComponent(orgUpi)}&pn=${encodeURIComponent(org.schoolName || "Organizer")}&am=${directComm}&cu=INR`;
+        directCommHtml += `<br><a href="${directUpiLink}" style="background:#10b981; color:#fff; padding:2px 7px; font-size:9px; border-radius:3px; text-decoration:none; display:inline-block; margin-top:3px; font-weight:bold;">Pay</a><br><span style="font-size:9px; color:#cbd5e1; word-break:break-all;">${orgUpi}</span>`;
+      } else {
+        directCommHtml += `<br><span style="font-size:9px; color:#f87171; font-weight:bold;">Pay</span><br><span style="font-size:9px; color:#f87171;">No UPI</span>`;
+      }
     }
 
     let refCommHtml = `₹${refComm}`;
     if (refComm > 0 && !isSettled) {
-      refCommHtml += `<br><a href="${refUpiLink}" style="background:#f59e0b; color:#fff; padding:2px 6px; font-size:9px; border-radius:3px; text-decoration:none; display:inline-block; margin-top:3px;">📲 Pay UPI</a>`;
+      if (orgUpi) {
+        const refUpiLink = `upi://pay?pa=${encodeURIComponent(orgUpi)}&pn=${encodeURIComponent(org.schoolName || "Organizer")}&am=${refComm}&cu=INR`;
+        refCommHtml += `<br><a href="${refUpiLink}" style="background:#f59e0b; color:#020617; padding:2px 7px; font-size:9px; border-radius:3px; text-decoration:none; display:inline-block; margin-top:3px; font-weight:bold;">Pay</a><br><span style="font-size:9px; color:#cbd5e1; word-break:break-all;">${orgUpi}</span>`;
+      } else {
+        refCommHtml += `<br><span style="font-size:9px; color:#f87171; font-weight:bold;">Pay</span><br><span style="font-size:9px; color:#f87171;">No UPI</span>`;
+      }
     }
 
     tbody.innerHTML += `
@@ -322,7 +366,8 @@ function renderMergedOrganizersTable() {
         </td>
         <td style="padding:10px;">
           <strong>${org.name || org.coordinatorName || "N/A"}</strong><br>
-          <span style="font-size:11px; color:#94a3b8;">${org.contact || ""}</span>
+          <span style="font-size:11px; color:#94a3b8;">${org.contact || ""}</span><br>
+          <span style="font-size:10px; color:${orgUpi ? "#4ade80" : "#f87171"};">UPI: ${orgUpi || "Not Set"}</span>
         </td>
         <td style="padding:10px; color:#4ade80; font-weight:bold; text-align:center;">
           ${totalReg} ${pendingBadge}<br><span style="font-size:10px; color:#94a3b8;">(${onlineRegs} On / ${cashRegs} Cash)</span>
@@ -338,10 +383,6 @@ function renderMergedOrganizersTable() {
       </tr>
     `;
   });
-}
-
-function int(val) {
-  return Math.floor(val);
 }
 
 function populateSchoolDropdowns() {
@@ -435,7 +476,7 @@ window.loadSchoolRankings = function() {
                       (s, idx) => `
                   <tr style="border-bottom: 1px solid #0f172a;">
                     <td style="padding:4px 3px; color:#facc15; font-weight:bold; vertical-align:top;">#${idx + 1}</td>
-                    <td style="padding:4px 3px; color:#fff; vertical-align:top;">${s.studentName} <span style="color:#94a3b8;">(${s.studentClass})</span>${getRewardBadge(idx)}</td>
+                    <td style="padding:4px 3px; color:#fff; vertical-align:top;">${s.studentName}${getSubjectBadge(s)} <span style="color:#94a3b8;">(${s.studentClass})</span>${getRewardBadge(idx)}</td>
                     <td style="padding:4px 3px; text-align:right; color:#38bdf8; font-weight:bold; vertical-align:top;">${s.score || 0}</td>
                   </tr>
                 `
@@ -457,7 +498,7 @@ window.loadSchoolRankings = function() {
                       (s, idx) => `
                   <tr style="border-bottom: 1px solid #0f172a;">
                     <td style="padding:4px 3px; color:#facc15; font-weight:bold; vertical-align:top;">#${idx + 1}</td>
-                    <td style="padding:4px 3px; color:#fff; vertical-align:top;">${s.studentName} <span style="color:#94a3b8;">(${s.studentClass})</span>${getRewardBadge(idx)}</td>
+                    <td style="padding:4px 3px; color:#fff; vertical-align:top;">${s.studentName}${getSubjectBadge(s)} <span style="color:#94a3b8;">(${s.studentClass})</span>${getRewardBadge(idx)}</td>
                     <td style="padding:4px 3px; text-align:right; color:#38bdf8; font-weight:bold; vertical-align:top;">${s.score || 0}</td>
                   </tr>
                 `
@@ -495,6 +536,7 @@ window.loadSchoolStudentLedger = function() {
       s.paymentVerified === true;
     const isRejected = s.paymentStatus === "Rejected";
     const payMode = (s.paymentMode || "online").toUpperCase();
+    const isOffline = payMode === "OFFLINE" || payMode === "CASH";
 
     let utrInfo = s.utrNumber
       ? `<br><code style="color:#facc15; font-size:11px;">UTR: ${s.utrNumber}</code>`
@@ -509,7 +551,12 @@ window.loadSchoolStudentLedger = function() {
 
     const paymentBadge = `<span style="color:${statusColor}; font-weight:bold;">${s.paymentStatus || "Pending Verification"} (${payMode})</span>${utrInfo}`;
 
-    let actionButtons = `<button type="button" onclick="openManualScoreModal('${s.id}', '${s.studentName}', '${s.studentClass}')" style="background:#f59e0b; color:#fff; border:none; padding:4px 8px; font-size:10px; border-radius:4px; font-weight:bold; cursor:pointer; margin-right:4px;">✍️ Manual Score</button>`;
+    let actionButtons = "";
+    if (isOffline) {
+      actionButtons += `<button type="button" onclick="openManualScoreModal('${s.id}', '${s.studentName}', '${s.studentClass}')" style="background:#f59e0b; color:#fff; border:none; padding:4px 8px; font-size:10px; border-radius:4px; font-weight:bold; cursor:pointer; margin-right:4px;">✍️ Manual Score</button>`;
+    } else {
+      actionButtons += `<span style="color:#38bdf8; font-size:10px; font-weight:bold; margin-right:6px;">⚡ Auto Score</span>`;
+    }
     actionButtons += `<button type="button" onclick="triggerReExam('${s.id}')" style="background:#7c3aed; color:#fff; border:none; padding:4px 8px; font-size:10px; border-radius:4px; font-weight:bold; cursor:pointer; margin-right:4px;">🔄 Re-Exam</button>`;
 
     if (s.paymentMode === "online" && !isApproved && !isRejected) {
@@ -519,7 +566,7 @@ window.loadSchoolStudentLedger = function() {
 
     tbody.innerHTML += `
       <tr style="border-bottom:1px solid #1e293b;">
-        <td style="padding:10px;"><strong>${s.studentName}</strong><br><span style="font-size:11px; color:#94a3b8;">Roll: ${s.rollNumber}</span></td>
+        <td style="padding:10px;"><strong>${s.studentName}${getSubjectBadge(s)}</strong><br><span style="font-size:11px; color:#94a3b8;">Roll: ${s.rollNumber}</span></td>
         <td style="padding:10px;">Class ${s.studentClass}</td>
         <td style="padding:10px;">${paymentBadge}</td>
         <td style="padding:10px;"><strong style="color:#4ade80;">${s.score || 0}/${s.totalMarks || 30}</strong> <span style="color:#38bdf8; font-size:11px;">(${s.percentage || 0}%)</span></td>
