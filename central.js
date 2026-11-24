@@ -3,10 +3,21 @@ let allStudentsCache = [];
 let allOrganizersCache = [];
 let pendingSettlementsCache = [];
 let pendingPayoutsCache = [];
+let centralPortalConfig = {};
 let autoRefreshTimer = null;
 
 function int(val) {
   return Math.floor(val);
+}
+
+function getConfiguredTotalQuestions(student) {
+  const fromStudent = Number(student?.totalQuestions || student?.totalMarks);
+  if (fromStudent > 0) return fromStudent;
+  const fromInput = Number(document.getElementById("cfg-total-questions")?.value);
+  if (fromInput > 0) return fromInput;
+  const fromConfig = Number(centralPortalConfig?.totalQuestions || centralPortalConfig?.questionCount);
+  if (fromConfig > 0) return fromConfig;
+  return 30;
 }
 
 function getSubjectBadge(student) {
@@ -157,11 +168,21 @@ function initializeCentralPanelData() {
     .then(data => {
       if (data.status === "success") {
         const config = data.config || {};
+        centralPortalConfig = config;
+
         if (document.getElementById("cfg-online-fee")) {
           document.getElementById("cfg-online-fee").value = config.onlineFee || 100;
         }
         if (document.getElementById("cfg-offline-fee")) {
           document.getElementById("cfg-offline-fee").value = config.offlineFee || 120;
+        }
+        if (document.getElementById("cfg-total-questions")) {
+          document.getElementById("cfg-total-questions").value =
+            config.totalQuestions || config.questionCount || 30;
+        }
+        if (document.getElementById("cfg-exam-duration")) {
+          document.getElementById("cfg-exam-duration").value =
+            config.examDurationMinutes || config.paperTimeLimit || 30;
         }
         if (document.getElementById("cfg-reg-active")) {
           document.getElementById("cfg-reg-active").checked = !!config.isRegistrationOpen;
@@ -219,9 +240,16 @@ function setupSmartSwitchesExclusiveRule() {
 
 window.saveGlobalConfig = async () => {
   const adminUpiEl = document.getElementById("cfg-admin-upi");
+  const totalQuestionsVal = Number(document.getElementById("cfg-total-questions")?.value) || 30;
+  const examDurationVal = Number(document.getElementById("cfg-exam-duration")?.value) || 30;
+
   const payload = {
     onlineFee: Number(document.getElementById("cfg-online-fee").value),
     offlineFee: Number(document.getElementById("cfg-offline-fee").value),
+    totalQuestions: totalQuestionsVal,
+    questionCount: totalQuestionsVal,
+    examDurationMinutes: examDurationVal,
+    paperTimeLimit: examDurationVal,
     adminUpiId: adminUpiEl ? (adminUpiEl.value.trim() || "narmada@upi") : "narmada@upi",
     isRegistrationOpen: document.getElementById("cfg-reg-active").checked,
     isExamActive: document.getElementById("cfg-exam-active").checked,
@@ -237,8 +265,10 @@ window.saveGlobalConfig = async () => {
   .then(res => res.json())
   .then(data => {
     if (data.status === "success") {
-      alert("✅ Command Dispatched: Portal phases and parameters updated successfully!");
+      centralPortalConfig = { ...centralPortalConfig, ...payload };
+      alert("✅ Command Dispatched: Portal phases, question count, and paper time limit updated!");
       renderMergedOrganizersTable();
+      loadSchoolStudentLedger();
     }
   });
 };
@@ -538,6 +568,15 @@ window.loadSchoolStudentLedger = function() {
     const payMode = (s.paymentMode || "online").toUpperCase();
     const isOffline = payMode === "OFFLINE" || payMode === "CASH";
 
+    const maxQ = getConfiguredTotalQuestions(s);
+    const scoreVal = parseFloat(s.score) || 0;
+    const pctVal =
+      s.percentage !== undefined && s.percentage !== null && s.percentage !== ""
+        ? s.percentage
+        : maxQ > 0
+        ? ((scoreVal / maxQ) * 100).toFixed(1)
+        : 0;
+
     let utrInfo = s.utrNumber
       ? `<br><code style="color:#facc15; font-size:11px;">UTR: ${s.utrNumber}</code>`
       : "<br><span style='color:#f87171; font-size:10px;'>No UTR Provided</span>";
@@ -553,7 +592,7 @@ window.loadSchoolStudentLedger = function() {
 
     let actionButtons = "";
     if (isOffline) {
-      actionButtons += `<button type="button" onclick="openManualScoreModal('${s.id}', '${s.studentName}', '${s.studentClass}')" style="background:#f59e0b; color:#fff; border:none; padding:4px 8px; font-size:10px; border-radius:4px; font-weight:bold; cursor:pointer; margin-right:4px;">✍️ Manual Score</button>`;
+      actionButtons += `<button type="button" onclick="openManualScoreModal('${s.id}', '${s.studentName}', '${s.studentClass}', ${maxQ})" style="background:#f59e0b; color:#fff; border:none; padding:4px 8px; font-size:10px; border-radius:4px; font-weight:bold; cursor:pointer; margin-right:4px;">✍️ Manual Score</button>`;
     } else {
       actionButtons += `<span style="color:#38bdf8; font-size:10px; font-weight:bold; margin-right:6px;">⚡ Auto Score</span>`;
     }
@@ -569,7 +608,7 @@ window.loadSchoolStudentLedger = function() {
         <td style="padding:10px;"><strong>${s.studentName}${getSubjectBadge(s)}</strong><br><span style="font-size:11px; color:#94a3b8;">Roll: ${s.rollNumber}</span></td>
         <td style="padding:10px;">Class ${s.studentClass}</td>
         <td style="padding:10px;">${paymentBadge}</td>
-        <td style="padding:10px;"><strong style="color:#4ade80;">${s.score || 0}/${s.totalMarks || 30}</strong> <span style="color:#38bdf8; font-size:11px;">(${s.percentage || 0}%)</span></td>
+        <td style="padding:10px;"><strong style="color:#4ade80;">${scoreVal}/${maxQ}</strong> <span style="color:#38bdf8; font-size:11px;">(${pctVal}%)</span></td>
         <td style="padding:10px;">${actionButtons}</td>
       </tr>
     `;
@@ -577,10 +616,12 @@ window.loadSchoolStudentLedger = function() {
 };
 
 // 🛑 MANUAL SCORE ENTRY MODAL FUNCTIONS
-window.openManualScoreModal = function(studentId, name, studentClass) {
+window.openManualScoreModal = function(studentId, name, studentClass, maxMarks) {
   document.getElementById("modal-student-id").value = studentId;
   document.getElementById("modal-student-info").textContent = `Student: ${name} (Class ${studentClass})`;
   document.getElementById("modal-score").value = "";
+  const totalInput = document.getElementById("modal-total");
+  if (totalInput) totalInput.value = maxMarks || getConfiguredTotalQuestions();
   document.getElementById("manual-score-modal").classList.remove("hidden");
 };
 
@@ -590,7 +631,7 @@ window.closeManualScoreModal = () =>
 window.saveManualScore = function() {
   const studentId = document.getElementById("modal-student-id").value;
   const score = parseFloat(document.getElementById("modal-score").value);
-  const total = parseFloat(document.getElementById("modal-total").value) || 30;
+  const total = parseFloat(document.getElementById("modal-total").value) || getConfiguredTotalQuestions();
 
   if (isNaN(score)) {
     alert("⚠️ Please enter a valid score.");
@@ -600,7 +641,12 @@ window.saveManualScore = function() {
   fetch(`${SERVER_URL}/api/admin/manual_score_entry`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ studentId: studentId, score: score, totalMarks: total })
+    body: JSON.stringify({
+      studentId: studentId,
+      score: score,
+      totalMarks: total,
+      totalQuestions: total
+    })
   })
   .then(res => res.json())
   .then(data => {
