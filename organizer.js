@@ -29,12 +29,42 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 });
 
+function applyPortalFeeLabels() {
+  const onlineFee = Number(portalConfig.onlineFee) || 100;
+  const offlineFee = Number(portalConfig.offlineFee) || 120;
+
+  const optOnline = document.getElementById("opt-online-fee");
+  const optOffline = document.getElementById("opt-offline-fee");
+  if (optOnline) {
+    optOnline.textContent = `Online Mode (Smart Smartphone/PC - ₹${onlineFee} Fee)`;
+  }
+  if (optOffline) {
+    optOffline.textContent = `Offline Desk Mode (OMR / Physical Sheet Paper - ₹${offlineFee} Fee)`;
+  }
+
+  const activeMode =
+    currentOrg?.examMode ||
+    document.getElementById("org-exam-mode-select")?.value ||
+    "online";
+  const feeEl = document.getElementById("current-applicable-fee");
+  if (feeEl) {
+    feeEl.textContent = activeMode === "offline" ? offlineFee : onlineFee;
+  }
+
+  const baseNote = document.getElementById("commission-base-note");
+  if (baseNote) {
+    baseNote.textContent = `(15% Direct & 5% Referral calculated on Online Fee ₹${onlineFee} base)`;
+  }
+}
+
 function fetchGlobalConfigAndNotice() {
   fetch(`${SERVER_URL}/api/portal/config`)
     .then(res => res.json())
     .then(data => {
       if (data.status === "success") {
         portalConfig = data.config || {};
+        applyPortalFeeLabels();
+
         const noticeBanner = document.getElementById("admin-notice-banner");
         const noticeText = document.getElementById("notice-text");
         if (portalConfig.broadcastNotice && noticeBanner && noticeText) {
@@ -143,8 +173,7 @@ window.handleOrganizerRegister = function() {
     contact: document.getElementById("new-org-contact").value.trim(),
     password: document.getElementById("new-org-pass").value.trim(),
     pin: pin,
-    refCode: document.getElementById("new-org-ref").value.trim().toUpperCase(),
-    upiId: document.getElementById("new-org-upi") ? document.getElementById("new-org-upi").value.trim() : ""
+    refCode: document.getElementById("new-org-ref").value.trim().toUpperCase()
   };
 
   fetch(`${SERVER_URL}/api/organizer/register`, {
@@ -177,13 +206,11 @@ function loadDashboardView() {
   const upiField = document.getElementById("org-upi-input");
   if (upiField) upiField.value = currentOrg.upiId || "";
 
-  document.getElementById("current-applicable-fee").textContent =
-    currentOrg.examMode === "offline"
-      ? (portalConfig.offlineFee || 120)
-      : (portalConfig.onlineFee || 100);
+  applyPortalFeeLabels();
 
   if (!autoRefreshTimer) {
     autoRefreshTimer = setInterval(() => {
+      fetchGlobalConfigAndNotice();
       fetchRegisteredStudentsList();
       fetchOrganizerChatMessages();
       checkResultAndRankingStatus();
@@ -210,8 +237,7 @@ window.updateExamMode = function(val) {
     if (data.status === "success") {
       currentOrg.examMode = val;
       currentOrg.upiId = upiIdVal;
-      document.getElementById("current-applicable-fee").textContent =
-        val === "offline" ? (portalConfig.offlineFee || 120) : (portalConfig.onlineFee || 100);
+      applyPortalFeeLabels();
       fetchRegisteredStudentsList();
     }
   });
@@ -260,6 +286,30 @@ window.togglePrincipalPermission = function(isChecked) {
   });
 };
 
+function updateSettlementCardDisplay(netPayableToNvms, nvmsOwesOrganizer, isSettled) {
+  const labelEl = document.getElementById("fin-settlement-label");
+  const amountEl = document.getElementById("fin-settlement-amount");
+  if (!labelEl || !amountEl) return;
+
+  if (isSettled) {
+    labelEl.textContent = "Pay to NVMS / Payout";
+    amountEl.textContent = "₹0 (Settled)";
+    amountEl.style.color = "#4ade80";
+  } else if (netPayableToNvms > 0) {
+    labelEl.textContent = "Pay to NVMS";
+    amountEl.textContent = `₹${netPayableToNvms}`;
+    amountEl.style.color = "#f87171";
+  } else if (nvmsOwesOrganizer > 0) {
+    labelEl.textContent = "Payout Amount";
+    amountEl.textContent = `₹${nvmsOwesOrganizer}`;
+    amountEl.style.color = "#4ade80";
+  } else {
+    labelEl.textContent = "Pay to NVMS / Payout";
+    amountEl.textContent = "₹0";
+    amountEl.style.color = "#facc15";
+  }
+}
+
 function fetchRegisteredStudentsList() {
   const container = document.getElementById("student-roster-rows");
   if (!container || !currentOrg) return;
@@ -274,24 +324,55 @@ function fetchRegisteredStudentsList() {
   .then(data => {
     if (data.status === "success") {
       if (data.financials) {
-        const totalRegs = data.financials.approvedRegistrations || 0;
-        const cashHeld = data.financials.cashHeld || 0;
-        const onlineCollected = data.financials.onlineCollected || 0;
-        const directComm = data.financials.directCommission || 0;
-        const refComm = data.financials.referralCommission || 0;
-        const totalComm = data.financials.totalCommission || 0;
-        const netPayableToNvms = data.financials.netPayableToNvms || 0;
-        const nvmsOwesOrganizer = data.financials.nvmsOwesOrganizer || 0;
+        const onlineFeeBase = Number(portalConfig.onlineFee || data.onlineFee || 100);
+        const offlineFeeBase = Number(portalConfig.offlineFee || data.offlineFee || 120);
+
+        const verifiedStudents = Array.isArray(data.students)
+          ? data.students.filter(s => s.paymentStatus === "Approved" || s.paymentVerified === true)
+          : [];
+
+        const totalRegs = verifiedStudents.length || data.financials.approvedRegistrations || 0;
+        const cashStudents = verifiedStudents.filter(s => {
+          const pm = (s.paymentMode || "").toLowerCase();
+          return pm === "offline" || pm === "cash";
+        });
+        const onlineStudents = verifiedStudents.filter(
+          s => (s.paymentMode || "online").toLowerCase() === "online"
+        );
+
+        const activeMode = (currentOrg.examMode || "online").toLowerCase();
+        const cashHeld =
+          cashStudents.length > 0
+            ? cashStudents.length * (activeMode === "offline" ? offlineFeeBase : onlineFeeBase)
+            : (data.financials.cashHeld || 0);
+
+        const onlineCollected =
+          onlineStudents.length > 0
+            ? onlineStudents.length * onlineFeeBase
+            : (data.financials.onlineCollected || 0);
+
+        // 15% Direct & 5% Referral calculated on current Online Mode Fee base
+        const baseForCommission = totalRegs * onlineFeeBase;
+        const directComm = Math.floor(baseForCommission * 0.15);
+        const hasRef =
+          currentOrg.refCode &&
+          String(currentOrg.refCode).trim() !== "" &&
+          String(currentOrg.refCode).trim().toUpperCase() !== "NONE";
+        const refComm = hasRef ? Math.floor(baseForCommission * 0.05) : 0;
+
         const isSettled = !!data.isSettled;
-        const adminUpi = data.adminUpiId || "narmada@upi";
+        const rawNetPayable = cashHeld - (directComm + refComm);
+        const netPayableToNvms = isSettled ? 0 : Math.max(0, rawNetPayable);
+        const nvmsOwesOrganizer = isSettled ? 0 : Math.max(0, (directComm + refComm) - cashHeld);
+        const adminUpi = data.adminUpiId || portalConfig.adminUpiId || "narmada@upi";
 
         document.getElementById("fin-total-regs").textContent = totalRegs;
         document.getElementById("fin-cash-held").textContent = `₹${cashHeld}`;
         document.getElementById("fin-online-collected").textContent = `₹${onlineCollected}`;
         document.getElementById("fin-direct-comm").textContent = `₹${directComm}`;
         document.getElementById("fin-ref-comm").textContent = `₹${refComm}`;
-        document.getElementById("fin-total-comm").textContent = `₹${totalComm}`;
 
+        updateSettlementCardDisplay(netPayableToNvms, nvmsOwesOrganizer, isSettled);
         renderDynamicFinancialAction(netPayableToNvms, nvmsOwesOrganizer, isSettled, adminUpi);
       }
 
@@ -349,27 +430,27 @@ function renderDynamicFinancialAction(netPayable, nvmsOwesOrg, isSettled, adminU
     actionContainer.innerHTML = `
       <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
         <div>
-          <p style="font-size: 13px; color: #f87171; font-weight: bold; margin: 0;">Net Amount Payable to NVMS:</p>
+          <p style="font-size: 13px; color: #f87171; font-weight: bold; margin: 0;">Pay to NVMS (Net Payable Settlement):</p>
           <h2 style="color: #f87171; margin: 5px 0 0 0;">₹${netPayable}</h2>
         </div>
         <div>
-          <a href="${upiPayLink}" class="btn-primary" style="background: #10b981; padding: 8px 14px; font-size: 12px; text-decoration: none; display: inline-block; border-radius: 6px; font-weight: bold;">📲 Pay ₹${netPayable} via UPI</a>
+          <a href="${upiPayLink}" class="btn-primary" style="background: #10b981; padding: 8px 14px; font-size: 12px; text-decoration: none; display: inline-block; border-radius: 6px; font-weight: bold;">📲 Pay ₹${netPayable} to NVMS</a>
         </div>
       </div>
       <div style="margin-top: 12px; border-top: 1px dashed #334155; padding-top: 10px; display: flex; gap: 10px; flex-wrap: wrap;">
-        <input type="text" id="settlement-utr-input" placeholder="Enter UTR No after paying" style="flex: 1; min-width: 180px;">
-        <input type="number" id="settlement-amount-input" value="${netPayable}" style="width: 100px;">
+        <input type="text" id="settlement-utr-input" placeholder="Enter UTR No after paying to NVMS" style="flex: 1; min-width: 180px;">
+        <input type="number" id="settlement-amount-input" value="${netPayable}" style="width: 110px;">
         <button type="button" onclick="submitSettlementProof(${netPayable})" class="btn-primary" style="background: #0284c7; width: auto; cursor:pointer;">Submit UTR</button>
       </div>
     `;
   } else if (nvmsOwesOrg > 0) {
     actionContainer.innerHTML = `
       <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
-        <div><p style="font-size: 13px; color: #4ade80; font-weight: bold; margin: 0;">NVMS Owes You (Commission Payout Receivable):</p><h2 style="color: #4ade80; margin: 5px 0 0 0;">₹${nvmsOwesOrg}</h2></div>
+        <div><p style="font-size: 13px; color: #4ade80; font-weight: bold; margin: 0;">Payout Amount (NVMS Owes You):</p><h2 style="color: #4ade80; margin: 5px 0 0 0;">₹${nvmsOwesOrg}</h2></div>
       </div>
       <div style="border-top: 1px dashed #334155; padding-top: 10px; margin-top: 10px; display: flex; gap: 10px; flex-wrap: wrap;">
         <input type="text" id="payout-upi-input" value="${currentOrg.upiId || ""}" placeholder="Enter your UPI ID (e.g. user@paytm)" style="flex: 1; min-width: 200px;">
-        <input type="number" id="payout-amount-input" value="${nvmsOwesOrg}" style="width: 100px;">
+        <input type="number" id="payout-amount-input" value="${nvmsOwesOrg}" style="width: 110px;">
         <button type="button" onclick="requestCommissionPayout(${nvmsOwesOrg})" class="btn-primary" style="background: #f59e0b; width: auto; cursor:pointer;">📤 Request Payout</button>
       </div>
     `;
