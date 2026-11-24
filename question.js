@@ -1,4 +1,5 @@
-const SERVER_URL = "https://nvmso-backend.onrender.com"; 
+const SERVER_URL = "https://nvmso-backend.onrender.com";
+let cachedQuestionsList = [];
 
 document.addEventListener("DOMContentLoaded", () => {
   loadSavedQuestions();
@@ -16,9 +17,19 @@ window.addNewQuestionToBank = async () => {
     return;
   }
 
+  const selectedClassRange = document.getElementById("q-class-select").value;
+  let selectedSubject = document.getElementById("q-subject-select").value;
+
+  if (selectedClassRange === "11-12-Maths") {
+    selectedSubject = "Maths";
+  } else if (selectedClassRange === "11-12-Science") {
+    selectedSubject = "Science";
+  }
+
   const payload = {
-    classRange: document.getElementById("q-class-select").value,
-    subject: document.getElementById("q-subject-select").value,
+    classRange: selectedClassRange,
+    classGroup: selectedClassRange,
+    subject: selectedSubject,
     negativeMarking: parseFloat(document.getElementById("q-negative-marking").value) || 0,
     questionText: qText,
     optionA: optA,
@@ -29,7 +40,7 @@ window.addNewQuestionToBank = async () => {
   };
 
   const submitBtn = document.querySelector(".control-box button[onclick='addNewQuestionToBank()']");
-  if(submitBtn) {
+  if (submitBtn) {
     submitBtn.disabled = true;
     submitBtn.textContent = "Syncing Question Element with Cloud Frame...";
   }
@@ -43,7 +54,7 @@ window.addNewQuestionToBank = async () => {
   .then(data => {
     if (data.status === "success") {
       alert("✅ Success: Question element securely published to the master database!");
-      
+
       // Clear inputs
       document.getElementById("q-text").value = "";
       document.getElementById("q-opt-a").value = "";
@@ -61,10 +72,55 @@ window.addNewQuestionToBank = async () => {
     alert("❌ Error: Connection trace dropped.");
   })
   .finally(() => {
-    if(submitBtn) {
+    if (submitBtn) {
       submitBtn.disabled = false;
       submitBtn.textContent = "➕ Save Question to Database Engine";
     }
+  });
+};
+
+window.renderFilteredQuestionsPreview = function() {
+  const container = document.getElementById("saved-questions-container");
+  const countEl = document.getElementById("total-q-count");
+  const filterVal = document.getElementById("filter-q-class")?.value || "ALL";
+  if (!container) return;
+
+  const listToShow =
+    filterVal === "ALL"
+      ? cachedQuestionsList
+      : cachedQuestionsList.filter(
+          q => String(q.classRange || q.classGroup || "").trim() === filterVal
+        );
+
+  if (countEl) countEl.textContent = listToShow.length;
+
+  if (!listToShow.length) {
+    container.innerHTML = `<p style="color: #64748b; font-size: 13px; text-align: center;">No questions found for this selection.</p>`;
+    return;
+  }
+
+  container.innerHTML = "";
+  listToShow.forEach((q, idx) => {
+    const grp = q.classRange || q.classGroup || "N/A";
+    container.innerHTML += `
+      <div style="background:#020617; border:1px solid #1e293b; padding:12px; border-radius:8px; margin-bottom:10px; font-size:12px; position:relative;">
+        <div style="display:flex; justify-content:space-between; color:#38bdf8; margin-bottom:4px;">
+          <strong>#${idx + 1} | Class: ${grp} (${q.subject})</strong>
+          <div>
+            <span style="color:#f87171; margin-right:10px;">Neg: -${q.negativeMarking || 0}</span>
+            <span style="color:#facc15; font-weight:bold; margin-right:15px;">Correct: ${q.correctOption}</span>
+            <button type="button" onclick="deleteQuestion('${q.id}')" style="background:#dc2626; color:#fff; border:none; padding:3px 8px; font-size:10px; border-radius:4px; cursor:pointer; font-weight:bold;">🗑️ Delete</button>
+          </div>
+        </div>
+        <p style="color:#fff; margin:4px 0 8px 0; font-weight:600;">${q.questionText}</p>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px; color:#94a3b8;">
+          <div>A) ${q.optionA}</div>
+          <div>B) ${q.optionB}</div>
+          <div>C) ${q.optionC}</div>
+          <div>D) ${q.optionD}</div>
+        </div>
+      </div>
+    `;
   });
 };
 
@@ -72,40 +128,14 @@ function loadSavedQuestions() {
   fetch(`${SERVER_URL}/api/admin/all_questions`)
     .then(res => res.json())
     .then(data => {
-      const container = document.getElementById("saved-questions-container");
-      const countEl = document.getElementById("total-q-count");
-      if(!container) return;
-
-      if (data.status === "success" && data.questions && data.questions.length > 0) {
-        if(countEl) countEl.textContent = data.questions.length;
-        container.innerHTML = "";
-        
-        data.questions.forEach((q, idx) => {
-          container.innerHTML += `
-            <div style="background:#020617; border:1px solid #1e293b; padding:12px; border-radius:8px; margin-bottom:10px; font-size:12px; position:relative;">
-              <div style="display:flex; justify-content:space-between; color:#38bdf8; margin-bottom:4px;">
-                <strong>#${idx + 1} | Class: ${q.classRange} (${q.subject})</strong>
-                <div>
-                  <span style="color:#f87171; margin-right:10px;">Neg: -${q.negativeMarking || 0}</span>
-                  <span style="color:#facc15; font-weight:bold; margin-right:15px;">Correct: ${q.correctOption}</span>
-                  <button onclick="deleteQuestion('${q.id}')" style="background:#dc2626; color:#fff; border:none; padding:3px 8px; font-size:10px; border-radius:4px; cursor:pointer; font-weight:bold;">🗑️ Delete</button>
-                </div>
-              </div>
-              <p style="color:#fff; margin:4px 0 8px 0; font-weight:600;">${q.questionText}</p>
-              <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px; color:#94a3b8;">
-                <div>A) ${q.optionA}</div>
-                <div>B) ${q.optionB}</div>
-                <div>C) ${q.optionC}</div>
-                <div>D) ${q.optionD}</div>
-              </div>
-            </div>
-          `;
-        });
+      if (data.status === "success" && Array.isArray(data.questions)) {
+        cachedQuestionsList = data.questions;
       } else {
-        if(countEl) countEl.textContent = 0;
-        container.innerHTML = `<p style="color: #64748b; font-size: 13px; text-align: center;">No questions added to database yet.</p>`;
+        cachedQuestionsList = [];
       }
-    }).catch(() => {});
+      renderFilteredQuestionsPreview();
+    })
+    .catch(() => {});
 }
 
 window.deleteQuestion = function(questionId) {
