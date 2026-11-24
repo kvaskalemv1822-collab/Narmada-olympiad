@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>NVMSO - Student Portal 2026</title>
-  <link rel="stylesheet" href="student.css?v=24">
+  <link rel="stylesheet" href="student.css?v=25">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 </head>
 <body>
@@ -43,7 +43,13 @@
           </div>
           <div class="form-group"><label>Roll Number:</label><input type="text" id="std-roll" placeholder="e.g. 101" required></div>
         </div>
-        <div class="form-group hidden" id="stream-group"><label>Academic Stream:</label><select id="std-stream"><option value="Maths">Mathematics</option><option value="Science">Science (Bio)</option></select></div>
+        <div class="form-group hidden" id="stream-group">
+          <label>Academic Stream / Subject:</label>
+          <select id="std-stream">
+            <option value="Maths">Mathematics</option>
+            <option value="Science">Science</option>
+          </select>
+        </div>
         <div class="form-group"><label>Contact Number:</label><input type="tel" id="std-contact" maxlength="10" placeholder="Mobile number" required></div>
         
         <button type="button" class="btn-submit" onclick="showReviewDetailsModal()">Review Details Before Payment ➡</button>
@@ -92,7 +98,7 @@
     <div id="exam-instructions-modal" class="hidden" style="background: #0f172a; color: #fff; padding: 25px; border-radius: 10px; border: 2px solid #facc15; margin-bottom: 20px;">
       <h3 style="color: #facc15; text-align: center; margin-bottom: 15px; font-size: 20px;">⚠️ IMPORTANT EXAMINATION INSTRUCTIONS</h3>
       <div style="font-size: 13px; line-height: 1.7; background: #020617; padding: 15px; border-radius: 6px; border: 1px solid #334155; margin-bottom: 20px; color: #cbd5e1;">
-        <p>1. <strong>Duration:</strong> Total exam duration is 30 minutes. Timer will run continuously on top.</p>
+        <p>1. <strong>Duration & Questions:</strong> Total exam duration is <strong id="inst-duration-mins">30</strong> minutes (<strong id="inst-question-count">30</strong> questions). Timer will run continuously on top and auto-submit when time ends.</p>
         <p>2. <strong>Negative Marking:</strong> Each correct answer carries +1 mark. Incorrect answers may attract negative marking as configured in questions.</p>
         <p>3. <strong>Anti-Cheat Security (Do Not Close Tab):</strong> Switching browser tabs, minimizing the browser, or refreshing/closing the window during the exam is strictly prohibited and monitored.</p>
         <p>4. <strong>Single Attempt:</strong> You can submit the exam only once. Once submitted, it cannot be retried.</p>
@@ -105,12 +111,13 @@
     </div>
 
     <div id="active-exam-container" class="hidden">
-      <div style="display: flex; justify-content: space-between; align-items: center; background: #0b0f19; padding: 12px; border-radius: 8px; margin-bottom: 15px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; background: #0b0f19; padding: 12px; border-radius: 8px; margin-bottom: 15px;">
         <span id="exam-timer-display" style="color: #facc15; font-weight: bold;">⏱️ Time Left: --:--</span>
+        <span id="exam-question-count" style="color: #4ade80; font-weight: bold;">📝 Questions: --</span>
         <span id="exam-student-info" style="color: #38bdf8;">Student: --</span>
       </div>
       <div id="exam-questions-list"></div>
-      <button onclick="submitExamAnswers()" class="btn-submit" style="background: #10b981; margin-top: 15px;">📤 Submit Final Exam Answers</button>
+      <button id="btn-submit-exam" onclick="submitExamAnswers(false)" class="btn-submit" style="background: #10b981; margin-top: 15px;">📤 Submit Final Exam Answers</button>
     </div>
   </div>
 
@@ -128,6 +135,6 @@
 
 </div>
 
-<script src="student.js?v=24"></script>
+<script src="student.js?v=25"></script>
 </body>
 </html>
