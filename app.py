@@ -631,14 +631,13 @@ def organizer_get_students():
     org_doc = db.collection('organizers').document(org_code).get()
     org_data = org_doc.to_dict() if org_doc.exists else {}
     is_settled = bool(org_data.get('manualSettled', False))
-    ref_code = str(org_data.get('refCode', '')).strip()
     g_cfg = db.collection('settings').document('portal_config').get().to_dict() or {}
 
     approved = [s for s in students if s.get('paymentStatus') == 'Approved' or s.get('paymentVerified') is True]
     exam_mode = (org_data.get('examMode') or 'online').lower()
 
-    online_fee = g_cfg.get('onlineFee', 100)
-    offline_fee = g_cfg.get('offlineFee', 120)
+    online_fee = int(g_cfg.get('onlineFee', 100) or 100)
+    offline_fee = int(g_cfg.get('offlineFee', 120) or 120)
 
     current_fee_per_student = offline_fee if exam_mode == 'offline' else online_fee
 
@@ -649,9 +648,40 @@ def organizer_get_students():
     online_collected_by_nvms = len(online_approved) * current_fee_per_student
     gross_total = len(approved) * current_fee_per_student
 
+    # 15% Direct Commission on THIS organizer's own verified registrations
     base_fee_total = len(approved) * online_fee
     direct_comm = int(base_fee_total * 0.15)
-    ref_comm = int(base_fee_total * 0.05) if (ref_code and ref_code.upper() != "NONE") else 0
+
+    # 5% Referral Commission goes to THIS organizer (`org_code`) from OTHER organizers who used `org_code` as their refCode
+    referred_organizers_summary = []
+    ref_comm = 0
+    if org_code:
+        for ref_doc in db.collection('organizers').where('refCode', '==', org_code).stream():
+            ref_org_code = str(ref_doc.id).strip().upper()
+            if not ref_org_code or ref_org_code == org_code:
+                continue
+
+            ref_students = []
+            ref_seen = set()
+            for rf in ['orgCode', 'schoolCode']:
+                for s_doc in db.collection('students').where(rf, '==', ref_org_code).stream():
+                    if s_doc.id not in ref_seen:
+                        ref_seen.add(s_doc.id)
+                        ref_students.append(s_doc.to_dict())
+
+            ref_approved_count = len([
+                s for s in ref_students
+                if s.get('paymentStatus') == 'Approved' or s.get('paymentVerified') is True
+            ])
+            ref_earned = int(ref_approved_count * online_fee * 0.05)
+            ref_comm += ref_earned
+            referred_organizers_summary.append({
+                "orgCode": ref_org_code,
+                "schoolName": ref_doc.to_dict().get('schoolName', ref_org_code),
+                "approvedRegistrations": ref_approved_count,
+                "referralCommission": ref_earned
+            })
+
     total_commission = direct_comm + ref_comm
 
     net_balance = cash_held - total_commission
@@ -671,6 +701,7 @@ def organizer_get_students():
         "isSettled": is_settled,
         "adminUpiId": g_cfg.get('adminUpiId', 'narmada@upi'),
         "isResultDeclared": bool(g_cfg.get('isResultDeclared', False)),
+        "referredOrganizers": referred_organizers_summary,
         "financials": {
             "totalRegistrations": len(students),
             "approvedRegistrations": len(approved),
