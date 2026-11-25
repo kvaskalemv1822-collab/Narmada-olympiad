@@ -5,14 +5,40 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>NVMSO - Question Bank &amp; Parameters Manager</title>
   <link rel="stylesheet" href="central.css?v=24">
+  <style>
+    @media print {
+      body {
+        background: #ffffff !important;
+        color: #000000 !important;
+        padding: 0 !important;
+        width: auto !important;
+      }
+      #question-main-container,
+      .control-box,
+      #saved-questions-container {
+        display: none !important;
+      }
+      #printable-paper-sheet {
+        display: block !important;
+        background: #ffffff !important;
+        color: #000000 !important;
+        padding: 18px !important;
+      }
+    }
+    #printable-paper-sheet {
+      display: none;
+    }
+  </style>
 </head>
 <body style="background: #0b0f19; padding: 15px; color:#fff; width:100vw;">
 
 <div id="question-main-container" style="width: 100%; max-width: 1200px; margin: 0 auto;">
-  <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #374151; padding-bottom: 15px; margin-bottom: 20px;">
+  <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #374151; padding-bottom: 15px; margin-bottom: 20px; flex-wrap: wrap; gap: 10px;">
     <div>
       <h1 style="font-size: 22px; margin:0;">📚 Exam Question Bank &amp; Parameters Manager</h1>
-      <div style="font-size: 12px; color: #94a3b8;">Formulate Questions, Negative Marking &amp; Delete Controls</div>
+      <div style="font-size: 12px; color: #94a3b8;">
+        Formulate Questions, Negative Marking, Print Limit: <strong id="exam-q-limit-badge" style="color:#38bdf8;">30</strong> Questions
+      </div>
     </div>
     <div>
       <a href="central.html" class="btn-primary" style="text-decoration: none; background: #4b5563; font-size: 12px; padding: 8px 12px;">⬅ Back to Control Room</a>
@@ -26,20 +52,12 @@
     <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:15px; margin-bottom: 15px;">
       <div>
         <label for="q-class-select" style="font-size:12px; color:#94a3b8; display:block; margin-bottom:5px;">Target Class Range:</label>
-        <select id="q-class-select" style="width:100%;" onchange="handleQuestionClassRangeChange(this.value)">
+        <select id="q-class-select" style="width:100%;">
           <option value="3-5">Class 3rd to 5th</option>
           <option value="6-8" selected>Class 6th to 8th</option>
           <option value="9-10">Class 9th to 10th</option>
           <option value="11-12-Maths">Class 11th &amp; 12th (Maths)</option>
           <option value="11-12-Science">Class 11th &amp; 12th (Science)</option>
-        </select>
-      </div>
-      <div>
-        <label for="q-subject-select" style="font-size:12px; color:#94a3b8; display:block; margin-bottom:5px;">Subject Category:</label>
-        <select id="q-subject-select" style="width:100%;">
-          <option value="Maths">Mathematics</option>
-          <option value="Science">Science Column</option>
-          <option value="GK">General Knowledge / Logic</option>
         </select>
       </div>
       <div>
@@ -90,18 +108,23 @@
     <button type="button" class="btn-primary" style="width:100%; background:linear-gradient(135deg, #7c3aed 0%, #c084fc 100%); padding: 12px; font-weight:bold; cursor:pointer;" onclick="addNewQuestionToBank()">➕ Save Question to Database Engine</button>
   </div>
 
-  <!-- LIVE SAVED QUESTIONS PREVIEW PANEL WITH DELETE OPTION -->
+  <!-- LIVE SAVED QUESTIONS PREVIEW PANEL WITH PRINT & DELETE OPTIONS -->
   <div class="control-box" style="border: 1px solid #334155; background: rgba(15, 23, 42, 0.85); padding: 20px; border-radius: 12px;">
     <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom: 12px;">
       <h3 style="color:#38bdf8; margin:0;">📋 Live Saved Questions Preview (<span id="total-q-count">0</span>)</h3>
-      <select id="filter-q-class" onchange="renderFilteredQuestionsPreview()" style="background:#020617; color:#fff; border:1px solid #475569; padding:6px 10px; border-radius:6px; font-size:12px;">
-        <option value="ALL">All Class Ranges</option>
-        <option value="3-5">Class 3rd to 5th</option>
-        <option value="6-8">Class 6th to 8th</option>
-        <option value="9-10">Class 9th to 10th</option>
-        <option value="11-12-Maths">Class 11th &amp; 12th (Maths)</option>
-        <option value="11-12-Science">Class 11th &amp; 12th (Science)</option>
-      </select>
+      <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+        <select id="filter-q-class" onchange="renderFilteredQuestionsPreview()" style="background:#020617; color:#fff; border:1px solid #475569; padding:6px 10px; border-radius:6px; font-size:12px;">
+          <option value="ALL">All Class Ranges</option>
+          <option value="3-5">Class 3rd to 5th</option>
+          <option value="6-8">Class 6th to 8th</option>
+          <option value="9-10">Class 9th to 10th</option>
+          <option value="11-12-Maths">Class 11th &amp; 12th (Maths)</option>
+          <option value="11-12-Science">Class 11th &amp; 12th (Science)</option>
+        </select>
+        <button type="button" onclick="printExamQuestionPaper()" style="background:#10b981; color:#020617; border:none; padding:7px 12px; border-radius:6px; font-size:12px; font-weight:800; cursor:pointer;">
+          🖨️ Print Paper (<span id="print-q-limit-label">30</span> Qs)
+        </button>
+      </div>
     </div>
     <div id="saved-questions-container" style="max-height: 450px; overflow-y: auto;">
       <p style="color: #64748b; font-size: 13px; text-align: center;">Loading saved questions...</p>
@@ -109,17 +132,9 @@
   </div>
 </div>
 
-<script>
-  function handleQuestionClassRangeChange(val) {
-    const subSelect = document.getElementById("q-subject-select");
-    if (!subSelect) return;
-    if (val === "11-12-Maths") {
-      subSelect.value = "Maths";
-    } else if (val === "11-12-Science") {
-      subSelect.value = "Science";
-    }
-  }
-</script>
-<script src="question.js?v=12"></script>
+<!-- PEN & PAPER QUESTION SHEET (SHOWN ON PRINT) -->
+<div id="printable-paper-sheet"></div>
+
+<script src="question.js?v=13"></script>
 </body>
 </html>
