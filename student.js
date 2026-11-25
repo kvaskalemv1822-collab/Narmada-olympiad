@@ -8,12 +8,21 @@ let studentSessionData = null;
 let examTimerInterval = null;
 let isAutoSubmittingExam = false;
 
+function escapeHtml(str) {
+  return String(str ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 document.addEventListener("DOMContentLoaded", () => {
   fetchPortalConfig();
   ["std-roll", "login-roll", "res-roll"].forEach(id => {
     const el = document.getElementById(id);
     if (el) {
-      el.addEventListener("input", function() {
+      el.addEventListener("input", function () {
         this.value = this.value.replace(/[^0-9]/g, "");
       });
     }
@@ -76,21 +85,21 @@ function resolveQuestionBucket(q) {
     .toLowerCase();
 
   if (
-    rawGroup.includes("3") && rawGroup.includes("5") ||
+    (rawGroup.includes("3") && rawGroup.includes("5")) ||
     rawGroup === "3-5" ||
     rawGroup === "3rd to 5th"
   ) {
     return "3-5";
   }
   if (
-    rawGroup.includes("6") && rawGroup.includes("8") ||
+    (rawGroup.includes("6") && rawGroup.includes("8")) ||
     rawGroup === "6-8" ||
     rawGroup === "6th to 8th"
   ) {
     return "6-8";
   }
   if (
-    rawGroup.includes("9") && rawGroup.includes("10") ||
+    (rawGroup.includes("9") && rawGroup.includes("10")) ||
     rawGroup === "9-10" ||
     rawGroup === "9th to 10th"
   ) {
@@ -172,7 +181,7 @@ function fetchPortalConfig() {
   fetch(`${SERVER_URL}/api/portal/config`)
     .then(res => res.json())
     .then(data => {
-      if (data.status === "success") {
+      if (data && data.status === "success") {
         portalConfigData = data.config || {};
         activeUpiString = portalConfigData.adminUpiId || "narmada@upi";
         updateExamMetaDisplays();
@@ -212,7 +221,7 @@ function fetchPortalConfig() {
     });
 }
 
-window.fetchSchoolName = function(val) {
+window.fetchSchoolName = function (val) {
   const display = document.getElementById("school-name-display");
   const modeBadge = document.getElementById("display-student-exam-mode");
   const onlineSection = document.getElementById("online-payment-section");
@@ -230,23 +239,31 @@ window.fetchSchoolName = function(val) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ orgCode: val })
   })
-  .then(res => res.json())
-  .then(data => {
-    if (data.status === "success") {
-      display.innerHTML = `✅ School Authorized: <strong style="color:#10b981;">${data.schoolName}</strong>`;
-      modeBadge.innerText = `EXAM CONDUCT MODE: ${data.examMode.toUpperCase()}`;
-      isOrganizerVerified = true;
-      verifiedOrgExamMode = data.examMode;
-      if (document.getElementById("payment-mode").value === "online") {
-        onlineSection.style.display = "block";
+    .then(res => res.json())
+    .then(data => {
+      if (data && data.status === "success") {
+        if (display) {
+          display.innerHTML = `✅ School Authorized: <strong style="color:#10b981;">${escapeHtml(data.schoolName)}</strong>`;
+        }
+        if (modeBadge) {
+          modeBadge.innerText = `EXAM CONDUCT MODE: ${String(data.examMode || "online").toUpperCase()}`;
+        }
+        isOrganizerVerified = true;
+        verifiedOrgExamMode = data.examMode || "online";
+        if (document.getElementById("payment-mode")?.value === "online" && onlineSection) {
+          onlineSection.style.display = "block";
+        }
+        renderDynamicUPIQR();
+      } else {
+        if (display) display.innerText = "❌ Invalid Organizer Code!";
+        isOrganizerVerified = false;
+        if (onlineSection) onlineSection.style.display = "none";
       }
-      renderDynamicUPIQR();
-    } else {
-      display.innerText = "❌ Invalid Organizer Code!";
+    })
+    .catch(() => {
+      if (display) display.innerText = "⚠️ Unable to verify code right now.";
       isOrganizerVerified = false;
-      onlineSection.style.display = "none";
-    }
-  });
+    });
 };
 
 function renderDynamicUPIQR() {
@@ -264,7 +281,7 @@ function renderDynamicUPIQR() {
   }
 }
 
-window.openDirectUpiApp = function() {
+window.openDirectUpiApp = function () {
   if (!isOrganizerVerified) {
     alert("Verify School Organizer Code first!");
     return;
@@ -276,14 +293,14 @@ window.openDirectUpiApp = function() {
   window.location.href = `upi://pay?pa=${encodeURIComponent(activeUpiString)}&pn=NVMSO&am=${fee}&cu=INR`;
 };
 
-window.showReviewDetailsModal = function() {
+window.showReviewDetailsModal = function () {
   if (!isOrganizerVerified) {
     alert("⚠️ Enter valid School Organizer Code first!");
     return;
   }
   const fields = ["org-code", "std-name", "std-mother", "std-father", "std-class", "std-roll", "std-contact"];
-  for (let id of fields) {
-    if (!document.getElementById(id).value.trim()) {
+  for (const id of fields) {
+    if (!document.getElementById(id)?.value.trim()) {
       alert("❌ Please fill out all required fields!");
       return;
     }
@@ -298,43 +315,43 @@ window.showReviewDetailsModal = function() {
     parseInt(selectedClassVal, 10) >= 11 && document.getElementById("std-stream")
       ? `<div style="display: flex; gap: 12px; margin-bottom: 10px; border-bottom: 1px dashed #334155; padding-bottom: 8px; text-align: left;">
           <span style="color: #94a3b8; width: 140px; flex-shrink: 0;">Stream / Subject :-</span>
-          <strong style="color: #c084fc;">${document.getElementById("std-stream").value}</strong>
+          <strong style="color: #c084fc;">${escapeHtml(document.getElementById("std-stream").value)}</strong>
         </div>`
       : "";
 
   const reviewHtml = `
     <div style="display: flex; gap: 12px; margin-bottom: 10px; border-bottom: 1px dashed #334155; padding-bottom: 8px; text-align: left;">
       <span style="color: #94a3b8; width: 140px; flex-shrink: 0;">School Name :-</span> 
-      <strong style="color: #4ade80;">${schoolFullName}</strong>
+      <strong style="color: #4ade80;">${escapeHtml(schoolFullName)}</strong>
     </div>
     <div style="display: flex; gap: 12px; margin-bottom: 10px; border-bottom: 1px dashed #334155; padding-bottom: 8px; text-align: left;">
       <span style="color: #94a3b8; width: 140px; flex-shrink: 0;">Coordinator Code :-</span> 
-      <strong style="color: #38bdf8;">${document.getElementById("org-code").value.toUpperCase()}</strong>
+      <strong style="color: #38bdf8;">${escapeHtml(document.getElementById("org-code").value.toUpperCase())}</strong>
     </div>
     <div style="display: flex; gap: 12px; margin-bottom: 10px; border-bottom: 1px dashed #334155; padding-bottom: 8px; text-align: left;">
       <span style="color: #94a3b8; width: 140px; flex-shrink: 0;">Student Name :-</span> 
-      <strong style="color: #fff;">${document.getElementById("std-name").value}</strong>
+      <strong style="color: #fff;">${escapeHtml(document.getElementById("std-name").value)}</strong>
     </div>
     <div style="display: flex; gap: 12px; margin-bottom: 10px; border-bottom: 1px dashed #334155; padding-bottom: 8px; text-align: left;">
       <span style="color: #94a3b8; width: 140px; flex-shrink: 0;">Mother's Name :-</span> 
-      <strong style="color: #fff;">${document.getElementById("std-mother").value}</strong>
+      <strong style="color: #fff;">${escapeHtml(document.getElementById("std-mother").value)}</strong>
     </div>
     <div style="display: flex; gap: 12px; margin-bottom: 10px; border-bottom: 1px dashed #334155; padding-bottom: 8px; text-align: left;">
       <span style="color: #94a3b8; width: 140px; flex-shrink: 0;">Father's Name :-</span> 
-      <strong style="color: #fff;">${document.getElementById("std-father").value}</strong>
+      <strong style="color: #fff;">${escapeHtml(document.getElementById("std-father").value)}</strong>
     </div>
     <div style="display: flex; gap: 12px; margin-bottom: 10px; border-bottom: 1px dashed #334155; padding-bottom: 8px; text-align: left;">
       <span style="color: #94a3b8; width: 140px; flex-shrink: 0;">Class :-</span> 
-      <strong style="color: #facc15;">${selectedClassVal}</strong>
+      <strong style="color: #facc15;">${escapeHtml(selectedClassVal)}</strong>
     </div>
     ${streamRow}
     <div style="display: flex; gap: 12px; margin-bottom: 10px; border-bottom: 1px dashed #334155; padding-bottom: 8px; text-align: left;">
       <span style="color: #94a3b8; width: 140px; flex-shrink: 0;">Roll Number :-</span> 
-      <strong style="color: #38bdf8;">${document.getElementById("std-roll").value}</strong>
+      <strong style="color: #38bdf8;">${escapeHtml(document.getElementById("std-roll").value)}</strong>
     </div>
     <div style="display: flex; gap: 12px; text-align: left;">
       <span style="color: #94a3b8; width: 140px; flex-shrink: 0;">Contact Number :-</span> 
-      <strong style="color: #fff;">${document.getElementById("std-contact").value}</strong>
+      <strong style="color: #fff;">${escapeHtml(document.getElementById("std-contact").value)}</strong>
     </div>
   `;
   document.getElementById("review-content").innerHTML = reviewHtml;
@@ -343,31 +360,32 @@ window.showReviewDetailsModal = function() {
   window.scrollTo({ top: 0, behavior: "smooth" });
 };
 
-window.backToEditDetails = function() {
+window.backToEditDetails = function () {
   document.getElementById("review-section").style.display = "none";
   document.getElementById("details-section").style.display = "block";
 };
 
-window.proceedToPaymentFromReview = function() {
+window.proceedToPaymentFromReview = function () {
   document.getElementById("review-section").style.display = "none";
   document.getElementById("payment-section").style.display = "block";
   renderDynamicUPIQR();
   window.scrollTo({ top: 0, behavior: "smooth" });
 };
 
-window.backToDetails = function() {
+window.backToDetails = function () {
   document.getElementById("payment-section").style.display = "none";
   document.getElementById("details-section").style.display = "block";
 };
 
-window.toggleQrDisplay = function() {
+window.toggleQrDisplay = function () {
   const qrDiv = document.getElementById("dynamic-qr-container");
+  if (!qrDiv) return;
   qrDiv.style.display =
     qrDiv.style.display === "none" || qrDiv.style.display === "" ? "flex" : "none";
 };
 
-window.submitStudentRegistration = function() {
-  const payMode = document.getElementById("payment-mode").value;
+window.submitStudentRegistration = function () {
+  const payMode = document.getElementById("payment-mode")?.value || "online";
   const utrInput = document.getElementById("std-utr") ? document.getElementById("std-utr").value.trim() : "";
 
   if (payMode === "online" && (!utrInput || utrInput.length < 6)) {
@@ -375,22 +393,22 @@ window.submitStudentRegistration = function() {
     return;
   }
 
-  const classVal = document.getElementById("std-class").value;
+  const classVal = document.getElementById("std-class")?.value || "";
   const streamVal =
     parseInt(classVal, 10) >= 11 && document.getElementById("std-stream")
       ? document.getElementById("std-stream").value
       : "";
 
   const payload = {
-    orgCode: document.getElementById("org-code").value.toUpperCase(),
-    studentName: document.getElementById("std-name").value.trim(),
-    motherName: document.getElementById("std-mother").value.trim(),
-    fatherName: document.getElementById("std-father").value.trim(),
+    orgCode: (document.getElementById("org-code")?.value || "").trim().toUpperCase(),
+    studentName: (document.getElementById("std-name")?.value || "").trim(),
+    motherName: (document.getElementById("std-mother")?.value || "").trim(),
+    fatherName: (document.getElementById("std-father")?.value || "").trim(),
     studentClass: classVal,
-    rollNumber: document.getElementById("std-roll").value.trim(),
+    rollNumber: (document.getElementById("std-roll")?.value || "").trim(),
     stream: streamVal,
     subject: streamVal,
-    contactNumber: document.getElementById("std-contact").value.trim(),
+    contactNumber: (document.getElementById("std-contact")?.value || "").trim(),
     paymentMode: payMode,
     utrNumber: utrInput || "NOT_PROVIDED"
   };
@@ -400,21 +418,22 @@ window.submitStudentRegistration = function() {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload)
   })
-  .then(res => res.json())
-  .then(data => {
-    if (data.status === "success") {
-      alert("🎉 Registration Submitted Successfully!");
-      location.reload();
-    } else {
-      alert("❌ Error: " + data.message);
-    }
-  });
+    .then(res => res.json())
+    .then(data => {
+      if (data && data.status === "success") {
+        alert("🎉 Registration Submitted Successfully!");
+        location.reload();
+      } else {
+        alert("❌ Error: " + (data?.message || "Registration failed"));
+      }
+    })
+    .catch(() => alert("❌ Network error while submitting registration."));
 };
 
-window.verifyStudentLoginAndStartExam = function() {
-  const orgCode = document.getElementById("login-org-code").value.trim().toUpperCase();
-  const roll = document.getElementById("login-roll").value.trim();
-  const password = document.getElementById("login-password").value.trim();
+window.verifyStudentLoginAndStartExam = function () {
+  const orgCode = (document.getElementById("login-org-code")?.value || "").trim().toUpperCase();
+  const roll = (document.getElementById("login-roll")?.value || "").trim();
+  const password = (document.getElementById("login-password")?.value || "").trim();
   if (!orgCode || !roll || !password) {
     alert("⚠️ Enter all credentials.");
     return;
@@ -425,40 +444,44 @@ window.verifyStudentLoginAndStartExam = function() {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ orgCode: orgCode, rollNumber: roll, password: password })
   })
-  .then(res => res.json())
-  .then(data => {
-    if (data.status === "success") {
-      studentSessionData = data.student;
+    .then(res => res.json())
+    .then(data => {
+      if (data && data.status === "success") {
+        studentSessionData = data.student;
 
-      if (studentSessionData.examMode && studentSessionData.examMode.toLowerCase() === "offline") {
-        alert("❌ Access Denied: Your school has selected OFFLINE mode for examinations.");
-        return;
+        if (studentSessionData?.examMode && String(studentSessionData.examMode).toLowerCase() === "offline") {
+          alert("❌ Access Denied: Your school has selected OFFLINE mode for examinations.");
+          return;
+        }
+
+        updateExamMetaDisplays();
+        document.getElementById("student-auth-box")?.classList.add("hidden");
+        document.getElementById("exam-instructions-modal")?.classList.remove("hidden");
+      } else {
+        alert("❌ Login Failed: " + (data?.message || "Invalid credentials"));
       }
-
-      updateExamMetaDisplays();
-      document.getElementById("student-auth-box").classList.add("hidden");
-      document.getElementById("exam-instructions-modal").classList.remove("hidden");
-    } else {
-      alert("❌ Login Failed: " + data.message);
-    }
-  });
+    })
+    .catch(() => alert("❌ Network error while logging in."));
 };
 
-window.proceedToActualExamPaper = function() {
+window.proceedToActualExamPaper = function () {
   const agreeCheck = document.getElementById("agree-instructions");
-  if (!agreeCheck.checked) {
+  if (!agreeCheck?.checked) {
     alert("⚠️ Please check the box to confirm exam rules.");
     return;
   }
 
   isAutoSubmittingExam = false;
-  document.getElementById("exam-instructions-modal").classList.add("hidden");
-  document.getElementById("active-exam-container").classList.remove("hidden");
-  const streamTag = studentSessionData.stream ? ` - ${studentSessionData.stream}` : "";
-  document.getElementById("exam-student-info").textContent =
-    `Student: ${studentSessionData.studentName} (Class ${studentSessionData.studentClass}${streamTag})`;
+  document.getElementById("exam-instructions-modal")?.classList.add("hidden");
+  document.getElementById("active-exam-container")?.classList.remove("hidden");
+  const streamTag = studentSessionData?.stream ? ` - ${studentSessionData.stream}` : "";
+  const infoEl = document.getElementById("exam-student-info");
+  if (infoEl) {
+    infoEl.textContent =
+      `Student: ${studentSessionData?.studentName || ""} (Class ${studentSessionData?.studentClass || ""}${streamTag})`;
+  }
 
-  loadExamQuestionsForClass(studentSessionData.studentClass);
+  loadExamQuestionsForClass();
   startExamTimer(getExamDurationMinutes() * 60);
 };
 
@@ -470,7 +493,7 @@ function loadExamQuestionsForClass() {
     .then(data => {
       const qContainer = document.getElementById("exam-questions-list");
       if (!qContainer) return;
-      if (data.status === "success" && Array.isArray(data.questions)) {
+      if (data && data.status === "success" && Array.isArray(data.questions)) {
         const matched = filterQuestionsForStudent(data.questions, studentSessionData);
         currentExamQuestions = matched.slice(0, limitCount);
         updateExamMetaDisplays(currentExamQuestions.length);
@@ -482,20 +505,22 @@ function loadExamQuestionsForClass() {
         }
 
         currentExamQuestions.forEach((q, idx) => {
+          const qId = escapeHtml(q.id);
           qContainer.innerHTML += `
             <div style="background: #ffffff; border: 1px solid #ccc; padding: 15px; border-radius: 8px; margin-bottom: 12px; color: #333;">
-              <p style="color: #1e3c72; font-weight: bold; margin-bottom: 8px;">Q${idx + 1}. ${q.questionText}</p>
+              <p style="color: #1e3c72; font-weight: bold; margin-bottom: 8px;">Q${idx + 1}. ${escapeHtml(q.questionText)}</p>
               <div style="display: flex; flex-direction: column; gap: 6px;">
-                <label><input type="radio" name="q_${q.id}" value="A"> A) ${q.optionA}</label>
-                <label><input type="radio" name="q_${q.id}" value="B"> B) ${q.optionB}</label>
-                <label><input type="radio" name="q_${q.id}" value="C"> C) ${q.optionC}</label>
-                <label><input type="radio" name="q_${q.id}" value="D"> D) ${q.optionD}</label>
+                <label><input type="radio" name="q_${qId}" value="A"> A) ${escapeHtml(q.optionA)}</label>
+                <label><input type="radio" name="q_${qId}" value="B"> B) ${escapeHtml(q.optionB)}</label>
+                <label><input type="radio" name="q_${qId}" value="C"> C) ${escapeHtml(q.optionC)}</label>
+                <label><input type="radio" name="q_${qId}" value="D"> D) ${escapeHtml(q.optionD)}</label>
               </div>
             </div>
           `;
         });
       }
-    });
+    })
+    .catch(() => {});
 }
 
 function startExamTimer(durationSeconds) {
@@ -529,7 +554,7 @@ function startExamTimer(durationSeconds) {
   }, 1000);
 }
 
-window.submitExamAnswers = function(isAutoSubmit = false) {
+window.submitExamAnswers = function (isAutoSubmit = false) {
   if (!isAutoSubmit && !isAutoSubmittingExam) {
     if (!confirm("Are you sure you want to submit your exam answers?")) return;
   }
@@ -551,36 +576,36 @@ window.submitExamAnswers = function(isAutoSubmit = false) {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      studentId: studentSessionData.studentId,
+      studentId: studentSessionData?.studentId,
       answers: answers,
       totalQuestions: currentExamQuestions.length || getConfiguredQuestionLimit(),
       autoSubmitted: !!isAutoSubmit
     })
   })
-  .then(res => res.json())
-  .then(data => {
-    if (data.status === "success") {
-      alert(isAutoSubmit ? "⏰ Time over! Exam auto-submitted successfully." : "✅ Exam Submitted Successfully!");
-      location.reload();
-    } else {
-      alert("❌ Error: " + data.message);
+    .then(res => res.json())
+    .then(data => {
+      if (data && data.status === "success") {
+        alert(isAutoSubmit ? "⏰ Time over! Exam auto-submitted successfully." : "✅ Exam Submitted Successfully!");
+        location.reload();
+      } else {
+        alert("❌ Error: " + (data?.message || "Failed to submit exam"));
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.textContent = "📤 Submit Final Exam Answers";
+        }
+      }
+    })
+    .catch(() => {
       if (submitBtn) {
         submitBtn.disabled = false;
         submitBtn.textContent = "📤 Submit Final Exam Answers";
       }
-    }
-  })
-  .catch(() => {
-    if (submitBtn) {
-      submitBtn.disabled = false;
-      submitBtn.textContent = "📤 Submit Final Exam Answers";
-    }
-  });
+    });
 };
 
-window.fetchStudentResult = function() {
-  const orgCode = document.getElementById("res-org-code").value.trim().toUpperCase();
-  const roll = document.getElementById("res-roll").value.trim();
+window.fetchStudentResult = function () {
+  const orgCode = (document.getElementById("res-org-code")?.value || "").trim().toUpperCase();
+  const roll = (document.getElementById("res-roll")?.value || "").trim();
   const scorecardBox = document.getElementById("student-scorecard-box");
   if (!orgCode || !roll) {
     alert("Enter School Code and Roll No.");
@@ -592,31 +617,40 @@ window.fetchStudentResult = function() {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ orgCode: orgCode, rollNumber: roll })
   })
-  .then(res => res.json())
-  .then(data => {
-    scorecardBox.style.display = "block";
-    if (data.status === "success") {
-      const resData = data.result;
-      const maxMarks = resData.totalMarks || resData.totalQuestions || getConfiguredQuestionLimit();
-      scorecardBox.innerHTML = `
-        <div style="background: rgba(15, 23, 42, 0.9); padding: 15px; border-radius: 8px; margin-bottom: 15px;">
-          <h4 style="color: #facc15; margin-bottom: 8px;">📊 Scorecard Summary</h4>
-          <p><strong>Name:</strong> ${resData.studentName}</p>
-          <p><strong>Class:</strong> ${resData.studentClass}</p>
-          <p><strong>Score:</strong> <span style="color: #10b981; font-weight: bold;">${resData.score} / ${maxMarks} (${resData.percentage}%)</span></p>
-        </div>
-      `;
-    } else {
-      scorecardBox.innerHTML = `<p style="color: #d9534f; text-align: center; padding: 20px;">❌ ${data.message}</p>`;
-    }
-  });
+    .then(res => res.json())
+    .then(data => {
+      if (!scorecardBox) return;
+      scorecardBox.style.display = "block";
+      if (data && data.status === "success" && data.result) {
+        const resData = data.result;
+        const maxMarks = resData.totalMarks || resData.totalQuestions || getConfiguredQuestionLimit();
+        scorecardBox.innerHTML = `
+          <div style="background: rgba(15, 23, 42, 0.9); padding: 15px; border-radius: 8px; margin-bottom: 15px;">
+            <h4 style="color: #facc15; margin-bottom: 8px;">📊 Scorecard Summary</h4>
+            <p><strong>Name:</strong> ${escapeHtml(resData.studentName)}</p>
+            <p><strong>Class:</strong> ${escapeHtml(resData.studentClass)}</p>
+            <p><strong>Score:</strong> <span style="color: #10b981; font-weight: bold;">${escapeHtml(resData.score)} / ${escapeHtml(maxMarks)} (${escapeHtml(resData.percentage)}%)</span></p>
+          </div>
+        `;
+      } else {
+        scorecardBox.innerHTML = `<p style="color: #d9534f; text-align: center; padding: 20px;">❌ ${escapeHtml(data?.message || "Result not found")}</p>`;
+      }
+    })
+    .catch(() => {
+      if (scorecardBox) {
+        scorecardBox.style.display = "block";
+        scorecardBox.innerHTML = `<p style="color: #d9534f; text-align: center; padding: 20px;">❌ Network error while fetching result.</p>`;
+      }
+    });
 };
 
 window.handlePaymentModeChange = mode => {
-  document.getElementById("online-payment-section").style.display =
-    mode === "online" && isOrganizerVerified ? "block" : "none";
+  const onlineSec = document.getElementById("online-payment-section");
+  if (onlineSec) {
+    onlineSec.style.display = mode === "online" && isOrganizerVerified ? "block" : "none";
+  }
 };
 
 window.handleClassChange = val => {
-  document.getElementById("stream-group").classList.toggle("hidden", parseInt(val, 10) < 11);
+  document.getElementById("stream-group")?.classList.toggle("hidden", parseInt(val, 10) < 11);
 };
