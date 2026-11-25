@@ -432,14 +432,25 @@ function fetchRegisteredStudentsList() {
               ? onlineStudents.length * onlineFeeBase
               : (data.financials.onlineCollected || 0);
 
-          // 15% Direct & 5% Referral calculated on current Online Mode Fee base
+          // 15% Direct commission on this coordinator's own verified registrations
           const baseForCommission = totalRegs * onlineFeeBase;
           const directComm = Math.floor(baseForCommission * 0.15);
-          const hasRef =
-            currentOrg.refCode &&
-            String(currentOrg.refCode).trim() !== "" &&
-            String(currentOrg.refCode).trim().toUpperCase() !== "NONE";
-          const refComm = hasRef ? Math.floor(baseForCommission * 0.05) : 0;
+
+          // 5% Referral commission ONLY from other coordinators who registered using this coordinator's code (orgCodeKey)
+          const serverRefComm = Number(
+            data.financials?.referralCommission ?? data.referralCommission
+          );
+          let refComm = 0;
+          if (!isNaN(serverRefComm) && serverRefComm > 0) {
+            refComm = Math.floor(serverRefComm);
+          } else if (Array.isArray(data.referredOrganizers)) {
+            refComm = data.referredOrganizers.reduce((sum, refOrg) => {
+              const refCount = Number(refOrg.approvedRegistrations || refOrg.verifiedCount || 0);
+              return sum + Math.floor(refCount * onlineFeeBase * 0.05);
+            }, 0);
+          } else {
+            refComm = 0;
+          }
 
           const isSettled = !!data.isSettled;
           const rawNetPayable = cashHeld - (directComm + refComm);
