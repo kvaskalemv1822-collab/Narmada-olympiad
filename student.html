@@ -10,14 +10,14 @@
 <body>
 
 <div class="container">
-  <h1>⚡ Narmada Valley Maths & Science Olympiad 2026</h1>
-  <div class="subtitle">Official Student Portal & Examination Hub</div>
+  <h1>⚡ Narmada Valley Maths &amp; Science Olympiad 2026</h1>
+  <div class="subtitle">Official Student Portal &amp; Examination Hub</div>
   <div id="portal-status-msg" class="status-msg">Connecting to secure server...</div>
 
   <!-- VIEW 1: REGISTRATION -->
   <div id="registration-view" class="hidden">
     <form id="reg-form">
-      
+
       <!-- STEP 1: INPUT DETAILS -->
       <div id="details-section">
         <div style="background: rgba(245, 158, 11, 0.15); border: 1px solid #f59e0b; padding: 12px 15px; border-radius: 8px; margin-bottom: 15px; color: #fcd34d; font-size: 13px;">
@@ -25,15 +25,28 @@
         </div>
 
         <div class="form-group"><div id="display-student-exam-mode" class="highlight-text">Exam Conduct Mode: ENTER ORGANIZER CODE FIRST</div></div>
-        <div class="form-group"><label>School Organizer Code:</label><input type="text" id="org-code" placeholder="e.g. NVMS540" required oninput="fetchSchoolName(this.value)"><span id="school-name-display" style="display:block; margin-top:5px; font-size:12px; font-weight:700;"></span></div>
-        <div class="form-group"><label>Student Full Name:</label><input type="text" id="std-name" placeholder="Full name" required></div>
-        <div class="grid-2">
-          <div class="form-group"><label>Mother's Name:</label><input type="text" id="std-mother" placeholder="Mother's name" required></div>
-          <div class="form-group"><label>Father's Name:</label><input type="text" id="std-father" placeholder="Father's name" required></div>
+        <div class="form-group">
+          <label for="org-code">School Organizer Code:</label>
+          <input type="text" id="org-code" placeholder="e.g. NVMS540" required oninput="fetchSchoolName(this.value)">
+          <span id="school-name-display" style="display:block; margin-top:5px; font-size:12px; font-weight:700;"></span>
+        </div>
+        <div class="form-group">
+          <label for="std-name">Student Full Name:</label>
+          <input type="text" id="std-name" placeholder="Full name" autocomplete="name" required>
         </div>
         <div class="grid-2">
           <div class="form-group">
-            <label>Class:</label>
+            <label for="std-mother">Mother's Name:</label>
+            <input type="text" id="std-mother" placeholder="Mother's name" required>
+          </div>
+          <div class="form-group">
+            <label for="std-father">Father's Name:</label>
+            <input type="text" id="std-father" placeholder="Father's name" required>
+          </div>
+        </div>
+        <div class="grid-2">
+          <div class="form-group">
+            <label for="std-class">Class:</label>
             <select id="std-class" required onchange="handleClassChange(this.value)">
               <option value="">Select Class</option>
               <option value="3">Class 3rd</option><option value="4">Class 4th</option><option value="5">Class 5th</option>
@@ -41,17 +54,23 @@
               <option value="9">Class 9th</option><option value="10">Class 10th</option><option value="11">Class 11th</option><option value="12">Class 12th</option>
             </select>
           </div>
-          <div class="form-group"><label>Roll Number:</label><input type="text" id="std-roll" placeholder="e.g. 101" required></div>
+          <div class="form-group">
+            <label for="std-roll">Roll Number:</label>
+            <input type="text" id="std-roll" placeholder="e.g. 101" required>
+          </div>
         </div>
         <div class="form-group hidden" id="stream-group">
-          <label>Academic Stream / Subject:</label>
+          <label for="std-stream">Academic Stream / Subject:</label>
           <select id="std-stream">
             <option value="Maths">Mathematics</option>
             <option value="Science">Science</option>
           </select>
         </div>
-        <div class="form-group"><label>Contact Number:</label><input type="tel" id="std-contact" maxlength="10" placeholder="Mobile number" required></div>
-        
+        <div class="form-group">
+          <label for="std-contact">Contact Number:</label>
+          <input type="tel" id="std-contact" maxlength="10" placeholder="Mobile number" autocomplete="tel" required>
+        </div>
+
         <button type="button" class="btn-submit" onclick="showReviewDetailsModal()">Review Details Before Payment ➡</button>
       </div>
 
@@ -61,20 +80,29 @@
         <div id="review-content" style="font-size: 14px; line-height: 1.8; margin-bottom: 20px; background: #020617; padding: 15px; border-radius: 6px; border: 1px solid #334155;"></div>
         <div style="display:flex; gap:10px;">
           <button type="button" class="btn-submit" style="background:#475569; width:35%; margin-top:0;" onclick="backToEditDetails()">⬅ Edit Details</button>
-          <button type="button" class="btn-submit" style="background:#10b981; width:65%; margin-top:0;" onclick="proceedToPaymentFromReview()">Confirm & Proceed to Payment ➡</button>
+          <button type="button" class="btn-submit" style="background:#10b981; width:65%; margin-top:0;" onclick="proceedToPaymentFromReview()">Confirm &amp; Proceed to Payment ➡</button>
         </div>
       </div>
 
       <!-- STEP 3: PAYMENT SECTION -->
       <div id="payment-section" style="display:none;">
-        <div class="form-group"><label>Payment Mode:</label><select id="payment-mode" onchange="handlePaymentModeChange(this.value)"><option value="online">Pay Online (UPI / QR)</option><option value="offline">Handover Cash to School Coordinator</option></select></div>
+        <div class="form-group">
+          <label for="payment-mode">Payment Mode:</label>
+          <select id="payment-mode" onchange="handlePaymentModeChange(this.value)">
+            <option value="online">Pay Online (UPI / QR)</option>
+            <option value="offline">Handover Cash to School Coordinator</option>
+          </select>
+        </div>
         <div id="online-payment-section" class="qr-box">
           <button type="button" class="btn-submit" style="background:#0284c7; margin-bottom:10px;" onclick="openDirectUpiApp()">⚡ Pay via UPI App</button>
           <button type="button" class="btn-submit" style="background:#1e293b; color:#fff; margin-bottom:12px;" onclick="toggleQrDisplay()">📱 View / Hide QR Code</button>
           <div id="dynamic-qr-container" style="display:none; justify-content:center; margin-bottom:12px;"></div>
-          <div class="form-group"><label style="color: #fcd34d;">Enter UTR / Transaction Reference No (Single-Use):</label><input type="text" id="std-utr" placeholder="Enter 12-digit UTR" maxlength="12"></div>
+          <div class="form-group">
+            <label for="std-utr" style="color: #fcd34d;">Enter UTR / Transaction Reference No (Single-Use):</label>
+            <input type="text" id="std-utr" placeholder="Enter 12-digit UTR" maxlength="12">
+          </div>
         </div>
-        
+
         <div style="display:flex; gap:10px; margin-top: 15px;">
           <button type="button" class="btn-submit" style="background:#475569; width:35%;" onclick="backToDetails()">⬅ Back</button>
           <button type="button" id="btn-final-submit" class="btn-submit" style="background:#10b981; width:65%; cursor:pointer;" onclick="submitStudentRegistration()">COMPLETE REGISTRATION</button>
@@ -88,17 +116,26 @@
   <div id="exam-login-view" class="hidden">
     <div id="student-auth-box" class="score-card" style="text-align: left;">
       <h3 style="color: #38bdf8; font-size: 16px; margin-bottom: 15px; text-align: center;">🔐 Student Online Exam Login</h3>
-      <div class="form-group"><label>School Organizer Code:</label><input type="text" id="login-org-code" placeholder="e.g. NVMS540"></div>
-      <div class="form-group"><label>Roll Number:</label><input type="text" id="login-roll" placeholder="e.g. 101"></div>
-      <div class="form-group" style="margin-bottom: 15px;"><label>Password (Mother's first 2 capital letters + Roll No):</label><input type="password" id="login-password" placeholder="e.g. MA101"></div>
-      <button onclick="verifyStudentLoginAndStartExam()" class="btn-submit" style="background: #10b981;">🚀 Start Live Examination</button>
+      <div class="form-group">
+        <label for="login-org-code">School Organizer Code:</label>
+        <input type="text" id="login-org-code" placeholder="e.g. NVMS540">
+      </div>
+      <div class="form-group">
+        <label for="login-roll">Roll Number:</label>
+        <input type="text" id="login-roll" placeholder="e.g. 101">
+      </div>
+      <div class="form-group" style="margin-bottom: 15px;">
+        <label for="login-password">Password (Mother's first 2 capital letters + Roll No):</label>
+        <input type="password" id="login-password" placeholder="e.g. MA101" autocomplete="current-password">
+      </div>
+      <button type="button" onclick="verifyStudentLoginAndStartExam()" class="btn-submit" style="background: #10b981;">🚀 Start Live Examination</button>
     </div>
-    
+
     <!-- EXAM INSTRUCTIONS MODAL -->
     <div id="exam-instructions-modal" class="hidden" style="background: #0f172a; color: #fff; padding: 25px; border-radius: 10px; border: 2px solid #facc15; margin-bottom: 20px;">
       <h3 style="color: #facc15; text-align: center; margin-bottom: 15px; font-size: 20px;">⚠️ IMPORTANT EXAMINATION INSTRUCTIONS</h3>
       <div style="font-size: 13px; line-height: 1.7; background: #020617; padding: 15px; border-radius: 6px; border: 1px solid #334155; margin-bottom: 20px; color: #cbd5e1;">
-        <p>1. <strong>Duration & Questions:</strong> Total exam duration is <strong id="inst-duration-mins">30</strong> minutes (<strong id="inst-question-count">30</strong> questions). Timer will run continuously on top and auto-submit when time ends.</p>
+        <p>1. <strong>Duration &amp; Questions:</strong> Total exam duration is <strong id="inst-duration-mins">30</strong> minutes (<strong id="inst-question-count">30</strong> questions). Timer will run continuously on top and auto-submit when time ends.</p>
         <p>2. <strong>Negative Marking:</strong> Each correct answer carries +1 mark. Incorrect answers may attract negative marking as configured in questions.</p>
         <p>3. <strong>Anti-Cheat Security (Do Not Close Tab):</strong> Switching browser tabs, minimizing the browser, or refreshing/closing the window during the exam is strictly prohibited and monitored.</p>
         <p>4. <strong>Single Attempt:</strong> You can submit the exam only once. Once submitted, it cannot be retried.</p>
@@ -107,7 +144,7 @@
         <input type="checkbox" id="agree-instructions" style="width: 20px; height: 20px; cursor: pointer;">
         <label for="agree-instructions" style="font-size: 13px; color: #fff; cursor: pointer; margin-bottom: 0;">I have read all instructions carefully and agree to follow exam rules.</label>
       </div>
-      <button onclick="proceedToActualExamPaper()" class="btn-submit" style="background: #10b981; margin-top: 0;">I Have Read All Instructions - Start Exam 🚀</button>
+      <button type="button" onclick="proceedToActualExamPaper()" class="btn-submit" style="background: #10b981; margin-top: 0;">I Have Read All Instructions - Start Exam 🚀</button>
     </div>
 
     <div id="active-exam-container" class="hidden">
@@ -117,18 +154,24 @@
         <span id="exam-student-info" style="color: #38bdf8;">Student: --</span>
       </div>
       <div id="exam-questions-list"></div>
-      <button id="btn-submit-exam" onclick="submitExamAnswers(false)" class="btn-submit" style="background: #10b981; margin-top: 15px;">📤 Submit Final Exam Answers</button>
+      <button type="button" id="btn-submit-exam" onclick="submitExamAnswers(false)" class="btn-submit" style="background: #10b981; margin-top: 15px;">📤 Submit Final Exam Answers</button>
     </div>
   </div>
 
   <!-- VIEW 3: RESULT & CERTIFICATE -->
   <div id="result-view" class="hidden">
     <div class="score-card" style="text-align: left;">
-      <h3 style="color: #facc15; font-size: 16px; margin-bottom: 15px; text-align: center;">🏆 Official Olympiad Result & Scorecard</h3>
-      <div class="form-group"><label>School Organizer Code:</label><input type="text" id="res-org-code" placeholder="e.g. NVMS540"></div>
-      <div class="form-group" style="margin-bottom: 15px;"><label>Roll Number:</label><input type="text" id="res-roll" placeholder="e.g. 101"></div>
-      <button onclick="fetchStudentResult()" class="btn-submit" style="background: #0284c7;">🔍 Fetch Scorecard & Certificate</button>
-      
+      <h3 style="color: #facc15; font-size: 16px; margin-bottom: 15px; text-align: center;">🏆 Official Olympiad Result &amp; Scorecard</h3>
+      <div class="form-group">
+        <label for="res-org-code">School Organizer Code:</label>
+        <input type="text" id="res-org-code" placeholder="e.g. NVMS540">
+      </div>
+      <div class="form-group" style="margin-bottom: 15px;">
+        <label for="res-roll">Roll Number:</label>
+        <input type="text" id="res-roll" placeholder="e.g. 101">
+      </div>
+      <button type="button" onclick="fetchStudentResult()" class="btn-submit" style="background: #0284c7;">🔍 Fetch Scorecard &amp; Certificate</button>
+
       <div id="student-scorecard-box" style="display: none; margin-top: 20px;"></div>
     </div>
   </div>
