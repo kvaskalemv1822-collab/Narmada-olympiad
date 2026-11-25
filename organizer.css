@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800;900&display=swap');
+
 /* ==========================================================================
    ORGANIZER CYBER DARK COMMAND PANEL BASE THEME
    ========================================================================== */
@@ -17,7 +19,7 @@ body {
 }
 
 .container {
-  max-width: 850px;
+  max-width: 1240px;
   margin: 0 auto;
   background: rgba(15, 23, 42, 0.95);
   border: 1px solid #1e293b;
@@ -41,7 +43,8 @@ h1 {
   margin-bottom: 20px;
 }
 
-.card-box, .login-card {
+.card-box,
+.login-card {
   background: #0f172a;
   border: 1px solid #334155;
   padding: 20px;
@@ -57,7 +60,9 @@ label {
   margin-bottom: 6px;
 }
 
-input, select, textarea {
+input,
+select,
+textarea {
   width: 100%;
   padding: 12px;
   background: #020617;
@@ -69,7 +74,9 @@ input, select, textarea {
   transition: border-color 0.2s ease;
 }
 
-input:focus, select:focus {
+input:focus,
+select:focus,
+textarea:focus {
   border-color: #38bdf8;
 }
 
@@ -87,10 +94,29 @@ input:focus, select:focus {
   transition: background 0.2s, transform 0.1s;
 }
 
-.btn-primary:hover { background: #0369a1; }
-.btn-primary:active { transform: scale(0.98); }
+.btn-primary:hover {
+  background: #0369a1;
+}
 
-.hidden { display: none !important; }
+.btn-primary:active {
+  transform: scale(0.98);
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+th,
+td {
+  padding: 10px;
+  text-align: left;
+  font-size: 13px;
+}
+
+.hidden {
+  display: none !important;
+}
 
 hr {
   border: 0;
@@ -99,7 +125,17 @@ hr {
 }
 
 @media (max-width: 600px) {
-  .container { padding: 15px; }
-  h1 { font-size: 20px; }
-  .card-box { padding: 15px; }
+  body {
+    padding: 10px;
+  }
+  .container {
+    padding: 15px;
+  }
+  h1 {
+    font-size: 20px;
+  }
+  .card-box,
+  .login-card {
+    padding: 15px;
+  }
 }
