@@ -1,77 +1,88 @@
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800;900&display=swap');
+
 /* ==========================================================================
    NVMSO STUDENT PORTAL - LIGHT THEME & FINAL CERTIFICATE CSS
    ========================================================================== */
-* { 
-  box-sizing: border-box; 
-  font-family: 'Plus Jakarta Sans', sans-serif; 
-  margin: 0; 
-  padding: 0; 
+* {
+  box-sizing: border-box;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  margin: 0;
+  padding: 0;
 }
 
-body { 
-  background-color: #f4f7f6; 
-  color: #333; 
-  padding: 15px; 
+body {
+  background-color: #f4f7f6;
+  color: #333;
+  padding: 15px;
   min-height: 100vh;
   -webkit-tap-highlight-color: transparent;
 }
 
-.container { 
-  max-width: 850px; 
-  margin: 0 auto; 
-  background: #ffffff; 
-  padding: 20px; 
-  border-radius: 12px; 
-  box-shadow: 0 4px 15px rgba(0,0,0,0.1); 
+.container {
+  max-width: 850px;
+  margin: 0 auto;
+  background: #ffffff;
+  padding: 20px;
+  border-radius: 12px;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
 }
 
-h1 { 
-  text-align: center; 
-  color: #1e3c72; 
-  margin-bottom: 5px; 
+h1 {
+  text-align: center;
+  color: #1e3c72;
+  margin-bottom: 5px;
   font-size: 24px;
 }
 
-.subtitle { 
-  text-align: center; 
-  color: #d9534f; 
-  margin-bottom: 15px; 
-  font-weight: bold; 
+.subtitle {
+  text-align: center;
+  color: #d9534f;
+  margin-bottom: 15px;
+  font-weight: bold;
   font-size: 13px;
 }
 
-.status-msg { 
-  text-align: center; 
-  padding: 12px; 
-  border-radius: 8px; 
-  font-weight: bold; 
-  margin-bottom: 20px; 
+.status-msg {
+  text-align: center;
+  padding: 12px;
+  border-radius: 8px;
+  font-weight: bold;
+  margin-bottom: 20px;
   font-size: 15px;
   background: rgba(0, 0, 0, 0.03);
 }
 
-.form-group { 
-  margin-bottom: 15px; 
+.form-group {
+  margin-bottom: 15px;
   text-align: left;
 }
 
-label { 
-  display: block; 
-  margin-bottom: 5px; 
-  font-weight: bold; 
+label {
+  display: block;
+  margin-bottom: 5px;
+  font-weight: bold;
   color: #444;
   font-size: 13px;
 }
 
-input, select, textarea { 
-  width: 100%; 
-  padding: 12px; 
-  border: 1px solid #ccc; 
-  border-radius: 6px; 
-  font-size: 15px; 
+input,
+select,
+textarea {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  font-size: 15px;
   outline: none;
   background-color: #ffffff;
   color: #333;
+  transition: border-color 0.2s ease;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  border-color: #1e3c72;
 }
 
 .grid-2 {
@@ -80,51 +91,60 @@ input, select, textarea {
   gap: 15px;
 }
 
-.btn-submit { 
-  width: 100%; 
-  padding: 14px; 
-  background: #1e3c72; 
-  color: white; 
-  border: none; 
-  border-radius: 6px; 
-  font-weight: bold; 
-  cursor: pointer; 
-  margin-top: 10px; 
+.btn-submit {
+  width: 100%;
+  padding: 14px;
+  background: #1e3c72;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-weight: bold;
+  cursor: pointer;
+  margin-top: 10px;
   font-size: 16px;
   text-transform: uppercase;
+  transition: background 0.2s ease, transform 0.1s ease;
 }
 
-.hidden { 
-  display: none !important; 
+.btn-submit:hover {
+  background: #162d57;
 }
 
-.highlight-text { 
-  display: block; 
-  margin-top: 8px; 
-  padding: 12px; 
-  background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%); 
-  color: #ffffff; 
-  font-size: 15px; 
-  font-weight: bold; 
-  border-radius: 8px; 
-  text-align: center; 
+.btn-submit:active {
+  transform: scale(0.99);
 }
 
-.qr-box { 
-  text-align: center; 
-  padding: 15px; 
-  border: 2px dashed #0275d8; 
-  border-radius: 8px; 
-  background: #f8f9fa; 
-  margin: 10px 0; 
+.hidden {
+  display: none !important;
 }
 
-.score-card { 
-  background: #0f172a; 
-  color: white; 
-  padding: 25px; 
-  border-radius: 8px; 
-  margin: 15px 0; 
+.highlight-text {
+  display: block;
+  margin-top: 8px;
+  padding: 12px;
+  background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+  color: #ffffff;
+  font-size: 15px;
+  font-weight: bold;
+  border-radius: 8px;
+  text-align: center;
+}
+
+.qr-box {
+  text-align: center;
+  padding: 15px;
+  border: 2px dashed #0275d8;
+  border-radius: 8px;
+  background: #f8f9fa;
+  margin: 10px 0;
+}
+
+.score-card {
+  background: #0f172a;
+  color: white;
+  padding: 25px;
+  border-radius: 8px;
+  margin: 15px 0;
   text-align: center;
 }
 
@@ -138,7 +158,7 @@ input, select, textarea {
   margin: 15px auto;
   border-radius: 8px;
   overflow: hidden;
-  box-shadow: 0 5px 20px rgba(0,0,0,0.3);
+  box-shadow: 0 5px 20px rgba(0, 0, 0, 0.3);
   background: #000000;
 }
 
@@ -150,13 +170,13 @@ input, select, textarea {
 
 .cert-text-overlay {
   position: absolute;
-  top: 48%; 
-  left: 52%; 
+  top: 48%;
+  left: 52%;
   transform: translate(-50%, -50%);
-  width: 70%; 
-  display: flex; 
+  width: 70%;
+  display: flex;
   flex-direction: column;
-  align-items: center; 
+  align-items: center;
   text-align: center;
   z-index: 5;
   pointer-events: none;
@@ -192,18 +212,18 @@ input, select, textarea {
 
 /* Download / Print Button */
 .cert-download-btn {
-  background: #e2b76c; 
-  color: #000; 
-  width: auto; 
-  padding: 12px 28px; 
-  margin: 20px auto; 
-  display: block; 
-  font-weight: bold; 
+  background: #e2b76c;
+  color: #000;
+  width: auto;
+  padding: 12px 28px;
+  margin: 20px auto;
+  display: block;
+  font-weight: bold;
   cursor: pointer;
   border: none;
   border-radius: 6px;
   font-size: 16px;
-  box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
 }
 
 .cert-download-btn:hover {
@@ -218,8 +238,9 @@ input, select, textarea {
     size: A4 landscape;
     margin: 0;
   }
-  
-  html, body {
+
+  html,
+  body {
     width: 100% !important;
     height: 100% !important;
     margin: 0 !important;
@@ -232,7 +253,8 @@ input, select, textarea {
     visibility: hidden !important;
   }
 
-  #student-scorecard-box, #student-scorecard-box * {
+  #student-scorecard-box,
+  #student-scorecard-box * {
     visibility: visible !important;
   }
 
@@ -267,7 +289,25 @@ input, select, textarea {
     object-fit: contain !important;
   }
 
-  .no-print, .cert-download-btn, #student-scorecard-box > div:first-child {
+  .no-print,
+  .cert-download-btn,
+  #student-scorecard-box > div:first-child {
     display: none !important;
+  }
+}
+
+@media (max-width: 600px) {
+  body {
+    padding: 10px;
+  }
+  .container {
+    padding: 15px;
+  }
+  h1 {
+    font-size: 20px;
+  }
+  .grid-2 {
+    grid-template-columns: 1fr;
+    gap: 10px;
   }
 }
