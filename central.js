@@ -352,10 +352,35 @@ function renderMergedOrganizersTable() {
     const cashGross = cashRegs * (examMode === "offline" ? offlineFeeConfig : onlineFeeConfig);
     const baseFeeTotal = totalReg * onlineFeeConfig;
 
+    // 15% Direct Commission on this organizer's own verified registrations
     const directComm = int(baseFeeTotal * 0.15);
-    const refCodeStr = org.refCode ? String(org.refCode).trim() : "";
-    const hasReferral = refCodeStr.length > 0 && refCodeStr.toUpperCase() !== "NONE";
-    const refComm = hasReferral ? int(baseFeeTotal * 0.05) : 0;
+
+    // 5% Referral Commission goes to THIS organizer (referrer) from other organizers who used `code` as their refCode
+    const referredOrganizers = allOrganizersCache.filter(otherOrg => {
+      const otherCode = String(otherOrg.code || otherOrg.orgCode || "").trim().toUpperCase();
+      const otherRefCode = String(otherOrg.refCode || "").trim().toUpperCase();
+      return (
+        code &&
+        otherCode &&
+        otherCode !== code &&
+        otherRefCode.length > 0 &&
+        otherRefCode !== "NONE" &&
+        otherRefCode === code
+      );
+    });
+
+    let refComm = 0;
+    referredOrganizers.forEach(refOrg => {
+      const refOrgCode = String(refOrg.code || refOrg.orgCode || "").trim().toUpperCase();
+      const refOrgVerifiedStudents = allStudentsCache.filter(
+        s =>
+          String(s.orgCode || "").trim().toUpperCase() === refOrgCode &&
+          (s.paymentStatus === "Approved" || s.paymentVerified === true)
+      );
+      const refBaseFeeTotal = refOrgVerifiedStudents.length * onlineFeeConfig;
+      refComm += int(refBaseFeeTotal * 0.05);
+    });
+
     const totalComm = directComm + refComm;
 
     const netBalance = cashGross - totalComm;
