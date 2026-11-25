@@ -7,7 +7,16 @@ let centralPortalConfig = {};
 let autoRefreshTimer = null;
 
 function int(val) {
-  return Math.floor(val);
+  return Math.floor(Number(val) || 0);
+}
+
+function escapeHtml(str) {
+  return String(str ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 }
 
 function getConfiguredTotalQuestions(student) {
@@ -22,11 +31,11 @@ function getConfiguredTotalQuestions(student) {
 
 function getSubjectBadge(student) {
   const rawSub = String(
-    student.subject ||
-    student.examSubject ||
-    student.stream ||
-    student.selectedSubject ||
-    student.course ||
+    student?.subject ||
+    student?.examSubject ||
+    student?.stream ||
+    student?.selectedSubject ||
+    student?.course ||
     ""
   )
     .trim()
@@ -42,9 +51,9 @@ function getSubjectBadge(student) {
 }
 
 function getOrganizerPayoutUpi(org) {
-  const code = (org.code || org.orgCode || "").toUpperCase();
-  const fromObj = String(org.upiId || org.payoutUpi || org.upi || "").trim();
-  const fromLocal = String(localStorage.getItem(`nvmso_org_upi_${code}`) || "").trim();
+  const code = String(org?.code || org?.orgCode || "").trim().toUpperCase();
+  const fromObj = String(org?.upiId || org?.payoutUpi || org?.upi || "").trim();
+  const fromLocal = code ? String(localStorage.getItem(`nvmso_org_upi_${code}`) || "").trim() : "";
   return fromObj || fromLocal || "";
 }
 
@@ -166,15 +175,15 @@ function initializeCentralPanelData() {
   fetch(`${SERVER_URL}/api/portal/config`)
     .then(res => res.json())
     .then(data => {
-      if (data.status === "success") {
+      if (data && data.status === "success") {
         const config = data.config || {};
         centralPortalConfig = config;
 
         if (document.getElementById("cfg-online-fee")) {
-          document.getElementById("cfg-online-fee").value = config.onlineFee || 100;
+          document.getElementById("cfg-online-fee").value = config.onlineFee ?? 100;
         }
         if (document.getElementById("cfg-offline-fee")) {
-          document.getElementById("cfg-offline-fee").value = config.offlineFee || 120;
+          document.getElementById("cfg-offline-fee").value = config.offlineFee ?? 120;
         }
         if (document.getElementById("cfg-total-questions")) {
           document.getElementById("cfg-total-questions").value =
@@ -244,17 +253,17 @@ window.saveGlobalConfig = async () => {
   const examDurationVal = Number(document.getElementById("cfg-exam-duration")?.value) || 30;
 
   const payload = {
-    onlineFee: Number(document.getElementById("cfg-online-fee").value),
-    offlineFee: Number(document.getElementById("cfg-offline-fee").value),
+    onlineFee: Number(document.getElementById("cfg-online-fee")?.value ?? 100),
+    offlineFee: Number(document.getElementById("cfg-offline-fee")?.value ?? 120),
     totalQuestions: totalQuestionsVal,
     questionCount: totalQuestionsVal,
     examDurationMinutes: examDurationVal,
     paperTimeLimit: examDurationVal,
     adminUpiId: adminUpiEl ? (adminUpiEl.value.trim() || "narmada@upi") : "narmada@upi",
-    isRegistrationOpen: document.getElementById("cfg-reg-active").checked,
-    isExamActive: document.getElementById("cfg-exam-active").checked,
-    isResultDeclared: document.getElementById("cfg-result-allowed").checked,
-    broadcastNotice: document.getElementById("admin-broadcast-input").value.trim()
+    isRegistrationOpen: !!document.getElementById("cfg-reg-active")?.checked,
+    isExamActive: !!document.getElementById("cfg-exam-active")?.checked,
+    isResultDeclared: !!document.getElementById("cfg-result-allowed")?.checked,
+    broadcastNotice: (document.getElementById("admin-broadcast-input")?.value || "").trim()
   };
 
   fetch(`${SERVER_URL}/api/admin/update_config`, {
@@ -262,54 +271,63 @@ window.saveGlobalConfig = async () => {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload)
   })
-  .then(res => res.json())
-  .then(data => {
-    if (data.status === "success") {
-      centralPortalConfig = { ...centralPortalConfig, ...payload };
-      alert("✅ Command Dispatched: Portal phases, question count, and paper time limit updated!");
-      renderMergedOrganizersTable();
-      loadSchoolStudentLedger();
-    }
-  });
+    .then(res => res.json())
+    .then(data => {
+      if (data && data.status === "success") {
+        centralPortalConfig = { ...centralPortalConfig, ...payload };
+        alert("✅ Command Dispatched: Portal phases, question count, and paper time limit updated!");
+        renderMergedOrganizersTable();
+        loadSchoolStudentLedger();
+      } else {
+        alert("❌ Error: " + (data?.message || "Failed to update config"));
+      }
+    })
+    .catch(() => alert("❌ Network error while saving config."));
 };
 
 function fetchAllCentralData() {
   Promise.all([
     fetch(`${SERVER_URL}/api/admin/all_data`, { method: "POST" }).then(res => res.json()),
     fetch(`${SERVER_URL}/api/admin/financial_requests`).then(res => res.json())
-  ]).then(([data1, data2]) => {
-    if (data1 && data1.status === "success") {
-      allOrganizersCache = data1.organizers || [];
-      allStudentsCache = data1.students || [];
-    }
-    if (data2 && data2.status === "success") {
-      pendingSettlementsCache = data2.settlements || [];
-      pendingPayoutsCache = data2.payouts || [];
-    }
+  ])
+    .then(([data1, data2]) => {
+      if (data1 && data1.status === "success") {
+        allOrganizersCache = Array.isArray(data1.organizers) ? data1.organizers : [];
+        allStudentsCache = Array.isArray(data1.students) ? data1.students : [];
+      }
+      if (data2 && data2.status === "success") {
+        pendingSettlementsCache = Array.isArray(data2.settlements) ? data2.settlements : [];
+        pendingPayoutsCache = Array.isArray(data2.payouts) ? data2.payouts : [];
+      }
 
-    renderMergedOrganizersTable();
-    populateSchoolDropdowns();
-    loadSchoolRankings();
-    loadSchoolStudentLedger();
-  }).catch(() => {});
+      renderMergedOrganizersTable();
+      populateSchoolDropdowns();
+      loadSchoolRankings();
+      loadSchoolStudentLedger();
+    })
+    .catch(() => {});
 }
 
 function renderMergedOrganizersTable() {
   const tbody = document.getElementById("admin-organizers-rows");
   if (!tbody) return;
-  tbody.innerHTML = allOrganizersCache.length
-    ? ""
-    : "<tr><td colspan='8' style='text-align:center; color:#64748b; padding:15px;'>No organizers registered yet.</td></tr>";
 
+  if (!allOrganizersCache.length) {
+    tbody.innerHTML =
+      "<tr><td colspan='8' style='text-align:center; color:#64748b; padding:15px;'>No organizers registered yet.</td></tr>";
+    return;
+  }
+
+  tbody.innerHTML = "";
   const onlineFeeConfig = Number(document.getElementById("cfg-online-fee")?.value) || 100;
   const offlineFeeConfig = Number(document.getElementById("cfg-offline-fee")?.value) || 120;
 
   allOrganizersCache.forEach(org => {
-    const code = (org.code || org.orgCode || "").toUpperCase();
+    const code = String(org.code || org.orgCode || "").trim().toUpperCase();
     const isSettled = !!org.manualSettled;
 
     const allSchoolStudents = allStudentsCache.filter(
-      s => (s.orgCode || "").toUpperCase() === code
+      s => String(s.orgCode || "").trim().toUpperCase() === code
     );
     const verifiedStudents = allSchoolStudents.filter(
       s => s.paymentStatus === "Approved" || s.paymentVerified === true
@@ -317,19 +335,19 @@ function renderMergedOrganizersTable() {
 
     const totalReg = verifiedStudents.length || 0;
     const pendingReviewCount = allSchoolStudents.filter(
-      s => s.paymentStatus && s.paymentStatus.includes("Pending")
+      s => s.paymentStatus && String(s.paymentStatus).includes("Pending")
     ).length;
 
     const onlineRegs = verifiedStudents.filter(
-      s => (s.paymentMode || "online").toLowerCase() === "online"
+      s => String(s.paymentMode || "online").toLowerCase() === "online"
     ).length;
     const cashRegs = verifiedStudents.filter(
       s =>
-        (s.paymentMode || "").toLowerCase() === "offline" ||
-        (s.paymentMode || "").toLowerCase() === "cash"
+        String(s.paymentMode || "").toLowerCase() === "offline" ||
+        String(s.paymentMode || "").toLowerCase() === "cash"
     ).length;
 
-    const examMode = (org.examMode || "online").toLowerCase();
+    const examMode = String(org.examMode || "online").toLowerCase();
 
     const cashGross = cashRegs * (examMode === "offline" ? offlineFeeConfig : onlineFeeConfig);
     const baseFeeTotal = totalReg * onlineFeeConfig;
@@ -343,20 +361,22 @@ function renderMergedOrganizersTable() {
     const netBalance = cashGross - totalComm;
     const netCashToPortal = isSettled ? 0 : Math.max(0, netBalance);
 
-    const sett = pendingSettlementsCache.find(s => (s.orgCode || "").toUpperCase() === code);
+    const sett = pendingSettlementsCache.find(
+      s => String(s.orgCode || "").trim().toUpperCase() === code
+    );
 
     let settCell = isSettled
       ? "<span style='color:#4ade80; font-weight:bold;'>✔️ Settled (₹0 Due)</span>"
       : "<span style='color:#f87171;'>Pending Settlement</span>";
 
     if (!isSettled && sett) {
-      settCell = `<code style="color:#facc15;">UTR: ${sett.utrNumber}<br>(₹${sett.amount})</code>`;
+      settCell = `<code style="color:#facc15;">UTR: ${escapeHtml(sett.utrNumber)}<br>(₹${escapeHtml(sett.amount)})</code>`;
     }
 
     let actionCell = isSettled
       ? "<span style='color:#38bdf8; font-weight:bold;'>Completed</span>"
       : sett
-      ? `<button type="button" onclick="approveOrganizerSettlement('${code}', '${sett.id}')" style="background:#10b981; color:#fff; border:none; padding:4px 8px; font-size:10px; border-radius:4px; font-weight:bold; cursor:pointer;">Verify UTR</button>`
+      ? `<button type="button" onclick="approveOrganizerSettlement('${escapeHtml(code)}', '${escapeHtml(sett.id)}')" style="background:#10b981; color:#fff; border:none; padding:4px 8px; font-size:10px; border-radius:4px; font-weight:bold; cursor:pointer;">Verify UTR</button>`
       : "Awaiting";
 
     const pendingBadge =
@@ -366,12 +386,13 @@ function renderMergedOrganizersTable() {
 
     // Coordinator's own saved UPI ID (never fallback to admin UPI)
     const orgUpi = getOrganizerPayoutUpi(org);
+    const orgLabel = org.schoolName || "Organizer";
 
     let directCommHtml = `₹${directComm}`;
     if (directComm > 0 && !isSettled) {
       if (orgUpi) {
-        const directUpiLink = `upi://pay?pa=${encodeURIComponent(orgUpi)}&pn=${encodeURIComponent(org.schoolName || "Organizer")}&am=${directComm}&cu=INR`;
-        directCommHtml += `<br><a href="${directUpiLink}" style="background:#10b981; color:#fff; padding:2px 7px; font-size:9px; border-radius:3px; text-decoration:none; display:inline-block; margin-top:3px; font-weight:bold;">Pay</a><br><span style="font-size:9px; color:#cbd5e1; word-break:break-all;">${orgUpi}</span>`;
+        const directUpiLink = `upi://pay?pa=${encodeURIComponent(orgUpi)}&pn=${encodeURIComponent(orgLabel)}&am=${directComm}&cu=INR`;
+        directCommHtml += `<br><a href="${directUpiLink}" style="background:#10b981; color:#fff; padding:2px 7px; font-size:9px; border-radius:3px; text-decoration:none; display:inline-block; margin-top:3px; font-weight:bold;">Pay</a><br><span style="font-size:9px; color:#cbd5e1; word-break:break-all;">${escapeHtml(orgUpi)}</span>`;
       } else {
         directCommHtml += `<br><span style="font-size:9px; color:#f87171; font-weight:bold;">Pay</span><br><span style="font-size:9px; color:#f87171;">No UPI</span>`;
       }
@@ -380,8 +401,8 @@ function renderMergedOrganizersTable() {
     let refCommHtml = `₹${refComm}`;
     if (refComm > 0 && !isSettled) {
       if (orgUpi) {
-        const refUpiLink = `upi://pay?pa=${encodeURIComponent(orgUpi)}&pn=${encodeURIComponent(org.schoolName || "Organizer")}&am=${refComm}&cu=INR`;
-        refCommHtml += `<br><a href="${refUpiLink}" style="background:#f59e0b; color:#020617; padding:2px 7px; font-size:9px; border-radius:3px; text-decoration:none; display:inline-block; margin-top:3px; font-weight:bold;">Pay</a><br><span style="font-size:9px; color:#cbd5e1; word-break:break-all;">${orgUpi}</span>`;
+        const refUpiLink = `upi://pay?pa=${encodeURIComponent(orgUpi)}&pn=${encodeURIComponent(orgLabel)}&am=${refComm}&cu=INR`;
+        refCommHtml += `<br><a href="${refUpiLink}" style="background:#f59e0b; color:#020617; padding:2px 7px; font-size:9px; border-radius:3px; text-decoration:none; display:inline-block; margin-top:3px; font-weight:bold;">Pay</a><br><span style="font-size:9px; color:#cbd5e1; word-break:break-all;">${escapeHtml(orgUpi)}</span>`;
       } else {
         refCommHtml += `<br><span style="font-size:9px; color:#f87171; font-weight:bold;">Pay</span><br><span style="font-size:9px; color:#f87171;">No UPI</span>`;
       }
@@ -390,14 +411,14 @@ function renderMergedOrganizersTable() {
     tbody.innerHTML += `
       <tr style="border-bottom:1px solid #1e293b;">
         <td style="padding:10px;">
-          <code style="color:#38bdf8; font-weight:bold; font-size:13px;">${code}</code><br>
-          <span style="font-size:12px; color:#cbd5e1; font-weight:600;">${org.schoolName || "School"}</span><br>
-          <span style="background:#1e293b; padding:1px 6px; border-radius:4px; font-size:10px; font-weight:bold; color:${examMode === "offline" ? "#fbbf24" : "#38bdf8"}">${examMode.toUpperCase()}</span>
+          <code style="color:#38bdf8; font-weight:bold; font-size:13px;">${escapeHtml(code)}</code><br>
+          <span style="font-size:12px; color:#cbd5e1; font-weight:600;">${escapeHtml(org.schoolName || "School")}</span><br>
+          <span style="background:#1e293b; padding:1px 6px; border-radius:4px; font-size:10px; font-weight:bold; color:${examMode === "offline" ? "#fbbf24" : "#38bdf8"}">${escapeHtml(examMode.toUpperCase())}</span>
         </td>
         <td style="padding:10px;">
-          <strong>${org.name || org.coordinatorName || "N/A"}</strong><br>
-          <span style="font-size:11px; color:#94a3b8;">${org.contact || ""}</span><br>
-          <span style="font-size:10px; color:${orgUpi ? "#4ade80" : "#f87171"};">UPI: ${orgUpi || "Not Set"}</span>
+          <strong>${escapeHtml(org.name || org.coordinatorName || "N/A")}</strong><br>
+          <span style="font-size:11px; color:#94a3b8;">${escapeHtml(org.contact || "")}</span><br>
+          <span style="font-size:10px; color:${orgUpi ? "#4ade80" : "#f87171"};">UPI: ${escapeHtml(orgUpi || "Not Set")}</span>
         </td>
         <td style="padding:10px; color:#4ade80; font-weight:bold; text-align:center;">
           ${totalReg} ${pendingBadge}<br><span style="font-size:10px; color:#94a3b8;">(${onlineRegs} On / ${cashRegs} Cash)</span>
@@ -419,17 +440,31 @@ function populateSchoolDropdowns() {
   const rankSelect = document.getElementById("ranking-school-select");
   const ledgerSelect = document.getElementById("ledger-school-select");
 
+  const prevRankVal = rankSelect ? rankSelect.value : "ALL";
+  const prevLedgerVal = ledgerSelect ? ledgerSelect.value : "ALL";
+
   let optionsHtml = '<option value="ALL">-- All Schools Combined --</option>';
   allOrganizersCache.forEach(org => {
     const code = org.code || org.orgCode;
-    optionsHtml += `<option value="${code}">${code} - ${org.schoolName}</option>`;
+    if (!code) return;
+    optionsHtml += `<option value="${escapeHtml(code)}">${escapeHtml(code)} - ${escapeHtml(org.schoolName || "School")}</option>`;
   });
 
-  if (rankSelect) rankSelect.innerHTML = optionsHtml;
-  if (ledgerSelect) ledgerSelect.innerHTML = optionsHtml;
+  if (rankSelect) {
+    rankSelect.innerHTML = optionsHtml;
+    if ([...rankSelect.options].some(o => o.value === prevRankVal)) {
+      rankSelect.value = prevRankVal;
+    }
+  }
+  if (ledgerSelect) {
+    ledgerSelect.innerHTML = optionsHtml;
+    if ([...ledgerSelect.options].some(o => o.value === prevLedgerVal)) {
+      ledgerSelect.value = prevLedgerVal;
+    }
+  }
 }
 
-window.loadSchoolRankings = function() {
+window.loadSchoolRankings = function () {
   const selectedOrg = document.getElementById("ranking-school-select")?.value || "ALL";
   const gridContainer = document.getElementById("school-rankings-grid");
   if (!gridContainer) return;
@@ -437,13 +472,13 @@ window.loadSchoolRankings = function() {
   let studentsToRank = allStudentsCache;
   if (selectedOrg !== "ALL") {
     studentsToRank = allStudentsCache.filter(
-      s => (s.orgCode || "").toUpperCase() === selectedOrg.toUpperCase()
+      s => String(s.orgCode || "").trim().toUpperCase() === selectedOrg.toUpperCase()
     );
   }
 
   const schoolMap = {};
   studentsToRank.forEach(s => {
-    const code = (s.orgCode || "UNKNOWN").toUpperCase();
+    const code = String(s.orgCode || "UNKNOWN").trim().toUpperCase();
     if (!schoolMap[code]) schoolMap[code] = [];
     schoolMap[code].push(s);
   });
@@ -455,7 +490,7 @@ window.loadSchoolRankings = function() {
   Object.keys(schoolMap).forEach(code => {
     const students = schoolMap[code];
     const orgInfo =
-      allOrganizersCache.find(o => (o.code || o.orgCode || "").toUpperCase() === code) || {};
+      allOrganizersCache.find(o => String(o.code || o.orgCode || "").trim().toUpperCase() === code) || {};
     const schoolName = orgInfo.schoolName || `School Code: ${code}`;
 
     students.sort((a, b) => (parseFloat(b.score) || 0) - (parseFloat(a.score) || 0));
@@ -489,7 +524,7 @@ window.loadSchoolRankings = function() {
 
     card.innerHTML = `
       <div style="border-bottom: 1px solid #334155; padding-bottom: 8px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center;">
-        <h4 style="margin: 0; color: #38bdf8; font-size: 15px;">🏫 ${schoolName}</h4>
+        <h4 style="margin: 0; color: #38bdf8; font-size: 15px;">🏫 ${escapeHtml(schoolName)}</h4>
         <span style="background: #1e293b; color: #facc15; padding: 3px 8px; border-radius: 4px; font-size: 11px; font-weight: bold;">${students.length} Total</span>
       </div>
       <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
@@ -506,8 +541,8 @@ window.loadSchoolRankings = function() {
                       (s, idx) => `
                   <tr style="border-bottom: 1px solid #0f172a;">
                     <td style="padding:4px 3px; color:#facc15; font-weight:bold; vertical-align:top;">#${idx + 1}</td>
-                    <td style="padding:4px 3px; color:#fff; vertical-align:top;">${s.studentName}${getSubjectBadge(s)} <span style="color:#94a3b8;">(${s.studentClass})</span>${getRewardBadge(idx)}</td>
-                    <td style="padding:4px 3px; text-align:right; color:#38bdf8; font-weight:bold; vertical-align:top;">${s.score || 0}</td>
+                    <td style="padding:4px 3px; color:#fff; vertical-align:top;">${escapeHtml(s.studentName)}${getSubjectBadge(s)} <span style="color:#94a3b8;">(${escapeHtml(s.studentClass)})</span>${getRewardBadge(idx)}</td>
+                    <td style="padding:4px 3px; text-align:right; color:#38bdf8; font-weight:bold; vertical-align:top;">${escapeHtml(s.score || 0)}</td>
                   </tr>
                 `
                     )
@@ -528,8 +563,8 @@ window.loadSchoolRankings = function() {
                       (s, idx) => `
                   <tr style="border-bottom: 1px solid #0f172a;">
                     <td style="padding:4px 3px; color:#facc15; font-weight:bold; vertical-align:top;">#${idx + 1}</td>
-                    <td style="padding:4px 3px; color:#fff; vertical-align:top;">${s.studentName}${getSubjectBadge(s)} <span style="color:#94a3b8;">(${s.studentClass})</span>${getRewardBadge(idx)}</td>
-                    <td style="padding:4px 3px; text-align:right; color:#38bdf8; font-weight:bold; vertical-align:top;">${s.score || 0}</td>
+                    <td style="padding:4px 3px; color:#fff; vertical-align:top;">${escapeHtml(s.studentName)}${getSubjectBadge(s)} <span style="color:#94a3b8;">(${escapeHtml(s.studentClass)})</span>${getRewardBadge(idx)}</td>
+                    <td style="padding:4px 3px; text-align:right; color:#38bdf8; font-weight:bold; vertical-align:top;">${escapeHtml(s.score || 0)}</td>
                   </tr>
                 `
                     )
@@ -543,7 +578,7 @@ window.loadSchoolRankings = function() {
   });
 };
 
-window.loadSchoolStudentLedger = function() {
+window.loadSchoolStudentLedger = function () {
   const selectedOrg = document.getElementById("ledger-school-select")?.value || "ALL";
   const tbody = document.getElementById("ledger-student-rows");
   if (!tbody) return;
@@ -551,18 +586,22 @@ window.loadSchoolStudentLedger = function() {
   let students = allStudentsCache;
   if (selectedOrg !== "ALL") {
     students = allStudentsCache.filter(
-      s => (s.orgCode || "").toUpperCase() === selectedOrg.toUpperCase()
+      s => String(s.orgCode || "").trim().toUpperCase() === selectedOrg.toUpperCase()
     );
   }
 
-  tbody.innerHTML = students.length
-    ? ""
-    : "<tr><td colspan='5' style='text-align:center; color:#64748b;'>No students registered under this selection.</td></tr>";
+  if (!students.length) {
+    tbody.innerHTML =
+      "<tr><td colspan='5' style='text-align:center; color:#64748b;'>No students registered under this selection.</td></tr>";
+    return;
+  }
+
+  tbody.innerHTML = "";
 
   students.forEach(s => {
-    const orgCodeUpper = (s.orgCode || "").toUpperCase();
+    const orgCodeUpper = String(s.orgCode || "").trim().toUpperCase();
     const orgObj =
-      allOrganizersCache.find(o => (o.code || o.orgCode || "").toUpperCase() === orgCodeUpper) || {};
+      allOrganizersCache.find(o => String(o.code || o.orgCode || "").trim().toUpperCase() === orgCodeUpper) || {};
 
     // Manual score option appears only when the coordinator's exam mode is OFFLINE
     const orgExamMode = String(orgObj.examMode || s.examMode || "online")
@@ -575,7 +614,7 @@ window.loadSchoolStudentLedger = function() {
       s.paymentStatus === "Cash Handover" ||
       s.paymentVerified === true;
     const isRejected = s.paymentStatus === "Rejected";
-    const payMode = (s.paymentMode || "online").toUpperCase();
+    const payMode = String(s.paymentMode || "online").toUpperCase();
 
     const maxQ = getConfiguredTotalQuestions(s);
     const scoreVal = parseFloat(s.score) || 0;
@@ -587,37 +626,37 @@ window.loadSchoolStudentLedger = function() {
         : 0;
 
     let utrInfo = s.utrNumber
-      ? `<br><code style="color:#facc15; font-size:11px;">UTR: ${s.utrNumber}</code>`
+      ? `<br><code style="color:#facc15; font-size:11px;">UTR: ${escapeHtml(s.utrNumber)}</code>`
       : "<br><span style='color:#f87171; font-size:10px;'>No UTR Provided</span>";
     if (isRejected && s.rejectionReason) {
-      utrInfo += `<br><span style="color:#f87171; font-size:11px; font-weight:bold;">Reason: ${s.rejectionReason}</span>`;
+      utrInfo += `<br><span style="color:#f87171; font-size:11px; font-weight:bold;">Reason: ${escapeHtml(s.rejectionReason)}</span>`;
     }
 
     let statusColor = "#f59e0b";
     if (isApproved) statusColor = "#4ade80";
     if (isRejected) statusColor = "#f87171";
 
-    const paymentBadge = `<span style="color:${statusColor}; font-weight:bold;">${s.paymentStatus || "Pending Verification"} (${payMode})</span>${utrInfo}`;
+    const paymentBadge = `<span style="color:${statusColor}; font-weight:bold;">${escapeHtml(s.paymentStatus || "Pending Verification")} (${escapeHtml(payMode)})</span>${utrInfo}`;
 
     let actionButtons = "";
     if (isOfflineExam) {
-      actionButtons += `<button type="button" onclick="openManualScoreModal('${s.id}', '${s.studentName}', '${s.studentClass}', ${maxQ})" style="background:#f59e0b; color:#fff; border:none; padding:4px 8px; font-size:10px; border-radius:4px; font-weight:bold; cursor:pointer; margin-right:4px;">✍️ Manual Score</button>`;
+      actionButtons += `<button type="button" onclick="openManualScoreModal('${escapeHtml(s.id)}', '${escapeHtml(s.studentName)}', '${escapeHtml(s.studentClass)}', ${maxQ})" style="background:#f59e0b; color:#fff; border:none; padding:4px 8px; font-size:10px; border-radius:4px; font-weight:bold; cursor:pointer; margin-right:4px;">✍️ Manual Score</button>`;
     } else {
       actionButtons += `<span style="color:#38bdf8; font-size:10px; font-weight:bold; margin-right:6px;">⚡ Auto Score</span>`;
     }
-    actionButtons += `<button type="button" onclick="triggerReExam('${s.id}')" style="background:#7c3aed; color:#fff; border:none; padding:4px 8px; font-size:10px; border-radius:4px; font-weight:bold; cursor:pointer; margin-right:4px;">🔄 Re-Exam</button>`;
+    actionButtons += `<button type="button" onclick="triggerReExam('${escapeHtml(s.id)}')" style="background:#7c3aed; color:#fff; border:none; padding:4px 8px; font-size:10px; border-radius:4px; font-weight:bold; cursor:pointer; margin-right:4px;">🔄 Re-Exam</button>`;
 
-    if (s.paymentMode === "online" && !isApproved && !isRejected) {
-      actionButtons += `<button type="button" onclick="approveOnlinePayment('${s.id}')" style="background:#10b981; color:#fff; border:none; padding:4px 6px; font-size:10px; border-radius:4px; font-weight:bold; cursor:pointer; margin-right:4px;">✔️ Approve</button>`;
-      actionButtons += `<button type="button" onclick="rejectOnlinePayment('${s.id}')" style="background:#dc2626; color:#fff; border:none; padding:4px 6px; font-size:10px; border-radius:4px; font-weight:bold; cursor:pointer;">❌ Reject</button>`;
+    if (String(s.paymentMode || "").toLowerCase() === "online" && !isApproved && !isRejected) {
+      actionButtons += `<button type="button" onclick="approveOnlinePayment('${escapeHtml(s.id)}')" style="background:#10b981; color:#fff; border:none; padding:4px 6px; font-size:10px; border-radius:4px; font-weight:bold; cursor:pointer; margin-right:4px;">✔️ Approve</button>`;
+      actionButtons += `<button type="button" onclick="rejectOnlinePayment('${escapeHtml(s.id)}')" style="background:#dc2626; color:#fff; border:none; padding:4px 6px; font-size:10px; border-radius:4px; font-weight:bold; cursor:pointer;">❌ Reject</button>`;
     }
 
     tbody.innerHTML += `
       <tr style="border-bottom:1px solid #1e293b;">
-        <td style="padding:10px;"><strong>${s.studentName}${getSubjectBadge(s)}</strong><br><span style="font-size:11px; color:#94a3b8;">Roll: ${s.rollNumber}</span></td>
-        <td style="padding:10px;">Class ${s.studentClass}</td>
+        <td style="padding:10px;"><strong>${escapeHtml(s.studentName)}${getSubjectBadge(s)}</strong><br><span style="font-size:11px; color:#94a3b8;">Roll: ${escapeHtml(s.rollNumber)}</span></td>
+        <td style="padding:10px;">Class ${escapeHtml(s.studentClass)}</td>
         <td style="padding:10px;">${paymentBadge}</td>
-        <td style="padding:10px;"><strong style="color:#4ade80;">${scoreVal}/${maxQ}</strong> <span style="color:#38bdf8; font-size:11px;">(${pctVal}%)</span></td>
+        <td style="padding:10px;"><strong style="color:#4ade80;">${scoreVal}/${maxQ}</strong> <span style="color:#38bdf8; font-size:11px;">(${escapeHtml(pctVal)}%)</span></td>
         <td style="padding:10px;">${actionButtons}</td>
       </tr>
     `;
@@ -625,22 +664,29 @@ window.loadSchoolStudentLedger = function() {
 };
 
 // 🛑 MANUAL SCORE ENTRY MODAL FUNCTIONS
-window.openManualScoreModal = function(studentId, name, studentClass, maxMarks) {
-  document.getElementById("modal-student-id").value = studentId;
-  document.getElementById("modal-student-info").textContent = `Student: ${name} (Class ${studentClass})`;
-  document.getElementById("modal-score").value = "";
+window.openManualScoreModal = function (studentId, name, studentClass, maxMarks) {
+  const idEl = document.getElementById("modal-student-id");
+  const infoEl = document.getElementById("modal-student-info");
+  const scoreEl = document.getElementById("modal-score");
   const totalInput = document.getElementById("modal-total");
+  const modalEl = document.getElementById("manual-score-modal");
+
+  if (idEl) idEl.value = studentId;
+  if (infoEl) infoEl.textContent = `Student: ${name} (Class ${studentClass})`;
+  if (scoreEl) scoreEl.value = "";
   if (totalInput) totalInput.value = maxMarks || getConfiguredTotalQuestions();
-  document.getElementById("manual-score-modal").classList.remove("hidden");
+  if (modalEl) modalEl.classList.remove("hidden");
 };
 
-window.closeManualScoreModal = () =>
-  document.getElementById("manual-score-modal").classList.add("hidden");
+window.closeManualScoreModal = () => {
+  const modalEl = document.getElementById("manual-score-modal");
+  if (modalEl) modalEl.classList.add("hidden");
+};
 
-window.saveManualScore = function() {
-  const studentId = document.getElementById("modal-student-id").value;
-  const score = parseFloat(document.getElementById("modal-score").value);
-  const total = parseFloat(document.getElementById("modal-total").value) || getConfiguredTotalQuestions();
+window.saveManualScore = function () {
+  const studentId = document.getElementById("modal-student-id")?.value;
+  const score = parseFloat(document.getElementById("modal-score")?.value);
+  const total = parseFloat(document.getElementById("modal-total")?.value) || getConfiguredTotalQuestions();
 
   if (isNaN(score)) {
     alert("⚠️ Please enter a valid score.");
@@ -657,19 +703,20 @@ window.saveManualScore = function() {
       totalQuestions: total
     })
   })
-  .then(res => res.json())
-  .then(data => {
-    if (data.status === "success") {
-      alert("✅ Offline student score saved successfully via Central Panel!");
-      closeManualScoreModal();
-      fetchAllCentralData();
-    } else {
-      alert("❌ Error: " + data.message);
-    }
-  });
+    .then(res => res.json())
+    .then(data => {
+      if (data && data.status === "success") {
+        alert("✅ Offline student score saved successfully via Central Panel!");
+        closeManualScoreModal();
+        fetchAllCentralData();
+      } else {
+        alert("❌ Error: " + (data?.message || "Failed to save score"));
+      }
+    })
+    .catch(() => alert("❌ Network error while saving score."));
 };
 
-window.approveOnlinePayment = function(studentId) {
+window.approveOnlinePayment = function (studentId) {
   if (!confirm("Are you sure you want to approve this online payment UTR?")) return;
 
   fetch(`${SERVER_URL}/api/admin/approve_payment`, {
@@ -677,16 +724,19 @@ window.approveOnlinePayment = function(studentId) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ studentId: studentId })
   })
-  .then(res => res.json())
-  .then(data => {
-    if (data.status === "success") {
-      alert("✅ Online payment approved successfully!");
-      fetchAllCentralData();
-    }
-  });
+    .then(res => res.json())
+    .then(data => {
+      if (data && data.status === "success") {
+        alert("✅ Online payment approved successfully!");
+        fetchAllCentralData();
+      } else {
+        alert("❌ Error: " + (data?.message || "Failed to approve payment"));
+      }
+    })
+    .catch(() => alert("❌ Network error while approving payment."));
 };
 
-window.rejectOnlinePayment = function(studentId) {
+window.rejectOnlinePayment = function (studentId) {
   const reason = prompt(
     "Enter reason for rejecting this UTR (e.g., Fake UTR / Payment not received):",
     "Fake or Invalid UTR Number"
@@ -698,42 +748,54 @@ window.rejectOnlinePayment = function(studentId) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ studentId: studentId, reason: reason })
   })
-  .then(res => res.json())
-  .then(data => {
-    if (data.status === "success") {
-      alert("❌ UTR rejected successfully!");
-      fetchAllCentralData();
-    }
-  });
+    .then(res => res.json())
+    .then(data => {
+      if (data && data.status === "success") {
+        alert("❌ UTR rejected successfully!");
+        fetchAllCentralData();
+      } else {
+        alert("❌ Error: " + (data?.message || "Failed to reject payment"));
+      }
+    })
+    .catch(() => alert("❌ Network error while rejecting payment."));
 };
 
-window.triggerReExam = function(studentId) {
+window.triggerReExam = function (studentId) {
   if (!confirm("Reset this student's exam status to allow Re-Exam?")) return;
   fetch(`${SERVER_URL}/api/admin/reexam`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ studentId: studentId })
   })
-  .then(res => res.json())
-  .then(d => {
-    if (d.status === "success") alert("✅ Re-Exam triggered successfully!");
-  });
+    .then(res => res.json())
+    .then(d => {
+      if (d && d.status === "success") {
+        alert("✅ Re-Exam triggered successfully!");
+        fetchAllCentralData();
+      } else {
+        alert("❌ Error: " + (d?.message || "Failed to trigger Re-Exam"));
+      }
+    })
+    .catch(() => alert("❌ Network error while triggering Re-Exam."));
 };
 
-window.approveOrganizerSettlement = function(orgCode, reqId) {
+window.approveOrganizerSettlement = function (orgCode, reqId) {
   if (!confirm(`Confirm settlement approval for ${orgCode}? This will reset their Net Payable balance to ₹0.`)) return;
   fetch(`${SERVER_URL}/api/admin/approve_settlement`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ orgCode: orgCode, requestId: reqId })
   })
-  .then(res => res.json())
-  .then(d => {
-    if (d.status === "success") {
-      alert("✅ Settlement Verified & Account Reset to ₹0 Payable!");
-      fetchAllCentralData();
-    }
-  });
+    .then(res => res.json())
+    .then(d => {
+      if (d && d.status === "success") {
+        alert("✅ Settlement Verified & Account Reset to ₹0 Payable!");
+        fetchAllCentralData();
+      } else {
+        alert("❌ Error: " + (d?.message || "Failed to verify settlement"));
+      }
+    })
+    .catch(() => alert("❌ Network error while verifying settlement."));
 };
 
 window.logoutAdminSession = () => {
