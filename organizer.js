@@ -3,12 +3,29 @@ let currentOrg = null;
 let portalConfig = {};
 let autoRefreshTimer = null;
 
+function escapeHtml(str) {
+  return String(str ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function getConfiguredTotalMarks(student) {
+  const fromStudent = Number(student?.totalMarks || student?.totalQuestions);
+  if (fromStudent > 0) return fromStudent;
+  const fromConfig = Number(portalConfig?.totalQuestions || portalConfig?.questionCount);
+  if (fromConfig > 0) return fromConfig;
+  return 30;
+}
+
 function getSubjectBadge(student) {
   const rawSub = String(
-    student.subject ||
-    student.examSubject ||
-    student.stream ||
-    student.selectedSubject ||
+    student?.subject ||
+    student?.examSubject ||
+    student?.stream ||
+    student?.selectedSubject ||
     ""
   )
     .trim()
@@ -35,22 +52,22 @@ document.addEventListener("DOMContentLoaded", () => {
         password: localStorage.getItem("nvmso_org_pass") || ""
       })
     })
-    .then(res => res.json())
-    .then(response => {
-      if (response.status === "success") {
-        currentOrg = response.data || {};
-        const codeKey = (currentOrg.code || currentOrg.orgCode || savedOrgCode).toUpperCase();
-        const savedUpi = localStorage.getItem(`nvmso_org_upi_${codeKey}`);
-        if (!currentOrg.upiId && savedUpi) {
-          currentOrg.upiId = savedUpi;
+      .then(res => res.json())
+      .then(response => {
+        if (response && response.status === "success") {
+          currentOrg = response.data || {};
+          const codeKey = String(currentOrg.code || currentOrg.orgCode || savedOrgCode).trim().toUpperCase();
+          const savedUpi = localStorage.getItem(`nvmso_org_upi_${codeKey}`);
+          if (!currentOrg.upiId && savedUpi) {
+            currentOrg.upiId = savedUpi;
+          }
+          loadDashboardView();
+          fetchRegisteredStudentsList();
+          fetchOrganizerChatMessages();
+          checkResultAndRankingStatus();
         }
-        loadDashboardView();
-        fetchRegisteredStudentsList();
-        fetchOrganizerChatMessages();
-        checkResultAndRankingStatus();
-      }
-    })
-    .catch(() => {});
+      })
+      .catch(() => {});
   }
 });
 
@@ -86,7 +103,7 @@ function fetchGlobalConfigAndNotice() {
   fetch(`${SERVER_URL}/api/portal/config`)
     .then(res => res.json())
     .then(data => {
-      if (data.status === "success") {
+      if (data && data.status === "success") {
         portalConfig = data.config || {};
         applyPortalFeeLabels();
 
@@ -95,6 +112,8 @@ function fetchGlobalConfigAndNotice() {
         if (portalConfig.broadcastNotice && noticeBanner && noticeText) {
           noticeText.textContent = portalConfig.broadcastNotice;
           noticeBanner.classList.remove("hidden");
+        } else if (noticeBanner) {
+          noticeBanner.classList.add("hidden");
         }
       }
     })
@@ -102,8 +121,8 @@ function fetchGlobalConfigAndNotice() {
 }
 
 window.verifyOrgLogin = async () => {
-  const code = document.getElementById("org-code-input").value.trim().toUpperCase();
-  const password = document.getElementById("org-pass-input").value.trim();
+  const code = document.getElementById("org-code-input")?.value.trim().toUpperCase() || "";
+  const password = document.getElementById("org-pass-input")?.value.trim() || "";
   if (!code || !password) {
     alert("⚠️ Please enter credentials.");
     return;
@@ -117,7 +136,7 @@ window.verifyOrgLogin = async () => {
     });
     const response = await res.json();
 
-    if (response.status === "success") {
+    if (response && response.status === "success") {
       currentOrg = response.data || {};
       const savedUpi = localStorage.getItem(`nvmso_org_upi_${code}`);
       if (!currentOrg.upiId && savedUpi) {
@@ -138,10 +157,10 @@ window.verifyOrgLogin = async () => {
 };
 
 window.handleForgotPassword = async () => {
-  const orgCode = document.getElementById("forgot-org-code").value.trim().toUpperCase();
-  const mobile = document.getElementById("forgot-mobile").value.trim();
-  const pin = document.getElementById("forgot-pin").value.trim();
-  const newPassword = document.getElementById("forgot-new-pass").value.trim();
+  const orgCode = document.getElementById("forgot-org-code")?.value.trim().toUpperCase() || "";
+  const mobile = document.getElementById("forgot-mobile")?.value.trim() || "";
+  const pin = document.getElementById("forgot-pin")?.value.trim() || "";
+  const newPassword = document.getElementById("forgot-new-pass")?.value.trim() || "";
 
   if (!orgCode || !mobile || !pin) {
     alert("⚠️ Please enter Organizer Code, Mobile Number, and 6-digit PIN.");
@@ -165,7 +184,7 @@ window.handleForgotPassword = async () => {
     });
     const data = await res.json();
 
-    if (data.status === "success") {
+    if (data && data.status === "success") {
       if (data.password) {
         alert(`✅ Verified! Your Password is: ${data.password}`);
         document.getElementById("org-code-input").value = orgCode;
@@ -177,15 +196,15 @@ window.handleForgotPassword = async () => {
       }
       switchOrgTab("login");
     } else {
-      alert("❌ " + (data.message || "Invalid Organizer Code, Mobile Number, or PIN!"));
+      alert("❌ " + (data?.message || "Invalid Organizer Code, Mobile Number, or PIN!"));
     }
   } catch (err) {
     alert("❌ Could not process recovery request. Please check backend endpoint.");
   }
 };
 
-window.handleOrganizerRegister = function() {
-  const pin = document.getElementById("new-org-pin").value.trim();
+window.handleOrganizerRegister = function () {
+  const pin = document.getElementById("new-org-pin")?.value.trim() || "";
   const termsChecked = document.getElementById("org-terms-check")?.checked;
   if (!termsChecked) {
     alert("⚠️ Please accept Terms & Conditions.");
@@ -197,12 +216,12 @@ window.handleOrganizerRegister = function() {
   }
 
   const payload = {
-    name: document.getElementById("new-org-name").value.trim(),
-    schoolName: document.getElementById("new-org-school").value.trim(),
-    contact: document.getElementById("new-org-contact").value.trim(),
-    password: document.getElementById("new-org-pass").value.trim(),
+    name: document.getElementById("new-org-name")?.value.trim() || "",
+    schoolName: document.getElementById("new-org-school")?.value.trim() || "",
+    contact: document.getElementById("new-org-contact")?.value.trim() || "",
+    password: document.getElementById("new-org-pass")?.value.trim() || "",
     pin: pin,
-    refCode: document.getElementById("new-org-ref").value.trim().toUpperCase()
+    refCode: document.getElementById("new-org-ref")?.value.trim().toUpperCase() || ""
   };
 
   fetch(`${SERVER_URL}/api/organizer/register`, {
@@ -210,27 +229,33 @@ window.handleOrganizerRegister = function() {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload)
   })
-  .then(res => res.json())
-  .then(data => {
-    if (data.status === "success") {
-      alert(`🎉 Account Created! Code: ${data.orgCode}`);
-      switchOrgTab("login");
-      document.getElementById("org-code-input").value = data.orgCode;
-    } else {
-      alert("❌ Error: " + data.message);
-    }
-  });
+    .then(res => res.json())
+    .then(data => {
+      if (data && data.status === "success") {
+        alert(`🎉 Account Created! Code: ${data.orgCode}`);
+        switchOrgTab("login");
+        document.getElementById("org-code-input").value = data.orgCode;
+      } else {
+        alert("❌ Error: " + (data?.message || "Registration failed"));
+      }
+    })
+    .catch(() => alert("❌ Network error while creating account."));
 };
 
 function loadDashboardView() {
-  document.getElementById("org-auth-section").classList.add("hidden");
-  document.getElementById("org-view").classList.remove("hidden");
+  document.getElementById("org-auth-section")?.classList.add("hidden");
+  document.getElementById("org-view")?.classList.remove("hidden");
 
-  const orgCodeKey = (currentOrg.code || currentOrg.orgCode || "").toUpperCase();
-  document.getElementById("display-school-name").textContent = currentOrg.schoolName || "Associated School";
-  document.getElementById("display-org-code").textContent = orgCodeKey;
-  document.getElementById("principal-perm-checkbox").checked = !!currentOrg.principalApproved;
-  document.getElementById("org-exam-mode-select").value = currentOrg.examMode || "online";
+  const orgCodeKey = String(currentOrg.code || currentOrg.orgCode || "").trim().toUpperCase();
+  const schoolNameEl = document.getElementById("display-school-name");
+  const orgCodeEl = document.getElementById("display-org-code");
+  const permChk = document.getElementById("principal-perm-checkbox");
+  const modeSelect = document.getElementById("org-exam-mode-select");
+
+  if (schoolNameEl) schoolNameEl.textContent = currentOrg.schoolName || "Associated School";
+  if (orgCodeEl) orgCodeEl.textContent = orgCodeKey;
+  if (permChk) permChk.checked = !!currentOrg.principalApproved;
+  if (modeSelect) modeSelect.value = currentOrg.examMode || "online";
 
   const upiField = document.getElementById("org-upi-input");
   const localUpi = localStorage.getItem(`nvmso_org_upi_${orgCodeKey}`) || "";
@@ -250,9 +275,9 @@ function loadDashboardView() {
   }
 }
 
-window.updateExamMode = function(val) {
+window.updateExamMode = function (val) {
   if (!currentOrg) return;
-  const orgCodeKey = (currentOrg.code || currentOrg.orgCode || "").toUpperCase();
+  const orgCodeKey = String(currentOrg.code || currentOrg.orgCode || "").trim().toUpperCase();
   const upiIdVal = document.getElementById("org-upi-input")?.value.trim() || currentOrg.upiId || "";
   if (upiIdVal) {
     localStorage.setItem(`nvmso_org_upi_${orgCodeKey}`, upiIdVal);
@@ -263,25 +288,26 @@ window.updateExamMode = function(val) {
     body: JSON.stringify({
       orgCode: orgCodeKey,
       examMode: val,
-      principalApproved: currentOrg.principalApproved,
+      principalApproved: !!currentOrg.principalApproved,
       upiId: upiIdVal,
       payoutUpi: upiIdVal
     })
   })
-  .then(res => res.json())
-  .then(data => {
-    if (data.status === "success") {
-      currentOrg.examMode = val;
-      currentOrg.upiId = upiIdVal;
-      applyPortalFeeLabels();
-      fetchRegisteredStudentsList();
-    }
-  });
+    .then(res => res.json())
+    .then(data => {
+      if (data && data.status === "success") {
+        currentOrg.examMode = val;
+        currentOrg.upiId = upiIdVal;
+        applyPortalFeeLabels();
+        fetchRegisteredStudentsList();
+      }
+    })
+    .catch(() => {});
 };
 
-window.saveOrganizerUpi = function() {
+window.saveOrganizerUpi = function () {
   if (!currentOrg) return;
-  const orgCodeKey = (currentOrg.code || currentOrg.orgCode || "").toUpperCase();
+  const orgCodeKey = String(currentOrg.code || currentOrg.orgCode || "").trim().toUpperCase();
   const upiIdVal = document.getElementById("org-upi-input")?.value.trim() || "";
 
   if (!upiIdVal || !upiIdVal.includes("@")) {
@@ -304,22 +330,22 @@ window.saveOrganizerUpi = function() {
       payoutUpi: upiIdVal
     })
   })
-  .then(res => res.json())
-  .then(data => {
-    if (data.status === "success") {
-      alert("✅ UPI ID saved! Central Admin can now view and pay to this UPI.");
-    } else {
-      alert("✅ UPI ID saved locally and sent to server.");
-    }
-  })
-  .catch(() => {
-    alert("✅ UPI ID saved for payouts.");
-  });
+    .then(res => res.json())
+    .then(data => {
+      if (data && data.status === "success") {
+        alert("✅ UPI ID saved! Central Admin can now view and pay to this UPI.");
+      } else {
+        alert("✅ UPI ID saved locally and sent to server.");
+      }
+    })
+    .catch(() => {
+      alert("✅ UPI ID saved for payouts.");
+    });
 };
 
-window.togglePrincipalPermission = function(isChecked) {
+window.togglePrincipalPermission = function (isChecked) {
   if (!currentOrg) return;
-  const orgCodeKey = (currentOrg.code || currentOrg.orgCode || "").toUpperCase();
+  const orgCodeKey = String(currentOrg.code || currentOrg.orgCode || "").trim().toUpperCase();
   const upiIdVal = document.getElementById("org-upi-input")?.value.trim() || currentOrg.upiId || "";
   fetch(`${SERVER_URL}/api/organizer/update_profile`, {
     method: "POST",
@@ -332,10 +358,11 @@ window.togglePrincipalPermission = function(isChecked) {
       payoutUpi: upiIdVal
     })
   })
-  .then(res => res.json())
-  .then(() => {
-    currentOrg.principalApproved = isChecked;
-  });
+    .then(res => res.json())
+    .then(() => {
+      currentOrg.principalApproved = isChecked;
+    })
+    .catch(() => {});
 };
 
 function updateSettlementCardDisplay(netPayableToNvms, nvmsOwesOrganizer, isSettled) {
@@ -365,109 +392,121 @@ function updateSettlementCardDisplay(netPayableToNvms, nvmsOwesOrganizer, isSett
 function fetchRegisteredStudentsList() {
   const container = document.getElementById("student-roster-rows");
   if (!container || !currentOrg) return;
-  const orgCodeKey = (currentOrg.code || currentOrg.orgCode || "").toUpperCase();
+  const orgCodeKey = String(currentOrg.code || currentOrg.orgCode || "").trim().toUpperCase();
 
   fetch(`${SERVER_URL}/api/organizer/students`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ orgCode: orgCodeKey })
   })
-  .then(res => res.json())
-  .then(data => {
-    if (data.status === "success") {
-      if (data.financials) {
-        const onlineFeeBase = Number(portalConfig.onlineFee || data.onlineFee || 100);
-        const offlineFeeBase = Number(portalConfig.offlineFee || data.offlineFee || 120);
+    .then(res => res.json())
+    .then(data => {
+      if (data && data.status === "success") {
+        const studentsList = Array.isArray(data.students) ? data.students : [];
 
-        const verifiedStudents = Array.isArray(data.students)
-          ? data.students.filter(s => s.paymentStatus === "Approved" || s.paymentVerified === true)
-          : [];
+        if (data.financials) {
+          const onlineFeeBase = Number(portalConfig.onlineFee || data.onlineFee || 100);
+          const offlineFeeBase = Number(portalConfig.offlineFee || data.offlineFee || 120);
 
-        const totalRegs = verifiedStudents.length || data.financials.approvedRegistrations || 0;
-        const cashStudents = verifiedStudents.filter(s => {
-          const pm = (s.paymentMode || "").toLowerCase();
-          return pm === "offline" || pm === "cash";
+          const verifiedStudents = studentsList.filter(
+            s => s.paymentStatus === "Approved" || s.paymentVerified === true
+          );
+
+          const totalRegs = verifiedStudents.length || data.financials.approvedRegistrations || 0;
+          const cashStudents = verifiedStudents.filter(s => {
+            const pm = String(s.paymentMode || "").toLowerCase();
+            return pm === "offline" || pm === "cash";
+          });
+          const onlineStudents = verifiedStudents.filter(
+            s => String(s.paymentMode || "online").toLowerCase() === "online"
+          );
+
+          const activeMode = String(currentOrg.examMode || "online").toLowerCase();
+          const cashHeld =
+            cashStudents.length > 0
+              ? cashStudents.length * (activeMode === "offline" ? offlineFeeBase : onlineFeeBase)
+              : (data.financials.cashHeld || 0);
+
+          const onlineCollected =
+            onlineStudents.length > 0
+              ? onlineStudents.length * onlineFeeBase
+              : (data.financials.onlineCollected || 0);
+
+          // 15% Direct & 5% Referral calculated on current Online Mode Fee base
+          const baseForCommission = totalRegs * onlineFeeBase;
+          const directComm = Math.floor(baseForCommission * 0.15);
+          const hasRef =
+            currentOrg.refCode &&
+            String(currentOrg.refCode).trim() !== "" &&
+            String(currentOrg.refCode).trim().toUpperCase() !== "NONE";
+          const refComm = hasRef ? Math.floor(baseForCommission * 0.05) : 0;
+
+          const isSettled = !!data.isSettled;
+          const rawNetPayable = cashHeld - (directComm + refComm);
+          const netPayableToNvms = isSettled ? 0 : Math.max(0, rawNetPayable);
+          const nvmsOwesOrganizer = isSettled ? 0 : Math.max(0, (directComm + refComm) - cashHeld);
+          const adminUpi = data.adminUpiId || portalConfig.adminUpiId || "narmada@upi";
+
+          document.getElementById("fin-total-regs").textContent = totalRegs;
+          document.getElementById("fin-cash-held").textContent = `₹${cashHeld}`;
+          document.getElementById("fin-online-collected").textContent = `₹${onlineCollected}`;
+          document.getElementById("fin-direct-comm").textContent = `₹${directComm}`;
+          document.getElementById("fin-ref-comm").textContent = `₹${refComm}`;
+
+          updateSettlementCardDisplay(netPayableToNvms, nvmsOwesOrganizer, isSettled);
+          renderDynamicFinancialAction(netPayableToNvms, nvmsOwesOrganizer, isSettled, adminUpi);
+        }
+
+        if (!studentsList.length) {
+          container.innerHTML =
+            `<tr><td colspan="7" style="text-align:center; color:#64748b; padding:15px;">No students registered.</td></tr>`;
+          return;
+        }
+
+        container.innerHTML = "";
+
+        studentsList.forEach(s => {
+          const isApproved = s.paymentStatus === "Approved" || s.paymentVerified === true;
+          const utrInfo = s.utrNumber
+            ? `<br><code style="color:#facc15; font-size:11px;">UTR: ${escapeHtml(s.utrNumber)}</code>`
+            : "";
+
+          let marksDisplay = `<span style="color:#94a3b8; font-size:11px;">Exam Pending</span>`;
+          if (s.examCompleted || (s.score !== undefined && s.score !== null && s.score !== "")) {
+            const scoreVal = parseFloat(s.score) || 0;
+            const totalVal = getConfiguredTotalMarks(s);
+            const pctVal =
+              s.percentage !== undefined && s.percentage !== null && s.percentage !== ""
+                ? s.percentage
+                : totalVal > 0
+                ? ((scoreVal / totalVal) * 100).toFixed(2)
+                : 0;
+            marksDisplay = `<strong style="color:#4ade80;">${scoreVal}/${totalVal}</strong> <br><span style="color:#38bdf8; font-size:11px;">${escapeHtml(pctVal)}%</span>`;
+          }
+
+          const stId = escapeHtml(s.studentId || s.id || "");
+          let actionCell = `<span style="color:#4ade80; font-weight:bold;">Approved</span>`;
+          if (!isApproved && String(s.paymentMode || "").toLowerCase() === "offline") {
+            actionCell = `<button type="button" onclick="approveStudentCashEntry('${stId}')" style="background:#10b981; color:#fff; padding:5px 10px; font-size:11px; border-radius:4px; border:none; cursor:pointer;">💸 Approve Cash</button>`;
+          } else if (!isApproved) {
+            actionCell = `<span style='color:#f59e0b; font-size:11px;'>Awaiting UTR</span>`;
+          }
+
+          container.innerHTML += `
+            <tr style="border-bottom: 1px solid #1e293b;">
+              <td style="padding:10px;"><strong>${escapeHtml(s.studentName)}${getSubjectBadge(s)}</strong></td>
+              <td style="padding:10px;"><code style="color:#38bdf8;">${escapeHtml(s.rollNumber)}</code></td>
+              <td style="padding:10px;">Class ${escapeHtml(s.studentClass)}</td>
+              <td style="padding:10px;">${escapeHtml(String(s.paymentMode || "online").toUpperCase())}</td>
+              <td style="padding:10px;">${marksDisplay}</td>
+              <td style="padding:10px;"><span style="color:${isApproved ? "#4ade80" : "#f59e0b"}; font-weight:bold;">${escapeHtml(s.paymentStatus || "Pending")}</span>${utrInfo}</td>
+              <td style="padding:10px;">${actionCell}</td>
+            </tr>
+          `;
         });
-        const onlineStudents = verifiedStudents.filter(
-          s => (s.paymentMode || "online").toLowerCase() === "online"
-        );
-
-        const activeMode = (currentOrg.examMode || "online").toLowerCase();
-        const cashHeld =
-          cashStudents.length > 0
-            ? cashStudents.length * (activeMode === "offline" ? offlineFeeBase : onlineFeeBase)
-            : (data.financials.cashHeld || 0);
-
-        const onlineCollected =
-          onlineStudents.length > 0
-            ? onlineStudents.length * onlineFeeBase
-            : (data.financials.onlineCollected || 0);
-
-        // 15% Direct & 5% Referral calculated on current Online Mode Fee base
-        const baseForCommission = totalRegs * onlineFeeBase;
-        const directComm = Math.floor(baseForCommission * 0.15);
-        const hasRef =
-          currentOrg.refCode &&
-          String(currentOrg.refCode).trim() !== "" &&
-          String(currentOrg.refCode).trim().toUpperCase() !== "NONE";
-        const refComm = hasRef ? Math.floor(baseForCommission * 0.05) : 0;
-
-        const isSettled = !!data.isSettled;
-        const rawNetPayable = cashHeld - (directComm + refComm);
-        const netPayableToNvms = isSettled ? 0 : Math.max(0, rawNetPayable);
-        const nvmsOwesOrganizer = isSettled ? 0 : Math.max(0, (directComm + refComm) - cashHeld);
-        const adminUpi = data.adminUpiId || portalConfig.adminUpiId || "narmada@upi";
-
-        document.getElementById("fin-total-regs").textContent = totalRegs;
-        document.getElementById("fin-cash-held").textContent = `₹${cashHeld}`;
-        document.getElementById("fin-online-collected").textContent = `₹${onlineCollected}`;
-        document.getElementById("fin-direct-comm").textContent = `₹${directComm}`;
-        document.getElementById("fin-ref-comm").textContent = `₹${refComm}`;
-
-        updateSettlementCardDisplay(netPayableToNvms, nvmsOwesOrganizer, isSettled);
-        renderDynamicFinancialAction(netPayableToNvms, nvmsOwesOrganizer, isSettled, adminUpi);
       }
-
-      container.innerHTML = data.students.length
-        ? ""
-        : `<tr><td colspan="7" style="text-align:center; color:#64748b; padding:15px;">No students registered.</td></tr>`;
-
-      data.students.forEach(s => {
-        const isApproved = s.paymentStatus === "Approved" || s.paymentVerified === true;
-        const utrInfo = s.utrNumber
-          ? `<br><code style="color:#facc15; font-size:11px;">UTR: ${s.utrNumber}</code>`
-          : "";
-
-        let marksDisplay = `<span style="color:#94a3b8; font-size:11px;">Exam Pending</span>`;
-        if (s.examCompleted || s.score !== undefined) {
-          const scoreVal = parseFloat(s.score) || 0;
-          const totalVal = parseFloat(s.totalMarks) || 30;
-          const pctVal =
-            s.percentage !== undefined ? s.percentage : ((scoreVal / totalVal) * 100).toFixed(2);
-          marksDisplay = `<strong style="color:#4ade80;">${scoreVal}/${totalVal}</strong> <br><span style="color:#38bdf8; font-size:11px;">${pctVal}%</span>`;
-        }
-
-        let actionCell = `<span style="color:#4ade80; font-weight:bold;">Approved</span>`;
-        if (!isApproved && (s.paymentMode || "").toLowerCase() === "offline") {
-          actionCell = `<button type="button" onclick="approveStudentCashEntry('${s.studentId || s.id}')" style="background:#10b981; color:#fff; padding:5px 10px; font-size:11px; border-radius:4px; border:none; cursor:pointer;">💸 Approve Cash</button>`;
-        } else if (!isApproved) {
-          actionCell = `<span style='color:#f59e0b; font-size:11px;'>Awaiting UTR</span>`;
-        }
-
-        container.innerHTML += `
-          <tr style="border-bottom: 1px solid #1e293b;">
-            <td style="padding:10px;"><strong>${s.studentName}${getSubjectBadge(s)}</strong></td>
-            <td style="padding:10px;"><code style="color:#38bdf8;">${s.rollNumber}</code></td>
-            <td style="padding:10px;">Class ${s.studentClass}</td>
-            <td style="padding:10px;">${(s.paymentMode || "online").toUpperCase()}</td>
-            <td style="padding:10px;">${marksDisplay}</td>
-            <td style="padding:10px;"><span style="color:${isApproved ? "#4ade80" : "#f59e0b"}; font-weight:bold;">${s.paymentStatus || "Pending"}</span>${utrInfo}</td>
-            <td style="padding:10px;">${actionCell}</td>
-          </tr>
-        `;
-      });
-    }
-  });
+    })
+    .catch(() => {});
 }
 
 function renderDynamicFinancialAction(netPayable, nvmsOwesOrg, isSettled, adminUpi) {
@@ -501,7 +540,7 @@ function renderDynamicFinancialAction(netPayable, nvmsOwesOrg, isSettled, adminU
         <div><p style="font-size: 13px; color: #4ade80; font-weight: bold; margin: 0;">Payout Amount (NVMS Owes You):</p><h2 style="color: #4ade80; margin: 5px 0 0 0;">₹${nvmsOwesOrg}</h2></div>
       </div>
       <div style="border-top: 1px dashed #334155; padding-top: 10px; margin-top: 10px; display: flex; gap: 10px; flex-wrap: wrap;">
-        <input type="text" id="payout-upi-input" value="${currentOrg.upiId || ""}" placeholder="Enter your UPI ID (e.g. user@paytm)" style="flex: 1; min-width: 200px;">
+        <input type="text" id="payout-upi-input" value="${escapeHtml(currentOrg.upiId || "")}" placeholder="Enter your UPI ID (e.g. user@paytm)" style="flex: 1; min-width: 200px;">
         <input type="number" id="payout-amount-input" value="${nvmsOwesOrg}" style="width: 110px;">
         <button type="button" onclick="requestCommissionPayout(${nvmsOwesOrg})" class="btn-primary" style="background: #f59e0b; width: auto; cursor:pointer;">📤 Request Payout</button>
       </div>
@@ -511,45 +550,72 @@ function renderDynamicFinancialAction(netPayable, nvmsOwesOrg, isSettled, adminU
   }
 }
 
-window.approveStudentCashEntry = function(studentId) {
+window.approveStudentCashEntry = function (studentId) {
   if (!confirm("Approve cash payment?")) return;
   const orgCodeKey = currentOrg ? (currentOrg.code || currentOrg.orgCode || "") : "";
   fetch(`${SERVER_URL}/api/organizer/approve_cash`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ studentId: studentId, orgCode: orgCodeKey })
-  }).then(() => fetchRegisteredStudentsList());
+  })
+    .then(res => res.json())
+    .then(data => {
+      if (data && data.status === "success") {
+        fetchRegisteredStudentsList();
+      } else {
+        alert("❌ Error: " + (data?.message || "Failed to approve cash entry"));
+      }
+    })
+    .catch(() => alert("❌ Network error while approving cash."));
 };
 
-window.submitSettlementProof = function(defaultAmount) {
-  const utr = document.getElementById("settlement-utr-input").value.trim();
+window.submitSettlementProof = function (defaultAmount) {
+  const utr = document.getElementById("settlement-utr-input")?.value.trim() || "";
+  const amountVal = Number(document.getElementById("settlement-amount-input")?.value) || defaultAmount;
   if (!utr) {
-    alert("Enter UTR number.");
+    alert("⚠️ Enter UTR number.");
     return;
   }
   const orgCodeKey = currentOrg ? (currentOrg.code || currentOrg.orgCode || "") : "";
   fetch(`${SERVER_URL}/api/organizer/submit_settlement`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ orgCode: orgCodeKey, utrNumber: utr, amount: defaultAmount })
-  }).then(() => {
-    alert("✅ Settlement proof submitted!");
-    fetchRegisteredStudentsList();
-  });
+    body: JSON.stringify({ orgCode: orgCodeKey, utrNumber: utr, amount: amountVal })
+  })
+    .then(res => res.json())
+    .then(data => {
+      if (data && data.status === "success") {
+        alert("✅ Settlement proof submitted!");
+        fetchRegisteredStudentsList();
+      } else {
+        alert("❌ Error: " + (data?.message || "Failed to submit settlement"));
+      }
+    })
+    .catch(() => alert("❌ Network error while submitting settlement."));
 };
 
-window.requestCommissionPayout = function(maxAmount) {
-  const upiId = document.getElementById("payout-upi-input").value.trim();
-  if (!upiId) {
-    alert("Enter UPI ID.");
+window.requestCommissionPayout = function (maxAmount) {
+  const upiId = document.getElementById("payout-upi-input")?.value.trim() || "";
+  const amountVal = Number(document.getElementById("payout-amount-input")?.value) || maxAmount;
+  if (!upiId || !upiId.includes("@")) {
+    alert("⚠️ Enter a valid UPI ID.");
     return;
   }
   const orgCodeKey = currentOrg ? (currentOrg.code || currentOrg.orgCode || "") : "";
   fetch(`${SERVER_URL}/api/organizer/request_payout`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ orgCode: orgCodeKey, upiId: upiId, amount: maxAmount })
-  }).then(() => alert("✅ Commission payout request sent to Central Admin!"));
+    body: JSON.stringify({ orgCode: orgCodeKey, upiId: upiId, amount: amountVal })
+  })
+    .then(res => res.json())
+    .then(data => {
+      if (data && data.status === "success") {
+        alert("✅ Commission payout request sent to Central Admin!");
+      } else {
+        alert("❌ Error: " + (data?.message || "Failed to request payout"));
+      }
+    })
+    .catch(() => alert("❌ Network error while requesting payout."));
 };
 
 function checkResultAndRankingStatus() {
@@ -558,31 +624,38 @@ function checkResultAndRankingStatus() {
   fetch(`${SERVER_URL}/api/portal/config`)
     .then(res => res.json())
     .then(data => {
-      if (data.status === "success" && data.config.isResultDeclared) {
+      if (data && data.status === "success" && data.config?.isResultDeclared) {
         document.getElementById("org-result-ranking-box")?.classList.remove("hidden");
         fetch(`${SERVER_URL}/api/organizer/students`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ orgCode: orgCodeKey })
         })
-        .then(r => r.json())
-        .then(stData => {
-          if (stData.status === "success" && stData.students) {
-            const completed = stData.students.filter(s => s.examCompleted);
-            completed.sort((a, b) => (parseFloat(b.score) || 0) - (parseFloat(a.score) || 0));
-            let rankHtml = `<table style="width:100%; border-collapse: collapse; font-size: 13px; color: #fff;"><thead><tr style="background:#1e293b;"><th style="padding:8px;">Rank</th><th style="padding:8px;">Name</th><th style="padding:8px; text-align:right;">Score</th></tr></thead><tbody>`;
-            completed.forEach((s, idx) => {
-              rankHtml += `<tr style="border-bottom:1px solid #1e293b;"><td style="padding:8px; color:#facc15;">#${idx + 1}</td><td style="padding:8px;">${s.studentName}${getSubjectBadge(s)}</td><td style="padding:8px; text-align:right; color:#4ade80;">${s.score || 0}/${s.totalMarks || 30}</td></tr>`;
-            });
-            document.getElementById("org-ranking-content").innerHTML = rankHtml + `</tbody></table>`;
-          }
-        });
+          .then(r => r.json())
+          .then(stData => {
+            if (stData && stData.status === "success" && Array.isArray(stData.students)) {
+              const completed = stData.students.filter(s => s.examCompleted);
+              completed.sort((a, b) => (parseFloat(b.score) || 0) - (parseFloat(a.score) || 0));
+              let rankHtml = `<table style="width:100%; border-collapse: collapse; font-size: 13px; color: #fff;"><thead><tr style="background:#1e293b;"><th style="padding:8px;">Rank</th><th style="padding:8px;">Name</th><th style="padding:8px; text-align:right;">Score</th></tr></thead><tbody>`;
+              completed.forEach((s, idx) => {
+                const maxMarks = getConfiguredTotalMarks(s);
+                rankHtml += `<tr style="border-bottom:1px solid #1e293b;"><td style="padding:8px; color:#facc15;">#${idx + 1}</td><td style="padding:8px;">${escapeHtml(s.studentName)}${getSubjectBadge(s)}</td><td style="padding:8px; text-align:right; color:#4ade80;">${escapeHtml(s.score || 0)}/${maxMarks}</td></tr>`;
+              });
+              const rankContainer = document.getElementById("org-ranking-content");
+              if (rankContainer) {
+                rankContainer.innerHTML = rankHtml + `</tbody></table>`;
+              }
+            }
+          })
+          .catch(() => {});
       }
-    });
+    })
+    .catch(() => {});
 }
 
-window.toggleOrganizerChatBox = function() {
+window.toggleOrganizerChatBox = function () {
   const chatArea = document.getElementById("organizer-chat-collapsible-area");
+  if (!chatArea) return;
   chatArea.classList.toggle("hidden");
   if (!chatArea.classList.contains("hidden")) fetchOrganizerChatMessages();
 };
@@ -590,23 +663,24 @@ window.toggleOrganizerChatBox = function() {
 function fetchOrganizerChatMessages() {
   if (!currentOrg) return;
   const orgCodeKey = currentOrg.code || currentOrg.orgCode || "";
-  fetch(`${SERVER_URL}/api/organizer/query_messages?orgCode=${orgCodeKey}`)
+  fetch(`${SERVER_URL}/api/organizer/query_messages?orgCode=${encodeURIComponent(orgCodeKey)}`)
     .then(res => res.json())
     .then(data => {
       const chatBox = document.getElementById("organizer-chat-box");
-      if (chatBox && data.messages) {
+      if (chatBox && Array.isArray(data.messages)) {
         chatBox.innerHTML = data.messages
           .map(
             m =>
-              `<div style="text-align:${m.isAdmin ? "left" : "right"}; margin-bottom:5px;"><span style="background:${m.isAdmin ? "#0369a1" : "#1e293b"}; padding:5px 8px; border-radius:5px; color:#fff; font-size:11px; display:inline-block;">${m.text}</span></div>`
+              `<div style="text-align:${m.isAdmin ? "left" : "right"}; margin-bottom:5px;"><span style="background:${m.isAdmin ? "#0369a1" : "#1e293b"}; padding:5px 8px; border-radius:5px; color:#fff; font-size:11px; display:inline-block;">${escapeHtml(m.text)}</span></div>`
           )
           .join("");
         chatBox.scrollTop = chatBox.scrollHeight;
       }
-    });
+    })
+    .catch(() => {});
 }
 
-window.sendOrganizerQuery = function() {
+window.sendOrganizerQuery = function () {
   const input = document.getElementById("organizer-chat-input");
   if (!input || !input.value.trim()) return;
   const orgCodeKey = currentOrg ? (currentOrg.code || currentOrg.orgCode || "") : "";
@@ -618,19 +692,22 @@ window.sendOrganizerQuery = function() {
       senderName: `School (${orgCodeKey})`,
       message: input.value.trim()
     })
-  }).then(() => {
-    input.value = "";
-    fetchOrganizerChatMessages();
-  });
+  })
+    .then(() => {
+      input.value = "";
+      fetchOrganizerChatMessages();
+    })
+    .catch(() => {});
 };
 
 window.switchOrgTab = tab => {
-  document.getElementById("org-login-box").classList.toggle("hidden", tab !== "login");
-  document.getElementById("org-reg-box").classList.toggle("hidden", tab !== "reg");
-  document.getElementById("org-forgot-box").classList.toggle("hidden", tab !== "forgot");
+  document.getElementById("org-login-box")?.classList.toggle("hidden", tab !== "login");
+  document.getElementById("org-reg-box")?.classList.toggle("hidden", tab !== "reg");
+  document.getElementById("org-forgot-box")?.classList.toggle("hidden", tab !== "forgot");
 };
 
 window.logoutOrganizerSession = () => {
-  localStorage.clear();
+  localStorage.removeItem("nvmso_org_code");
+  localStorage.removeItem("nvmso_org_pass");
   location.reload();
 };
