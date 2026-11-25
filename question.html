@@ -3,16 +3,16 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>NVMSO - Question Bank & Parameters Manager</title>
-  <link rel="stylesheet" href="central.css?v=12">
+  <title>NVMSO - Question Bank &amp; Parameters Manager</title>
+  <link rel="stylesheet" href="central.css?v=24">
 </head>
 <body style="background: #0b0f19; padding: 15px; color:#fff; width:100vw;">
 
 <div id="question-main-container" style="width: 100%; max-width: 1200px; margin: 0 auto;">
   <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #374151; padding-bottom: 15px; margin-bottom: 20px;">
     <div>
-      <h1 style="font-size: 22px; margin:0;">📚 Exam Question Bank & Parameters Manager</h1>
-      <div style="font-size: 12px; color: #94a3b8;">Formulate Questions, Negative Marking & Delete Controls</div>
+      <h1 style="font-size: 22px; margin:0;">📚 Exam Question Bank &amp; Parameters Manager</h1>
+      <div style="font-size: 12px; color: #94a3b8;">Formulate Questions, Negative Marking &amp; Delete Controls</div>
     </div>
     <div>
       <a href="central.html" class="btn-primary" style="text-decoration: none; background: #4b5563; font-size: 12px; padding: 8px 12px;">⬅ Back to Control Room</a>
@@ -22,20 +22,20 @@
   <!-- QUESTION MANAGER INPUT VECTOR CONTAINER -->
   <div class="control-box" style="border: 1px solid #c084fc; background: rgba(15, 23, 42, 0.85); padding: 20px; border-radius: 12px; margin-bottom: 20px;">
     <h3 style="color:#c084fc; margin-top:0; margin-bottom: 15px;">✍️ Add New Exam Question Element</h3>
-    
+
     <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:15px; margin-bottom: 15px;">
       <div>
-        <label style="font-size:12px; color:#94a3b8; display:block; margin-bottom:5px;">Target Class Range:</label>
+        <label for="q-class-select" style="font-size:12px; color:#94a3b8; display:block; margin-bottom:5px;">Target Class Range:</label>
         <select id="q-class-select" style="width:100%;" onchange="handleQuestionClassRangeChange(this.value)">
           <option value="3-5">Class 3rd to 5th</option>
           <option value="6-8" selected>Class 6th to 8th</option>
           <option value="9-10">Class 9th to 10th</option>
-          <option value="11-12-Maths">Class 11th & 12th (Maths)</option>
-          <option value="11-12-Science">Class 11th & 12th (Science)</option>
+          <option value="11-12-Maths">Class 11th &amp; 12th (Maths)</option>
+          <option value="11-12-Science">Class 11th &amp; 12th (Science)</option>
         </select>
       </div>
       <div>
-        <label style="font-size:12px; color:#94a3b8; display:block; margin-bottom:5px;">Subject Category:</label>
+        <label for="q-subject-select" style="font-size:12px; color:#94a3b8; display:block; margin-bottom:5px;">Subject Category:</label>
         <select id="q-subject-select" style="width:100%;">
           <option value="Maths">Mathematics</option>
           <option value="Science">Science Column</option>
@@ -43,7 +43,7 @@
         </select>
       </div>
       <div>
-        <label style="font-size:12px; color:#94a3b8; display:block; margin-bottom:5px;">Negative Marking (Wrong Ans):</label>
+        <label for="q-negative-marking" style="font-size:12px; color:#94a3b8; display:block; margin-bottom:5px;">Negative Marking (Wrong Ans):</label>
         <select id="q-negative-marking" style="width:100%; border-color:#f87171;">
           <option value="0" selected>0 Mark (No Negative)</option>
           <option value="0.25">-0.25 Marks (1/4th)</option>
@@ -54,19 +54,31 @@
     </div>
 
     <div style="margin-bottom: 15px;">
-      <label style="font-size:12px; color:#94a3b8; display:block; margin-bottom:5px;">Question Statement:</label>
+      <label for="q-text" style="font-size:12px; color:#94a3b8; display:block; margin-bottom:5px;">Question Statement:</label>
       <textarea id="q-text" rows="3" placeholder="Type or paste question here..." style="width:100%;"></textarea>
     </div>
 
     <div style="display:grid; grid-template-columns:1fr 1fr; gap:15px; margin-bottom: 15px;">
-      <div><label style="font-size:11px; color:#94a3b8;">Option A:</label><input type="text" id="q-opt-a" placeholder="Option A" style="width:100%;"></div>
-      <div><label style="font-size:11px; color:#94a3b8;">Option B:</label><input type="text" id="q-opt-b" placeholder="Option B" style="width:100%;"></div>
-      <div><label style="font-size:11px; color:#94a3b8;">Option C:</label><input type="text" id="q-opt-c" placeholder="Option C" style="width:100%;"></div>
-      <div><label style="font-size:11px; color:#94a3b8;">Option D:</label><input type="text" id="q-opt-d" placeholder="Option D" style="width:100%;"></div>
+      <div>
+        <label for="q-opt-a" style="font-size:11px; color:#94a3b8;">Option A:</label>
+        <input type="text" id="q-opt-a" placeholder="Option A" style="width:100%;">
+      </div>
+      <div>
+        <label for="q-opt-b" style="font-size:11px; color:#94a3b8;">Option B:</label>
+        <input type="text" id="q-opt-b" placeholder="Option B" style="width:100%;">
+      </div>
+      <div>
+        <label for="q-opt-c" style="font-size:11px; color:#94a3b8;">Option C:</label>
+        <input type="text" id="q-opt-c" placeholder="Option C" style="width:100%;">
+      </div>
+      <div>
+        <label for="q-opt-d" style="font-size:11px; color:#94a3b8;">Option D:</label>
+        <input type="text" id="q-opt-d" placeholder="Option D" style="width:100%;">
+      </div>
     </div>
 
     <div style="margin-bottom: 20px; max-width: 250px;">
-      <label style="font-size:12px; color:#94a3b8; display:block; margin-bottom:5px;">Correct Answer Key:</label>
+      <label for="q-correct-opt" style="font-size:12px; color:#94a3b8; display:block; margin-bottom:5px;">Correct Answer Key:</label>
       <select id="q-correct-opt" style="width:100%; border-color: #a855f7;">
         <option value="A">Option A</option>
         <option value="B">Option B</option>
@@ -87,8 +99,8 @@
         <option value="3-5">Class 3rd to 5th</option>
         <option value="6-8">Class 6th to 8th</option>
         <option value="9-10">Class 9th to 10th</option>
-        <option value="11-12-Maths">Class 11th & 12th (Maths)</option>
-        <option value="11-12-Science">Class 11th & 12th (Science)</option>
+        <option value="11-12-Maths">Class 11th &amp; 12th (Maths)</option>
+        <option value="11-12-Science">Class 11th &amp; 12th (Science)</option>
       </select>
     </div>
     <div id="saved-questions-container" style="max-height: 450px; overflow-y: auto;">
