@@ -891,6 +891,18 @@ def organizer_login():
         if not _verify_secret_value(password, stored_pass):
             return jsonify({"status": "error", "message": "Invalid credentials"}), 401
 
+        org_ref = db.collection("organizers").document(org_code)
+        login_update = {}
+        if "examMode" in data and data.get("examMode"):
+            selected_mode = str(data.get("examMode")).strip().lower()
+            if selected_mode in ("online", "offline"):
+                login_update["examMode"] = selected_mode
+        if "principalApproved" in data and data.get("principalApproved") is not None:
+            login_update["principalApproved"] = bool(data.get("principalApproved"))
+        if login_update:
+            org_ref.set(login_update, merge=True)
+            org_doc = org_ref.get()
+
         org_data = _sanitize_org_profile(org_code, org_doc.to_dict())
         org_data["orgToken"] = _create_signed_token({"role": "organizer", "orgCode": org_code}, ttl_seconds=28800)
         return jsonify({"status": "success", "data": org_data}), 200
@@ -1189,6 +1201,10 @@ def organizer_submit_settlement():
         if not utr or len(utr) < 6 or amount <= 0:
             return jsonify({"status": "error", "message": "Valid UTR number and amount required"}), 400
 
+        existing_utr = list(db.collection("settlements").where("utrNumber", "==", utr).limit(1).stream())
+        if existing_utr:
+            return jsonify({"status": "error", "message": "Duplicate UTR number already submitted!"}), 409
+
         db.collection("settlements").document().set({
             "orgCode": org_code,
             "utrNumber": utr,
@@ -1381,18 +1397,4 @@ def admin_get_all_questions():
 @app.route("/api/admin/delete-question", methods=["POST"])
 def admin_delete_question():
     if not _require_admin():
-        return jsonify({"status": "unauthorized", "message": "🔒 Admin token required!"}), 401
-    try:
-        _ensure_db()
-        data = request.json or {}
-        q_id = str(data.get("questionId") or "").strip()
-        if not q_id:
-            return jsonify({"status": "error", "message": "Missing ID"}), 400
-        db.collection("questions").document(q_id).delete()
-        return jsonify({"status": "success", "message": "Question deleted"}), 200
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
-
-
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
+        return jsonify({"status": "unauthorized", "message": "
