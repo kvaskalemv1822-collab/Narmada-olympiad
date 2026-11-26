@@ -91,6 +91,45 @@ function getSubjectBadge(student) {
   return "";
 }
 
+function removeTermsNearLogout() {
+  const orgView = document.getElementById("org-view");
+  if (!orgView) return;
+
+  const isTermsText = txt => {
+    const clean = String(txt || "").replace(/\s+/g, " ").trim().toLowerCase();
+    return (
+      clean === "terms and conditions" ||
+      clean === "terms & conditions" ||
+      clean === "terms" ||
+      clean.startsWith("terms and conditions") ||
+      clean.startsWith("terms & conditions")
+    );
+  };
+
+  orgView.querySelectorAll("a, button, span, small, p, div").forEach(el => {
+    if (el.id === "org-logout-btn" || el.closest("#org-logout-btn")) return;
+    if (el.querySelector("button, input, select, textarea, table")) return;
+    if (isTermsText(el.textContent)) {
+      el.remove();
+    }
+  });
+
+  const logoutBtn =
+    document.getElementById("org-logout-btn") ||
+    Array.from(orgView.querySelectorAll("button")).find(btn =>
+      /log\s*out/i.test(btn.textContent || "")
+    );
+
+  if (logoutBtn && logoutBtn.parentElement) {
+    Array.from(logoutBtn.parentElement.children).forEach(child => {
+      if (child === logoutBtn) return;
+      if (/terms/i.test(child.textContent || "")) {
+        child.remove();
+      }
+    });
+  }
+}
+
 function mergeServerOrgProfile(serverOrg, fallbackCode) {
   const codeKey = String(serverOrg?.code || serverOrg?.orgCode || fallbackCode || getOrgCodeUpper())
     .trim()
@@ -140,6 +179,7 @@ function handleUnauthorizedSession() {
 }
 
 document.addEventListener("DOMContentLoaded", () => {
+  removeTermsNearLogout();
   fetchGlobalConfigAndNotice();
   const savedOrgCode = (localStorage.getItem("nvmso_org_code") || "").trim().toUpperCase();
   if (savedOrgCode) {
@@ -346,6 +386,7 @@ window.handleOrganizerRegister = function () {
 function loadDashboardView() {
   document.getElementById("org-auth-section")?.classList.add("hidden");
   document.getElementById("org-view")?.classList.remove("hidden");
+  removeTermsNearLogout();
 
   const orgCodeKey = getOrgCodeUpper();
   const schoolNameEl = document.getElementById("display-school-name");
@@ -598,58 +639,17 @@ function fetchRegisteredStudentsList() {
       const studentsList = Array.isArray(data.students) ? data.students : [];
 
       if (data.financials) {
-        const onlineFeeBase = Number(portalConfig.onlineFee || data.onlineFee || 100);
-        const offlineFeeBase = Number(portalConfig.offlineFee || data.offlineFee || 120);
-
-        const verifiedStudents = studentsList.filter(
-          s => s.paymentStatus === "Approved" || s.paymentVerified === true
-        );
-
-        const totalRegs = verifiedStudents.length || data.financials.approvedRegistrations || 0;
-        const cashStudents = verifiedStudents.filter(s => {
-          const pm = String(s.paymentMode || "").toLowerCase();
-          return pm === "offline" || pm === "cash";
-        });
-        const onlineStudents = verifiedStudents.filter(
-          s => String(s.paymentMode || "online").toLowerCase() === "online"
-        );
-
-        const activeMode = normalizeMode(currentOrg.examMode);
-        const cashHeld =
-          cashStudents.length > 0
-            ? cashStudents.length * (activeMode === "offline" ? offlineFeeBase : onlineFeeBase)
-            : (data.financials.cashHeld || 0);
-
-        const onlineCollected =
-          onlineStudents.length > 0
-            ? onlineStudents.length * onlineFeeBase
-            : (data.financials.onlineCollected || 0);
-
-        const baseForCommission = totalRegs * onlineFeeBase;
-        const directComm = Math.floor(baseForCommission * 0.15);
-
-        const serverRefComm = Number(
-          data.financials?.referralCommission ?? data.referralCommission
-        );
-        let refComm = 0;
-        if (!isNaN(serverRefComm) && serverRefComm > 0) {
-          refComm = Math.floor(serverRefComm);
-        } else if (Array.isArray(data.referredOrganizers)) {
-          refComm = data.referredOrganizers.reduce((sum, refOrg) => {
-            const refCount = Number(refOrg.approvedRegistrations || refOrg.verifiedCount || 0);
-            return sum + Math.floor(refCount * onlineFeeBase * 0.05);
-          }, 0);
-        } else {
-          refComm = 0;
-        }
-
-        const isSettled = !!data.isSettled;
-        const rawNetPayable = cashHeld - (directComm + refComm);
-        const netPayableToNvms = isSettled ? 0 : Math.max(0, rawNetPayable);
-        const nvmsOwesOrganizer = isSettled ? 0 : Math.max(0, (directComm + refComm) - cashHeld);
+        const cashHeld = Number(data.financials.cashHeld) || 0;
+        const onlineCollected = Number(data.financials.onlineCollected) || 0;
+        const directComm = Number(data.financials.directCommission) || 0;
+        const refComm = Number(data.financials.referralCommission) || 0;
+        const netPayableToNvms = Number(data.financials.netPayableToNvms) || 0;
+        const nvmsOwesOrganizer = Number(data.financials.nvmsOwesOrganizer) || 0;
         const adminUpi = data.adminUpiId || portalConfig.adminUpiId || "narmada@upi";
+        const isSettled = !!data.isSettled && netPayableToNvms === 0 && nvmsOwesOrganizer === 0;
 
-        document.getElementById("fin-total-regs").textContent = totalRegs;
+        const totalRegsEl = document.getElementById("fin-total-regs");
+        if (totalRegsEl) totalRegsEl.textContent = Number(data.financials.approvedRegistrations) || 0;
         document.getElementById("fin-cash-held").textContent = `₹${cashHeld}`;
         document.getElementById("fin-online-collected").textContent = `₹${onlineCollected}`;
         document.getElementById("fin-direct-comm").textContent = `₹${directComm}`;
