@@ -1,4 +1,4 @@
-Import os
+import os
 import json
 import hmac
 import time
@@ -36,6 +36,7 @@ CORS(
 # CLOUD FIREBASE DATABASE INITIALIZATION GRID
 # ==========================================================================
 db = None
+_DB_INIT_ERROR = ""
 try:
     if not firebase_admin._apps:
         firebase_key_json = os.environ.get("FIREBASE_CONFIG_JSON")
@@ -44,17 +45,19 @@ try:
                 cred = credentials.Certificate("serviceAccountKey.json")
                 firebase_admin.initialize_app(cred)
             else:
-                raise ValueError("CRITICAL: FIREBASE_CONFIG_JSON environment variable is missing!")
+                raise ValueError("CRITICAL: FIREBASE_CONFIG_JSON environment variable or serviceAccountKey.json is missing!")
         else:
             cred_dict = json.loads(firebase_key_json)
             cred = credentials.Certificate(cred_dict)
             firebase_admin.initialize_app(cred)
     db = firestore.client()
 except Exception as e:
-    print(f"❌ Critical Core Setup Exception Tracker: {str(e)}")
+    _DB_INIT_ERROR = str(e)
+    print(f"❌ Critical Core Setup Exception Tracker: {_DB_INIT_ERROR}")
 
 GOOGLE_SHEET_WEBHOOK_URL = os.environ.get("GOOGLE_SHEETS_WEBHOOK_URL", "").strip()
 ADMIN_SECRET_KEY = os.environ.get("ADMIN_SECRET_KEY", "").strip()
+_EPHEMERAL_FALLBACK_SECRET = os.urandom(32)
 
 # ==========================================================================
 # CRYPTOGRAPHIC TOKEN & RATE LIMITING ENGINE
@@ -64,7 +67,7 @@ _RATE_BUCKETS = defaultdict(deque)
 
 def _ensure_db():
     if db is None:
-        raise RuntimeError("Database connection is not initialized.")
+        raise RuntimeError(_DB_INIT_ERROR or "Database connection is not initialized.")
 
 
 def _get_client_ip() -> str:
@@ -91,7 +94,10 @@ def _get_signing_secret() -> bytes:
     fb_env = os.environ.get("FIREBASE_CONFIG_JSON", "").strip()
     if fb_env:
         return hashlib.sha256(fb_env.encode("utf-8")).digest()
-    raise RuntimeError("ADMIN_SECRET_KEY or FIREBASE_CONFIG_JSON must be configured for token signing.")
+    if os.path.exists("serviceAccountKey.json"):
+        with open("serviceAccountKey.json", "rb") as f:
+            return hashlib.sha256(f.read()).digest()
+    return _EPHEMERAL_FALLBACK_SECRET
 
 
 def _create_signed_token(payload_dict: dict, ttl_seconds: int = 28800) -> str:
@@ -113,7 +119,7 @@ def _verify_signed_token(token: str):
     b64_payload, sig = parts[0], parts[1]
     try:
         expected_sig = hmac.new(_get_signing_secret(), b64_payload.encode("utf-8"), hashlib.sha256).hexdigest()
-    except RuntimeError:
+    except Exception:
         return None
     if not hmac.compare_digest(sig, expected_sig):
         return None
@@ -362,9 +368,13 @@ def admin_authenticate():
 
         config_doc = db.collection("settings").document("portal_config").get()
         if not config_doc.exists:
-            return jsonify({"status": "error", "message": "Config document missing!"}), 500
+            return jsonify({"status": "error", "message": "Config document (settings/portal_config) missing in Firestore!"}), 500
 
-        stored_password = str(config_doc.to_dict().get("adminPassword", "")).strip()
+        cfg_data = config_doc.to_dict() or {}
+        stored_password = str(cfg_data.get("adminPassword", "")).strip()
+        if not stored_password:
+            return jsonify({"status": "error", "message": "adminPassword field is not set in settings/portal_config!"}), 500
+
         if _verify_secret_value(password, stored_password):
             admin_token = _create_signed_token({"role": "admin"}, ttl_seconds=28800)
             return jsonify({
@@ -1389,6 +1399,113 @@ def organizer_send_query():
 
         t_id = f"TICKET_{org_code}"
         msg_text = str(data.get("message") or "").strip()
+        image_url = str(data.get("imageUrl") or "").strip()
+        sender_name = str(data.get("senderName") or f"Coordinator ({org_code})").strip()
+
+        if not msg_text and not image_url:
+            return jsonify({"status": "error", "message": "Message or image is required"}), 400
+
         db.collection("supportTickets").document(t_id).set({
             "orgCode": org_code,
-            "senderName": data.get("senderName") or f"
+            "senderName": sender_name,
+            "lastMessage": msg_text or "[Attachment]",
+            "updatedAt": firestore.SERVER_TIMESTAMP,
+        }, merge=True)
+
+        db.collection("supportTickets").document(t_id).collection("messages").add({
+            "text": msg_text,
+            "imageUrl": image_url,
+            "senderName": sender_name,
+            "isAdmin": False,
+            "createdAt": firestore.SERVER_TIMESTAMP,
+        })
+
+        return jsonify({"status": "success", "message": "Query sent", "ticketId": t_id}), 200
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route("/api/organizer/query_messages", methods=["POST"])
+def organizer_get_query_messages():
+    try:
+        _ensure_db()
+        data = request.json or {}
+        req_org = str(data.get("orgCode") or "").strip().upper()
+        org_code = _require_organizer(req_org)
+        if not org_code:
+            return jsonify({"status": "unauthorized", "message": "🔒 Valid coordinator session required!"}), 401
+
+        t_id = f"TICKET_{org_code}"
+        msgs = [
+            doc.to_dict()
+            for doc in db.collection("supportTickets").document(t_id).collection("messages").order_by("createdAt").stream()
+        ]
+        return jsonify({"status": "success", "ticketId": t_id, "messages": msgs}), 200
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route("/api/questions", methods=["GET"])
+def get_all_questions():
+    try:
+        _ensure_db()
+        questions = []
+        for doc in db.collection("questions").stream():
+            qd = doc.to_dict()
+            qd["id"] = doc.id
+            questions.append(qd)
+        return jsonify({"status": "success", "questions": questions}), 200
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route("/api/admin/add_question", methods=["POST"])
+def admin_add_question():
+    if not _require_admin():
+        return jsonify({"status": "unauthorized", "message": "🔒 Admin token required!"}), 401
+    try:
+        _ensure_db()
+        data = request.json or {}
+        q_text = str(data.get("question") or data.get("questionText") or "").strip()
+        if not q_text:
+            return jsonify({"status": "error", "message": "Question text is required"}), 400
+
+        q_payload = {
+            "question": q_text,
+            "questionText": q_text,
+            "optionA": str(data.get("optionA") or "").strip(),
+            "optionB": str(data.get("optionB") or "").strip(),
+            "optionC": str(data.get("optionC") or "").strip(),
+            "optionD": str(data.get("optionD") or "").strip(),
+            "correctOption": str(data.get("correctOption") or "A").strip().upper(),
+            "negativeMarking": float(data.get("negativeMarking") or 0),
+            "classGroup": str(data.get("classGroup") or data.get("targetClass") or "3-5").strip(),
+            "subject": str(data.get("subject") or data.get("stream") or "").strip(),
+            "createdAt": firestore.SERVER_TIMESTAMP,
+        }
+        doc_ref = db.collection("questions").document()
+        doc_ref.set(q_payload)
+        return jsonify({"status": "success", "id": doc_ref.id, "message": "Question added"}), 200
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route("/api/admin/delete_question", methods=["POST"])
+def admin_delete_question():
+    if not _require_admin():
+        return jsonify({"status": "unauthorized", "message": "🔒 Admin token required!"}), 401
+    try:
+        _ensure_db()
+        data = request.json or {}
+        q_id = str(data.get("id") or data.get("questionId") or "").strip()
+        if not q_id:
+            return jsonify({"status": "error", "message": "Missing question ID"}), 400
+        db.collection("questions").document(q_id).delete()
+        return jsonify({"status": "success", "message": "Question deleted"}), 200
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port, debug=False)
