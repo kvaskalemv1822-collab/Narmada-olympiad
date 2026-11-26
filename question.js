@@ -1,4 +1,6 @@
 const SERVER_URL = "https://nvmso-backend.onrender.com";
+const ADMIN_TOKEN_KEY = "nvmso_admin_token";
+
 let cachedQuestionsList = [];
 let configuredExamQuestionCount = 30;
 
@@ -9,6 +11,14 @@ function escapeHtml(str) {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
+}
+
+function getAdminHeaders(includeJson = true) {
+  const token = sessionStorage.getItem(ADMIN_TOKEN_KEY) || "";
+  const headers = {};
+  if (includeJson) headers["Content-Type"] = "application/json";
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+  return headers;
 }
 
 function getDefaultSubjectForClassRange(classRange) {
@@ -83,20 +93,31 @@ window.addNewQuestionToBank = async () => {
 
   fetch(`${SERVER_URL}/api/admin/add-question`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: getAdminHeaders(true),
     body: JSON.stringify(payload)
   })
-    .then(res => res.json())
+    .then(async res => {
+      const data = await res.json().catch(() => ({}));
+      if (res.status === 401) {
+        return { status: "error", message: data?.message || "Admin authentication required. Please login in Central Panel." };
+      }
+      return data;
+    })
     .then(data => {
       if (data && data.status === "success") {
         alert("✅ Success: Question element securely published to the master database!");
 
-        document.getElementById("q-text").value = "";
-        document.getElementById("q-opt-a").value = "";
-        document.getElementById("q-opt-b").value = "";
-        document.getElementById("q-opt-c").value = "";
-        document.getElementById("q-opt-d").value = "";
-        document.getElementById("q-text").focus();
+        const qEl = document.getElementById("q-text");
+        const aEl = document.getElementById("q-opt-a");
+        const bEl = document.getElementById("q-opt-b");
+        const cEl = document.getElementById("q-opt-c");
+        const dEl = document.getElementById("q-opt-d");
+        if (qEl) qEl.value = "";
+        if (aEl) aEl.value = "";
+        if (bEl) bEl.value = "";
+        if (cEl) cEl.value = "";
+        if (dEl) dEl.value = "";
+        if (qEl) qEl.focus();
 
         loadSavedQuestions();
       } else {
@@ -138,23 +159,31 @@ window.renderFilteredQuestionsPreview = function () {
   container.innerHTML = "";
   listToShow.forEach((q, idx) => {
     const grp = q.classRange || q.classGroup || "N/A";
-    const qId = escapeHtml(q.id);
+    const rawId = String(q.id || q.questionId || q._id || "");
+    const qId = escapeHtml(rawId);
+    const qBody = q.questionText || q.question || "";
+    const qAns = q.correctOption || q.answer || "A";
+    const optA = q.optionA ?? q.options?.A ?? "";
+    const optB = q.optionB ?? q.options?.B ?? "";
+    const optC = q.optionC ?? q.options?.C ?? "";
+    const optD = q.optionD ?? q.options?.D ?? "";
+
     container.innerHTML += `
       <div style="background:#020617; border:1px solid #1e293b; padding:12px; border-radius:8px; margin-bottom:10px; font-size:12px; position:relative;">
         <div style="display:flex; justify-content:space-between; color:#38bdf8; margin-bottom:4px;">
           <strong>#${idx + 1} | Class: ${escapeHtml(grp)}</strong>
           <div>
             <span style="color:#f87171; margin-right:10px;">Neg: -${escapeHtml(q.negativeMarking || 0)}</span>
-            <span style="color:#facc15; font-weight:bold; margin-right:15px;">Correct: ${escapeHtml(q.correctOption)}</span>
+            <span style="color:#facc15; font-weight:bold; margin-right:15px;">Correct: ${escapeHtml(qAns)}</span>
             <button type="button" onclick="deleteQuestion('${qId}')" style="background:#dc2626; color:#fff; border:none; padding:3px 8px; font-size:10px; border-radius:4px; cursor:pointer; font-weight:bold;">🗑️ Delete</button>
           </div>
         </div>
-        <p style="color:#fff; margin:4px 0 8px 0; font-weight:600;">${escapeHtml(q.questionText)}</p>
+        <p style="color:#fff; margin:4px 0 8px 0; font-weight:600;">${escapeHtml(qBody)}</p>
         <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px; color:#94a3b8;">
-          <div>A) ${escapeHtml(q.optionA)}</div>
-          <div>B) ${escapeHtml(q.optionB)}</div>
-          <div>C) ${escapeHtml(q.optionC)}</div>
-          <div>D) ${escapeHtml(q.optionD)}</div>
+          <div>A) ${escapeHtml(optA)}</div>
+          <div>B) ${escapeHtml(optB)}</div>
+          <div>C) ${escapeHtml(optC)}</div>
+          <div>D) ${escapeHtml(optD)}</div>
         </div>
       </div>
     `;
@@ -176,21 +205,27 @@ window.printExamQuestionPaper = function () {
   if (!sheetEl) return;
 
   const questionsHtml = paperQuestions
-    .map(
-      (q, index) => `
+    .map((q, index) => {
+      const qBody = q.questionText || q.question || "";
+      const optA = q.optionA ?? q.options?.A ?? "";
+      const optB = q.optionB ?? q.options?.B ?? "";
+      const optC = q.optionC ?? q.options?.C ?? "";
+      const optD = q.optionD ?? q.options?.D ?? "";
+
+      return `
       <div style="margin-bottom: 14px; page-break-inside: avoid;">
         <div style="font-weight: 700; margin-bottom: 4px;">
-          Q${index + 1}. ${escapeHtml(q.questionText)}
+          Q${index + 1}. ${escapeHtml(qBody)}
         </div>
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 4px 16px; padding-left: 14px; font-size: 13px;">
-          <div>(A) ${escapeHtml(q.optionA)}</div>
-          <div>(B) ${escapeHtml(q.optionB)}</div>
-          <div>(C) ${escapeHtml(q.optionC)}</div>
-          <div>(D) ${escapeHtml(q.optionD)}</div>
+          <div>(A) ${escapeHtml(optA)}</div>
+          <div>(B) ${escapeHtml(optB)}</div>
+          <div>(C) ${escapeHtml(optC)}</div>
+          <div>(D) ${escapeHtml(optD)}</div>
         </div>
       </div>
-    `
-    )
+    `;
+    })
     .join("");
 
   sheetEl.innerHTML = `
@@ -212,7 +247,9 @@ window.printExamQuestionPaper = function () {
 
 function loadSavedQuestions() {
   fetchConfiguredQuestionLimit();
-  fetch(`${SERVER_URL}/api/admin/all_questions`)
+  fetch(`${SERVER_URL}/api/admin/all_questions`, {
+    headers: getAdminHeaders(false)
+  })
     .then(res => res.json())
     .then(data => {
       if (data && data.status === "success" && Array.isArray(data.questions)) {
@@ -231,14 +268,24 @@ function loadSavedQuestions() {
 }
 
 window.deleteQuestion = function (questionId) {
+  if (!questionId) {
+    alert("⚠️ Question ID missing.");
+    return;
+  }
   if (!confirm("Are you sure you want to delete this question?")) return;
 
   fetch(`${SERVER_URL}/api/admin/delete-question`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ questionId: questionId })
+    headers: getAdminHeaders(true),
+    body: JSON.stringify({ questionId: questionId, id: questionId })
   })
-    .then(res => res.json())
+    .then(async res => {
+      const data = await res.json().catch(() => ({}));
+      if (res.status === 401) {
+        return { status: "error", message: data?.message || "Admin authentication required." };
+      }
+      return data;
+    })
     .then(data => {
       if (data && data.status === "success") {
         alert("🗑️ Question deleted successfully!");
