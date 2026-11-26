@@ -452,8 +452,6 @@ function renderMergedOrganizersTable() {
     });
 
     const refComm = Math.max(0, rawRefComm - settledRefBase);
-
-    // Referral commission is never deducted from cash collection
     const netCashToPortal = Math.max(0, cashGross - directComm);
 
     const sett = pendingSettlementsCache.find(
@@ -640,7 +638,11 @@ function fetchAdminTicketMessages(ticketId) {
       msgBox.innerHTML = msgs
         .map(m => {
           const isAdminMsg = !!m.isAdmin;
-          return `<div style="text-align:${isAdminMsg ? "right" : "left"}; margin-bottom:6px;"><span style="background:${isAdminMsg ? "#7e22ce" : "#1e293b"}; padding:6px 10px; border-radius:6px; color:#fff; font-size:12px; display:inline-block; max-width:85%;">${escapeHtml(m.text)}</span></div>`;
+          const imgHtml = m.imageUrl
+            ? `<br><img src="${escapeHtml(m.imageUrl)}" alt="Attachment" style="max-width:180px; border-radius:6px; margin-top:6px; display:block;">`
+            : "";
+          const textHtml = m.text ? `<span>${escapeHtml(m.text)}</span>` : "";
+          return `<div style="text-align:${isAdminMsg ? "right" : "left"}; margin-bottom:8px;"><span style="background:${isAdminMsg ? "#7e22ce" : "#1e293b"}; padding:6px 10px; border-radius:6px; color:#fff; font-size:12px; display:inline-block; max-width:85%;">${textHtml}${imgHtml}</span></div>`;
         })
         .join("");
       msgBox.scrollTop = msgBox.scrollHeight;
