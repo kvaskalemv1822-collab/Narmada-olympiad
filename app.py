@@ -1,50 +1,30 @@
-import os
+Import os
 import json
-import hmac
-import time
-import base64
-import hashlib
 import random
-from collections import defaultdict, deque
 import requests
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-from werkzeug.security import generate_password_hash, check_password_hash
 import firebase_admin
 from firebase_admin import credentials, firestore
 
 app = Flask(__name__)
 
-ALLOWED_ORIGINS_ENV = os.environ.get("ALLOWED_ORIGINS", "*").strip()
-allowed_origins = (
-    "*"
-    if ALLOWED_ORIGINS_ENV == "*"
-    else [o.strip() for o in ALLOWED_ORIGINS_ENV.split(",") if o.strip()]
-)
-CORS(
-    app,
-    resources={
-        r"/api/*": {
-            "origins": allowed_origins,
-            "allow_headers": ["Content-Type", "Authorization", "X-Admin-Token", "X-Org-Token", "X-Student-Token"],
-            "methods": ["GET", "POST", "OPTIONS"],
-        }
-    },
-)
+# Full Access CORS Configuration for Cross-Origin Resources
+CORS(app, resources={r"/api/*": {"origins": "*"}})
 
 # ==========================================================================
-# CLOUD FIREBASE DATABASE INITIALIZATION GRID
+# 🛡️ CLOUD FIREBASE DATABASE INITIALIZATION GRID
 # ==========================================================================
 db = None
 try:
     if not firebase_admin._apps:
-        firebase_key_json = os.environ.get("FIREBASE_CONFIG_JSON")
+        firebase_key_json = os.environ.get('FIREBASE_CONFIG_JSON')
         if not firebase_key_json:
-            if os.path.exists("serviceAccountKey.json"):
-                cred = credentials.Certificate("serviceAccountKey.json")
+            if os.path.exists('serviceAccountKey.json'):
+                cred = credentials.Certificate('serviceAccountKey.json')
                 firebase_admin.initialize_app(cred)
             else:
-                raise ValueError("CRITICAL: FIREBASE_CONFIG_JSON environment variable is missing!")
+                raise ValueError("CRITICAL CYBER THREAT: FIREBASE_CONFIG_JSON environmental vector is missing!")
         else:
             cred_dict = json.loads(firebase_key_json)
             cred = credentials.Certificate(cred_dict)
@@ -53,138 +33,7 @@ try:
 except Exception as e:
     print(f"❌ Critical Core Setup Exception Tracker: {str(e)}")
 
-GOOGLE_SHEET_WEBHOOK_URL = os.environ.get("GOOGLE_SHEETS_WEBHOOK_URL", "").strip()
-ADMIN_SECRET_KEY = os.environ.get("ADMIN_SECRET_KEY", "").strip()
-
-# ==========================================================================
-# CRYPTOGRAPHIC TOKEN & RATE LIMITING ENGINE
-# ==========================================================================
-_RATE_BUCKETS = defaultdict(deque)
-
-
-def _ensure_db():
-    if db is None:
-        raise RuntimeError("Database connection is not initialized.")
-
-
-def _get_client_ip() -> str:
-    xff = request.headers.get("X-Forwarded-For", "").strip()
-    if xff:
-        return xff.split(",")[0].strip()
-    return request.remote_addr or "unknown"
-
-
-def _rate_limited(bucket_key: str, max_requests: int, window_seconds: int) -> bool:
-    now = time.time()
-    q = _RATE_BUCKETS[bucket_key]
-    while q and (now - q[0]) > window_seconds:
-        q.popleft()
-    if len(q) >= max_requests:
-        return True
-    q.append(now)
-    return False
-
-
-def _get_signing_secret() -> bytes:
-    if ADMIN_SECRET_KEY:
-        return ADMIN_SECRET_KEY.encode("utf-8")
-    fb_env = os.environ.get("FIREBASE_CONFIG_JSON", "").strip()
-    if fb_env:
-        return hashlib.sha256(fb_env.encode("utf-8")).digest()
-    raise RuntimeError("ADMIN_SECRET_KEY or FIREBASE_CONFIG_JSON must be configured for token signing.")
-
-
-def _create_signed_token(payload_dict: dict, ttl_seconds: int = 28800) -> str:
-    body = {
-        **payload_dict,
-        "iat": int(time.time()),
-        "exp": int(time.time()) + ttl_seconds,
-    }
-    raw_json = json.dumps(body, separators=(",", ":"), sort_keys=True).encode("utf-8")
-    b64_payload = base64.urlsafe_b64encode(raw_json).decode("utf-8").rstrip("=")
-    sig = hmac.new(_get_signing_secret(), b64_payload.encode("utf-8"), hashlib.sha256).hexdigest()
-    return f"{b64_payload}.{sig}"
-
-
-def _verify_signed_token(token: str):
-    if not token or "." not in token:
-        return None
-    parts = token.strip().split(".", 1)
-    b64_payload, sig = parts[0], parts[1]
-    try:
-        expected_sig = hmac.new(_get_signing_secret(), b64_payload.encode("utf-8"), hashlib.sha256).hexdigest()
-    except RuntimeError:
-        return None
-    if not hmac.compare_digest(sig, expected_sig):
-        return None
-    padded = b64_payload + "=" * (-len(b64_payload) % 4)
-    try:
-        payload = json.loads(base64.urlsafe_b64decode(padded.encode("utf-8")).decode("utf-8"))
-    except Exception:
-        return None
-    if int(payload.get("exp", 0)) < int(time.time()):
-        return None
-    return payload
-
-
-def _extract_bearer_token() -> str:
-    auth_header = request.headers.get("Authorization", "").strip()
-    if auth_header.lower().startswith("bearer "):
-        return auth_header[7:].strip()
-    return ""
-
-
-def _require_admin():
-    token = _extract_bearer_token() or request.headers.get("X-Admin-Token", "").strip()
-    payload = _verify_signed_token(token)
-    if not payload or payload.get("role") != "admin":
-        return None
-    return payload
-
-
-def _require_organizer(requested_org_code: str = ""):
-    token = _extract_bearer_token() or request.headers.get("X-Org-Token", "").strip()
-    payload = _verify_signed_token(token)
-    if not payload or payload.get("role") != "organizer":
-        return None
-    token_org = str(payload.get("orgCode", "")).strip().upper()
-    if not token_org:
-        return None
-    if requested_org_code and str(requested_org_code).strip().upper() != token_org:
-        return None
-    return token_org
-
-
-def _require_student(requested_student_id: str = ""):
-    token = _extract_bearer_token() or request.headers.get("X-Student-Token", "").strip()
-    if not token and isinstance(request.json, dict):
-        token = str(request.json.get("sessionToken") or "").strip()
-    payload = _verify_signed_token(token)
-    if not payload or payload.get("role") != "student":
-        return None
-    token_sid = str(payload.get("studentId", "")).strip()
-    if not token_sid:
-        return None
-    if requested_student_id and str(requested_student_id).strip() != token_sid:
-        return None
-    return token_sid
-
-
-def _verify_secret_value(plain_val: str, stored_val: str) -> bool:
-    if not plain_val or not stored_val:
-        return False
-    if stored_val.startswith("scrypt:") or stored_val.startswith("pbkdf2:"):
-        return check_password_hash(stored_val, plain_val)
-    return hmac.compare_digest(plain_val, stored_val)
-
-
-@app.after_request
-def apply_security_headers(response):
-    response.headers["X-Content-Type-Options"] = "nosniff"
-    response.headers["X-Frame-Options"] = "DENY"
-    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
-    return response
-
+GOOGLE_SHEET_WEBHOOK_URL = os.environ.get('GOOGLE_SHEETS_WEBHOOK_URL', '')
 
 def backup_data_to_sheets(payload_type, data_body):
     if GOOGLE_SHEET_WEBHOOK_URL:
@@ -193,17 +42,15 @@ def backup_data_to_sheets(payload_type, data_body):
         except Exception:
             pass
 
-
 def format_school_name(name_str):
     if not name_str:
         return "NVMSO Associated School"
-    return " ".join([word.capitalize() for word in name_str.split()])
-
+    return ' '.join([word.capitalize() for word in name_str.split()])
 
 def _resolve_student_bucket(student_class_str, stream_str=""):
-    cls_clean = "".join(ch for ch in str(student_class_str or "") if ch.isdigit())
+    cls_clean = ''.join(ch for ch in str(student_class_str or '') if ch.isdigit())
     cls_num = int(cls_clean) if cls_clean else 0
-    stream_low = str(stream_str or "").strip().lower()
+    stream_low = str(stream_str or '').strip().lower()
 
     if 3 <= cls_num <= 5:
         return "3-5", ""
@@ -218,10 +65,9 @@ def _resolve_student_bucket(student_class_str, stream_str=""):
             return "11-12-science", "science"
     return "", ""
 
-
 def _resolve_question_bucket(q_data):
-    grp = str(q_data.get("classGroup") or q_data.get("classRange") or q_data.get("targetClass") or "").strip().lower()
-    sub = str(q_data.get("subject") or q_data.get("stream") or "").strip().lower()
+    grp = str(q_data.get('classGroup') or q_data.get('classRange') or q_data.get('targetClass') or '').strip().lower()
+    sub = str(q_data.get('subject') or q_data.get('stream') or '').strip().lower()
 
     if grp in ("3-5", "3rd to 5th") or ("3" in grp and "5" in grp):
         return "3-5", sub
@@ -235,7 +81,7 @@ def _resolve_question_bucket(q_data):
         if "sci" in grp or "sci" in sub or sub == "s":
             return "11-12-science", "science"
 
-    cls_clean = "".join(ch for ch in grp if ch.isdigit())
+    cls_clean = ''.join(ch for ch in grp if ch.isdigit())
     cls_num = int(cls_clean) if cls_clean else 0
     if 3 <= cls_num <= 5:
         return "3-5", sub
@@ -250,11 +96,10 @@ def _resolve_question_bucket(q_data):
             return "11-12-science", "science"
     return "", sub
 
-
 def _filter_questions_for_student(questions_list, student_data):
-    st_bucket, _ = _resolve_student_bucket(
-        student_data.get("studentClass") or student_data.get("class"),
-        student_data.get("stream") or student_data.get("subject"),
+    st_bucket, st_stream = _resolve_student_bucket(
+        student_data.get('studentClass') or student_data.get('class'),
+        student_data.get('stream') or student_data.get('subject')
     )
     if not st_bucket:
         return []
@@ -273,49 +118,38 @@ def _filter_questions_for_student(questions_list, student_data):
                 filtered.append(q)
     return filtered
 
-
 # ==========================================================================
-# 1. ADMIN AUTHENTICATION ENGINE
+# 1. FIREBASE CONSOLE-ONLY ADMIN AUTHENTICATION ENGINE
 # ==========================================================================
-@app.route("/api/admin/authenticate", methods=["POST"])
+@app.route('/api/admin/authenticate', methods=['POST'])
 def admin_authenticate():
-    ip = _get_client_ip()
-    if _rate_limited(f"admin_auth:{ip}", max_requests=10, window_seconds=300):
-        return jsonify({"status": "rate_limited", "message": "⏳ Too many login attempts. Try again later."}), 429
     try:
-        _ensure_db()
         data = request.json or {}
-        password = str(data.get("password", "")).strip()
+        password = str(data.get('password', '')).strip()
 
-        config_doc = db.collection("settings").document("portal_config").get()
+        config_doc = db.collection('settings').document('portal_config').get()
         if not config_doc.exists:
-            return jsonify({"status": "error", "message": "Config document missing!"}), 500
+            return jsonify({"status": "cyber_attack", "message": "🚨 Config document missing!"}), 500
 
-        stored_password = str(config_doc.to_dict().get("adminPassword", "")).strip()
-        if _verify_secret_value(password, stored_password):
-            admin_token = _create_signed_token({"role": "admin"}, ttl_seconds=28800)
-            return jsonify({
-                "status": "success",
-                "message": "Master Node Auth Success!",
-                "token": admin_token,
-            }), 200
+        stored_password = str(config_doc.to_dict().get('adminPassword', '')).strip()
+        if password == stored_password:
+            return jsonify({"status": "success", "message": "Master Node Auth Success!"}), 200
 
-        return jsonify({"status": "unauthorized", "message": "Wrong password"}), 401
+        return jsonify({"status": "cyber_attack", "message": "🚨 Admin Password Rejected!"}), 401
     except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
-
+        return jsonify({"status": "glitch", "message": str(e)}), 500
 
 # ==========================================================================
 # 2. GLOBAL PORTAL PHASE LIFECYCLE MANAGEMENT ROUTERS
 # ==========================================================================
-@app.route("/api/portal/config", methods=["GET"])
+@app.route('/api/portal/config', methods=['GET'])
 def get_global_config():
     try:
-        _ensure_db()
-        config_doc = db.collection("settings").document("portal_config").get()
+        config_doc = db.collection('settings').document('portal_config').get()
         if config_doc.exists:
             config = config_doc.to_dict()
-            config.pop("adminPassword", None)
+            if "adminPassword" in config:
+                del config["adminPassword"]
             if "totalQuestions" not in config:
                 config["totalQuestions"] = int(config.get("questionCount", 30) or 30)
             if "examDurationMinutes" not in config:
@@ -325,17 +159,13 @@ def get_global_config():
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
-
-@app.route("/api/admin/update_config", methods=["POST"])
+@app.route('/api/admin/update_config', methods=['POST'])
 def update_master_portal_settings():
-    if not _require_admin():
-        return jsonify({"status": "unauthorized", "message": "🔒 Admin token required!"}), 401
     try:
-        _ensure_db()
         data = request.json or {}
-        is_reg = bool(data.get("isRegistrationOpen", False))
-        is_exam = bool(data.get("isExamActive", False))
-        is_result = bool(data.get("isResultDeclared", False))
+        is_reg = bool(data.get('isRegistrationOpen', False))
+        is_exam = bool(data.get('isExamActive', False))
+        is_result = bool(data.get('isResultDeclared', False))
 
         if is_result:
             is_reg = False
@@ -347,116 +177,86 @@ def update_master_portal_settings():
             is_exam = False
             is_result = False
 
-        online_fee = max(0, int(data.get("onlineFee", 100)))
-        offline_fee = max(0, int(data.get("offlineFee", 120)))
-        total_questions = max(1, min(300, int(data.get("totalQuestions", data.get("questionCount", 30)) or 30)))
-        exam_duration = max(1, min(360, int(data.get("examDurationMinutes", data.get("paperTimeLimit", 30)) or 30)))
+        total_questions = max(1, int(data.get('totalQuestions', data.get('questionCount', 30)) or 30))
+        exam_duration = max(1, int(data.get('examDurationMinutes', data.get('paperTimeLimit', 30)) or 30))
 
         update_payload = {
-            "onlineFee": online_fee,
-            "offlineFee": offline_fee,
+            "onlineFee": int(data.get('onlineFee', 100)),
+            "offlineFee": int(data.get('offlineFee', 120)),
             "totalQuestions": total_questions,
             "questionCount": total_questions,
             "examDurationMinutes": exam_duration,
             "paperTimeLimit": exam_duration,
-            "adminUpiId": str(data.get("adminUpiId", "narmada@upi")).strip(),
+            "adminUpiId": str(data.get('adminUpiId', 'narmada@upi')).strip(),
             "isRegistrationOpen": is_reg,
             "isExamActive": is_exam,
             "isResultDeclared": is_result,
-            "broadcastNotice": str(data.get("broadcastNotice", "")).strip(),
+            "broadcastNotice": str(data.get('broadcastNotice', '')).strip()
         }
 
-        db.collection("settings").document("portal_config").set(update_payload, merge=True)
+        db.collection('settings').document('portal_config').set(update_payload, merge=True)
         return jsonify({"status": "success", "message": "Master parameters synced!"}), 200
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
-
 # ==========================================================================
 # 3. STUDENT REGISTRATION & SCHOOL VERIFICATION ROUTERS
 # ==========================================================================
-@app.route("/api/student/verify-school", methods=["POST"])
+@app.route('/api/student/verify-school', methods=['POST'])
 def verify_school_code():
     try:
-        _ensure_db()
         data = request.json or {}
-        org_code = str(data.get("orgCode", "")).strip().upper()
-        if not org_code:
-            return jsonify({"status": "invalid", "message": "Organizer School Code Required!"}), 200
+        org_code = str(data.get('orgCode', '')).strip().upper()
+        org_doc = db.collection('organizers').document(org_code).get()
 
-        org_doc = db.collection("organizers").document(org_code).get()
         if org_doc.exists:
             org_data = org_doc.to_dict()
-            if not org_data.get("principalApproved", False):
+            if not org_data.get('principalApproved', False):
                 return jsonify({"status": "locked", "message": "Registration Locked! Principal Permission NOC pending."}), 200
 
-            config_doc = db.collection("settings").document("portal_config").get()
+            config_doc = db.collection('settings').document('portal_config').get()
             g_cfg = config_doc.to_dict() if config_doc.exists else {}
 
-            exam_mode = (org_data.get("examMode") or "online").lower()
-            fee = g_cfg.get("offlineFee", 120) if exam_mode == "offline" else g_cfg.get("onlineFee", 100)
+            exam_mode = (org_data.get('examMode') or 'online').lower()
+            fee = g_cfg.get('offlineFee', 120) if exam_mode == 'offline' else g_cfg.get('onlineFee', 100)
 
             return jsonify({
                 "status": "success",
-                "schoolName": org_data.get("schoolName"),
+                "schoolName": org_data.get('schoolName'),
                 "examMode": exam_mode,
-                "applicableFee": fee,
+                "applicableFee": fee
             }), 200
         return jsonify({"status": "invalid", "message": "Organizer School Code Not Found!"}), 200
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
-
-@app.route("/api/student/register", methods=["POST"])
+@app.route('/api/student/register', methods=['POST'])
 def secure_registration():
-    ip = _get_client_ip()
-    if _rate_limited(f"std_reg:{ip}", max_requests=25, window_seconds=300):
-        return jsonify({"status": "rate_limited", "message": "⏳ Too many registration attempts. Try again later."}), 429
     try:
-        _ensure_db()
         data = request.json or {}
-        org_code = str(data.get("orgCode", "")).strip().upper()
-        roll_num = str(data.get("rollNumber", "")).strip()
-        student_name = str(data.get("studentName", "")).strip()
-        student_class = str(data.get("studentClass", "")).strip()
-        payment_mode = str(data.get("paymentMode", "online")).strip().lower()
-        if payment_mode not in ("online", "offline"):
-            payment_mode = "online"
+        org_code = str(data.get('orgCode', '')).strip().upper()
+        roll_num = str(data.get('rollNumber', '')).strip()
+        student_name = str(data.get('studentName', '')).strip()
+        student_class = str(data.get('studentClass', '')).strip()
+        payment_mode = str(data.get('paymentMode', 'online')).lower()
 
-        utr_number = str(data.get("utrNumber", "")).strip().upper() or "NOT_PROVIDED"
-        mother_name = str(data.get("motherName", "")).strip()
-        father_name = str(data.get("fatherName", "")).strip()
-        stream = str(data.get("stream", data.get("subject", ""))).strip()
-        contact_number = "".join(ch for ch in str(data.get("contactNumber", "")) if ch.isdigit())
+        utr_number = str(data.get('utrNumber', '')).strip() or "NOT_PROVIDED"
 
-        if not org_code or not roll_num or not student_name or not roll_num.isdigit() or len(contact_number) < 10:
-            return jsonify({"status": "error", "message": "Invalid registration fields! Check Roll No and 10-digit Mobile."}), 400
+        mother_name = str(data.get('motherName', '')).strip()
+        father_name = str(data.get('fatherName', '')).strip()
+        stream = str(data.get('stream', data.get('subject', ''))).strip()
+        contact_number = str(data.get('contactNumber', '')).strip()
 
-        if payment_mode == "online" and (utr_number == "NOT_PROVIDED" or len(utr_number) < 6):
-            return jsonify({"status": "error", "message": "Valid UTR number is required for online payment!"}), 400
-
-        config_doc = db.collection("settings").document("portal_config").get()
-        g_cfg = config_doc.to_dict() if config_doc.exists else {}
-        if not g_cfg.get("isRegistrationOpen", False):
-            return jsonify({"status": "error", "message": "🚫 Registration is currently closed by Central Admin!"}), 403
-
-        org_doc = db.collection("organizers").document(org_code).get()
-        if not org_doc.exists:
-            return jsonify({"status": "error", "message": "🚫 Invalid School Organizer Code!"}), 400
-        if not org_doc.to_dict().get("principalApproved", False):
-            return jsonify({"status": "locked", "message": "🚫 Principal Permission NOC pending for this school!"}), 403
+        if not org_code or not roll_num or not student_name or not roll_num.isdigit():
+            return jsonify({"status": "cyber_attack", "message": "Security Reject: Malformed payload!"}), 400
 
         student_id = f"{org_code}_{roll_num}"
-        student_ref = db.collection("students").document(student_id)
+        student_ref = db.collection('students').document(student_id)
         if student_ref.get().exists:
-            return jsonify({"status": "error", "message": "🚫 Roll Number already registered under this school!"}), 409
-
-        if payment_mode == "online":
-            existing_utr = list(db.collection("students").where("utrNumber", "==", utr_number).limit(1).stream())
-            if existing_utr:
-                return jsonify({"status": "error", "message": "🚫 Duplicate UTR Number detected! Each UTR can be used only once."}), 409
+            return jsonify({"status": "cyber_attack", "message": "🚫 Roll Number already registered under this school!"}), 400
 
         initial_status = "Pending Payment Verification" if payment_mode == "online" else "Pending Organizer Cash Approval"
+        is_verified = False
 
         student_payload = {
             "studentId": student_id,
@@ -471,162 +271,137 @@ def secure_registration():
             "subject": stream,
             "contactNumber": contact_number,
             "paymentMode": payment_mode,
-            "utrNumber": utr_number if payment_mode == "online" else "CASH_MODE",
+            "utrNumber": utr_number,
             "paymentStatus": initial_status,
-            "paymentVerified": False,
+            "paymentVerified": is_verified,
             "examCompleted": False,
             "score": 0,
             "percentage": 0,
-            "timestamp": firestore.SERVER_TIMESTAMP,
+            "timestamp": firestore.SERVER_TIMESTAMP
         }
 
         student_ref.set(student_payload)
-        db.collection("organizers").document(org_code).set({"manualSettled": False}, merge=True)
+
+        # 🎯 AUTOMATIC RESET & RECALCULATION: New student registration resets manualSettled to False
+        db.collection('organizers').document(org_code).set({"manualSettled": False}, merge=True)
+
         backup_data_to_sheets("STUDENT_REGISTRATION", student_payload)
 
         return jsonify({"status": "success", "message": "Registration successful!", "studentId": student_id}), 200
     except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
-
+        return jsonify({"status": "glitch", "message": str(e)}), 500
 
 # ==========================================================================
 # 4. STUDENT EXAM LOGIN & ASSESSMENT ROUTERS
 # ==========================================================================
-@app.route("/api/student/login", methods=["POST"])
+@app.route('/api/student/login', methods=['POST'])
 def student_login():
-    ip = _get_client_ip()
-    if _rate_limited(f"std_login:{ip}", max_requests=20, window_seconds=300):
-        return jsonify({"status": "rate_limited", "message": "⏳ Too many login attempts. Try again later."}), 429
     try:
-        _ensure_db()
         data = request.json or {}
-        org_code = str(data.get("orgCode", "")).strip().upper()
-        roll_number = str(data.get("rollNumber", "")).strip()
-        input_password = str(data.get("password", "")).strip()
+        org_code = str(data.get('orgCode', '')).strip().upper()
+        roll_number = str(data.get('rollNumber', '')).strip()
+        input_password = str(data.get('password', '')).strip()
 
         if not org_code or not roll_number or not input_password:
             return jsonify({"status": "error", "message": "Missing login credentials"}), 400
 
         student_id = f"{org_code}_{roll_number}"
-        student_doc = db.collection("students").document(student_id).get()
+        student_doc = db.collection('students').document(student_id).get()
+
         if not student_doc.exists:
             return jsonify({"status": "error", "message": "Student record not found. Check School Code & Roll No."}), 404
 
         s_data = student_doc.to_dict()
-        is_verified = bool(s_data.get("paymentVerified", False) or s_data.get("paymentStatus") == "Approved")
-        pay_mode = str(s_data.get("paymentMode", "online")).lower()
+
+        is_verified = bool(s_data.get('paymentVerified', False) or s_data.get('paymentStatus') == 'Approved')
+        pay_mode = str(s_data.get('paymentMode', 'online')).lower()
 
         if not is_verified:
-            if pay_mode == "online":
+            if pay_mode == 'online':
                 return jsonify({"status": "error", "message": "🔒 Exam Locked! Your online payment UTR is pending Central Admin verification."}), 403
-            return jsonify({"status": "error", "message": "🔒 Exam Locked! Your cash payment is pending School Organizer approval."}), 403
+            else:
+                return jsonify({"status": "error", "message": "🔒 Exam Locked! Your cash payment is pending School Organizer approval."}), 403
 
-        if s_data.get("examCompleted", False):
+        if s_data.get('examCompleted', False):
             return jsonify({"status": "error", "message": "⚠️ You have already submitted your exam! Multiple attempts are not allowed."}), 403
 
-        mother_name = s_data.get("motherName", "").strip()
+        mother_name = s_data.get('motherName', '').strip()
         expected_password = (mother_name[:2].upper() + roll_number) if len(mother_name) >= 2 else roll_number
 
-        if not hmac.compare_digest(input_password, expected_password):
-            return jsonify({"status": "error", "message": "Invalid password! Format is Mother's first 2 capital letters + Roll No."}), 401
+        if input_password != expected_password:
+            return jsonify({"status": "error", "message": "Invalid password! Password format is Mother's first 2 capital letters + Roll No."}), 401
 
-        org_doc = db.collection("organizers").document(org_code).get()
+        org_doc = db.collection('organizers').document(org_code).get()
         if org_doc.exists:
             org_d = org_doc.to_dict()
-            s_data["schoolName"] = org_d.get("schoolName", org_code)
-            s_data["examMode"] = (org_d.get("examMode") or "online").lower()
+            s_data['schoolName'] = org_d.get('schoolName', org_code)
+            s_data['examMode'] = (org_d.get('examMode') or 'online').lower()
         else:
-            s_data["schoolName"] = org_code
-            s_data["examMode"] = (s_data.get("examMode") or "online").lower()
+            s_data['schoolName'] = org_code
+            s_data['examMode'] = (s_data.get('examMode') or 'online').lower()
 
-        s_data.pop("submittedAnswers", None)
-        s_data["id"] = student_doc.id
-        s_data["studentId"] = student_id
-        s_data["sessionToken"] = _create_signed_token({"role": "student", "studentId": student_id}, ttl_seconds=10800)
+        s_data['id'] = student_doc.id
         return jsonify({"status": "success", "student": s_data}), 200
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
-
-@app.route("/api/student/questions", methods=["GET"])
+@app.route('/api/student/questions', methods=['GET'])
 def student_get_questions():
     try:
-        _ensure_db()
-        questions_ref = db.collection("questions").stream()
+        questions_ref = db.collection('questions').stream()
         questions = []
         for doc in questions_ref:
             q_data = doc.to_dict()
-            q_data.pop("correctOption", None)
-            q_data.pop("negativeMarking", None)
-            q_data["id"] = doc.id
+            q_data['id'] = doc.id
             questions.append(q_data)
         return jsonify({"status": "success", "questions": questions}), 200
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
-
-@app.route("/api/student/submit_exam", methods=["POST"])
+@app.route('/api/student/submit_exam', methods=['POST'])
 def student_submit_exam():
     try:
-        _ensure_db()
         data = request.json or {}
-        student_id = str(data.get("studentId") or "").strip()
-        answers = data.get("answers", {})
-        auto_submitted = bool(data.get("autoSubmitted", False))
+        student_id = data.get('studentId')
+        answers = data.get('answers', {})
+        auto_submitted = bool(data.get('autoSubmitted', False))
 
-        if not student_id or not isinstance(answers, dict):
-            return jsonify({"status": "error", "message": "Invalid submission payload"}), 400
+        if not student_id:
+            return jsonify({"status": "error", "message": "Student ID missing"}), 400
 
-        verified_sid = _require_student(student_id)
-        if not verified_sid:
-            return jsonify({"status": "unauthorized", "message": "🔒 Valid student session token required!"}), 401
-
-        student_ref = db.collection("students").document(student_id)
+        student_ref = db.collection('students').document(student_id)
         doc = student_ref.get()
         if not doc.exists:
             return jsonify({"status": "error", "message": "Student not found"}), 404
 
         s_data = doc.to_dict()
-        if s_data.get("examCompleted", False):
-            return jsonify({"status": "error", "message": "Exam already submitted earlier!"}), 409
+        if s_data.get('examCompleted', False):
+            return jsonify({"status": "error", "message": "Exam already submitted earlier!"}), 400
 
-        config_doc = db.collection("settings").document("portal_config").get()
+        config_doc = db.collection('settings').document('portal_config').get()
         g_cfg = config_doc.to_dict() if config_doc.exists else {}
-        configured_q_limit = int(g_cfg.get("totalQuestions") or g_cfg.get("questionCount") or 30)
+        configured_q_limit = int(data.get('totalQuestions') or g_cfg.get('totalQuestions') or g_cfg.get('questionCount') or 30)
 
-        all_q_docs = list(db.collection("questions").stream())
+        all_q_docs = list(db.collection('questions').stream())
         questions_map = {q.id: q.to_dict() for q in all_q_docs}
 
         matched_q_list = _filter_questions_for_student(
             [{"id": q.id, **q.to_dict()} for q in all_q_docs],
-            s_data,
+            s_data
         )
-        if matched_q_list:
-            total_marks = max(1, min(len(matched_q_list), configured_q_limit))
-            allowed_q_ids = {q["id"] for q in matched_q_list[:configured_q_limit]}
-        else:
-            total_marks = max(1, configured_q_limit)
-            allowed_q_ids = set(questions_map.keys())
-
+        paper_q_count = min(len(matched_q_list), configured_q_limit) if matched_q_list else configured_q_limit
+        total_marks = max(1, int(paper_q_count))
         obtained_score = 0.0
-        sanitized_answers = {}
 
         for q_id, selected_opt in answers.items():
-            q_id_str = str(q_id)
-            if q_id_str not in allowed_q_ids or q_id_str not in questions_map:
-                continue
-            opt_clean = str(selected_opt or "").strip().upper()
-            if opt_clean not in ("A", "B", "C", "D", ""):
-                continue
-            sanitized_answers[q_id_str] = opt_clean
+            if q_id in questions_map:
+                correct_opt = questions_map[q_id].get('correctOption', '').strip().upper()
+                neg_marking = float(questions_map[q_id].get('negativeMarking', 0))
 
-            correct_opt = str(questions_map[q_id_str].get("correctOption", "")).strip().upper()
-            neg_marking = float(questions_map[q_id_str].get("negativeMarking", 0) or 0)
-
-            if opt_clean and opt_clean == correct_opt:
-                obtained_score += 1.0
-            elif opt_clean and opt_clean != correct_opt:
-                obtained_score -= neg_marking
+                if selected_opt and selected_opt.strip().upper() == correct_opt:
+                    obtained_score += 1.0
+                elif selected_opt and selected_opt.strip().upper() != correct_opt:
+                    obtained_score -= neg_marking
 
         final_score = max(0.0, min(float(total_marks), obtained_score))
         percentage = round((final_score / total_marks) * 100, 2)
@@ -638,723 +413,418 @@ def student_submit_exam():
             "totalQuestions": total_marks,
             "percentage": percentage,
             "autoSubmitted": auto_submitted,
-            "submittedAnswers": sanitized_answers,
+            "submittedAnswers": answers
         })
 
         return jsonify({
             "status": "success",
             "score": final_score,
             "total": total_marks,
-            "percentage": percentage,
+            "percentage": percentage
         }), 200
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
-
-@app.route("/api/student/result", methods=["POST"])
+@app.route('/api/student/result', methods=['POST'])
 def student_get_result():
     try:
-        _ensure_db()
         data = request.json or {}
-        org_code = str(data.get("orgCode", "")).strip().upper()
-        roll_number = str(data.get("rollNumber", "")).strip()
+        org_code = str(data.get('orgCode', '')).strip().upper()
+        roll_number = str(data.get('rollNumber', '')).strip()
 
         if not org_code or not roll_number:
             return jsonify({"status": "error", "message": "Missing school code or roll number"}), 400
 
-        config_doc = db.collection("settings").document("portal_config").get()
-        g_cfg = config_doc.to_dict() if config_doc.exists else {}
-        if not g_cfg.get("isResultDeclared", False):
-            return jsonify({"status": "error", "message": "Result has not been declared by Central Admin yet!"}), 403
-
         student_id = f"{org_code}_{roll_number}"
-        student_doc = db.collection("students").document(student_id).get()
+        student_doc = db.collection('students').document(student_id).get()
+
         if not student_doc.exists:
             return jsonify({"status": "error", "message": "Student record not found."}), 404
 
         s_data = student_doc.to_dict()
-        s_data.pop("submittedAnswers", None)
 
-        org_doc = db.collection("organizers").document(org_code).get()
-        s_data["schoolName"] = org_doc.to_dict().get("schoolName", org_code) if org_doc.exists else org_code
+        org_doc = db.collection('organizers').document(org_code).get()
+        if org_doc.exists:
+            s_data['schoolName'] = org_doc.to_dict().get('schoolName', org_code)
+        else:
+            s_data['schoolName'] = org_code
 
-        safe_result = {
-            "studentId": s_data.get("studentId", student_id),
-            "orgCode": org_code,
-            "schoolName": s_data.get("schoolName"),
-            "rollNumber": s_data.get("rollNumber"),
-            "studentName": s_data.get("studentName"),
-            "studentClass": s_data.get("studentClass"),
-            "stream": s_data.get("stream", ""),
-            "score": s_data.get("score", 0),
-            "totalMarks": s_data.get("totalMarks", s_data.get("totalQuestions", 30)),
-            "totalQuestions": s_data.get("totalQuestions", s_data.get("totalMarks", 30)),
-            "percentage": s_data.get("percentage", 0),
-            "examCompleted": bool(s_data.get("examCompleted", False)),
-        }
-        return jsonify({"status": "success", "result": safe_result}), 200
+        config_doc = db.collection('settings').document('portal_config').get()
+        g_cfg = config_doc.to_dict() if config_doc.exists else {}
+        if not g_cfg.get('isResultDeclared', False):
+            return jsonify({"status": "error", "message": "Result has not been declared by Central Admin yet!"}), 403
+
+        return jsonify({"status": "success", "result": s_data}), 200
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
-
 
 # ==========================================================================
 # 5. ADMIN CENTRAL PANEL & ORGANIZER MANAGEMENT ROUTERS
 # ==========================================================================
-@app.route("/api/admin/all_data", methods=["POST"])
+@app.route('/api/admin/all_data', methods=['POST'])
 def admin_get_all_data():
-    if not _require_admin():
-        return jsonify({"status": "unauthorized", "message": "🔒 Admin token required!"}), 401
     try:
-        _ensure_db()
-        orgs = []
-        for doc in db.collection("organizers").stream():
-            od = doc.to_dict()
-            od.pop("password", None)
-            od.pop("pin", None)
-            od["code"] = doc.id
-            orgs.append(od)
-        students = []
-        for doc in db.collection("students").stream():
-            sd = doc.to_dict()
-            sd.pop("submittedAnswers", None)
-            sd["id"] = doc.id
-            students.append(sd)
+        orgs = [{**doc.to_dict(), "code": doc.id} for doc in db.collection('organizers').stream()]
+        students = [{**doc.to_dict(), "id": doc.id} for doc in db.collection('students').stream()]
         return jsonify({"status": "success", "organizers": orgs, "students": students}), 200
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
-
-@app.route("/api/admin/financial_requests", methods=["GET"])
+@app.route('/api/admin/financial_requests', methods=['GET'])
 def admin_get_financial_requests():
-    if not _require_admin():
-        return jsonify({"status": "unauthorized", "message": "🔒 Admin token required!"}), 401
     try:
-        _ensure_db()
-        settlements = [{**doc.to_dict(), "id": doc.id} for doc in db.collection("settlements").where("status", "==", "pending").stream()]
-        payouts = [{**doc.to_dict(), "id": doc.id} for doc in db.collection("payouts").where("status", "==", "pending").stream()]
+        settlements = [{**doc.to_dict(), "id": doc.id} for doc in db.collection('settlements').where('status', '==', 'pending').stream()]
+        payouts = [{**doc.to_dict(), "id": doc.id} for doc in db.collection('payouts').where('status', '==', 'pending').stream()]
         return jsonify({"status": "success", "settlements": settlements, "payouts": payouts}), 200
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
-
-@app.route("/api/admin/approve_payment", methods=["POST"])
+@app.route('/api/admin/approve_payment', methods=['POST'])
 def admin_approve_online_payment():
-    if not _require_admin():
-        return jsonify({"status": "unauthorized", "message": "🔒 Admin token required!"}), 401
-    try:
-        _ensure_db()
-        data = request.json or {}
-        student_id = str(data.get("studentId") or "").strip()
-        if not student_id:
-            return jsonify({"status": "error", "message": "Missing ID"}), 400
-        db.collection("students").document(student_id).update({
-            "paymentVerified": True,
-            "paymentStatus": "Approved",
-            "rejectionReason": "",
-        })
-        return jsonify({"status": "success", "message": "Payment approved"}), 200
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
+    data = request.json or {}
+    student_id = data.get('studentId')
+    if student_id:
+        db.collection('students').document(student_id).update({"paymentVerified": True, "paymentStatus": "Approved"})
+        return jsonify({"status": "success", "message": "Payment approved"})
+    return jsonify({"status": "error", "message": "Missing ID"}), 400
 
-
-@app.route("/api/admin/reject_payment", methods=["POST"])
+@app.route('/api/admin/reject_payment', methods=['POST'])
 def admin_reject_online_payment():
-    if not _require_admin():
-        return jsonify({"status": "unauthorized", "message": "🔒 Admin token required!"}), 401
-    try:
-        _ensure_db()
-        data = request.json or {}
-        student_id = str(data.get("studentId") or "").strip()
-        reason = str(data.get("reason") or "Invalid UTR").strip()
-        if not student_id:
-            return jsonify({"status": "error", "message": "Missing ID"}), 400
-        db.collection("students").document(student_id).update({
-            "paymentVerified": False,
-            "paymentStatus": "Rejected",
-            "rejectionReason": reason,
-        })
-        return jsonify({"status": "success", "message": "Payment rejected"}), 200
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
+    data = request.json or {}
+    student_id = data.get('studentId')
+    reason = data.get('reason', 'Invalid UTR')
+    if student_id:
+        db.collection('students').document(student_id).update({"paymentVerified": False, "paymentStatus": "Rejected", "rejectionReason": reason})
+        return jsonify({"status": "success", "message": "Payment rejected"})
+    return jsonify({"status": "error", "message": "Missing ID"}), 400
 
-
-@app.route("/api/admin/manual_score_entry", methods=["POST"])
+@app.route('/api/admin/manual_score_entry', methods=['POST'])
 def admin_manual_score_entry():
-    if not _require_admin():
-        return jsonify({"status": "unauthorized", "message": "🔒 Admin token required!"}), 401
     try:
-        _ensure_db()
         data = request.json or {}
-        student_id = str(data.get("studentId") or "").strip()
-        score = float(data.get("score", 0))
-        total_marks = float(data.get("totalMarks", data.get("totalQuestions", 30)) or 30)
-        if not student_id or total_marks <= 0 or score < 0 or score > total_marks:
-            return jsonify({"status": "error", "message": "Invalid score or total marks range!"}), 400
+        student_id = data.get('studentId')
+        score = float(data.get('score', 0))
+        total_marks = float(data.get('totalMarks', data.get('totalQuestions', 30)) or 30)
+        percentage = round((score / total_marks) * 100, 2) if total_marks > 0 else 0
 
-        percentage = round((score / total_marks) * 100, 2)
-        db.collection("students").document(student_id).update({
+        db.collection('students').document(student_id).update({
             "score": score,
             "totalMarks": total_marks,
             "totalQuestions": total_marks,
             "percentage": percentage,
             "examCompleted": True,
-            "manualEntry": True,
+            "manualEntry": True
         })
         return jsonify({"status": "success", "message": "Score saved successfully"}), 200
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
-
-@app.route("/api/admin/reexam", methods=["POST"])
+@app.route('/api/admin/reexam', methods=['POST'])
 def admin_trigger_reexam():
-    if not _require_admin():
-        return jsonify({"status": "unauthorized", "message": "🔒 Admin token required!"}), 401
-    try:
-        _ensure_db()
-        data = request.json or {}
-        student_id = str(data.get("studentId") or "").strip()
-        if not student_id:
-            return jsonify({"status": "error", "message": "Missing ID"}), 400
-        db.collection("students").document(student_id).update({
-            "examCompleted": False,
-            "score": 0,
-            "percentage": 0,
-            "submittedAnswers": {},
-        })
-        return jsonify({"status": "success", "message": "Re-exam triggered"}), 200
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
+    data = request.json or {}
+    student_id = data.get('studentId')
+    if student_id:
+        db.collection('students').document(student_id).update({"examCompleted": False, "score": 0, "submittedAnswers": {}})
+        return jsonify({"status": "success", "message": "Re-exam triggered"})
+    return jsonify({"status": "error", "message": "Missing ID"}), 400
 
-
-@app.route("/api/admin/approve_settlement", methods=["POST"])
+@app.route('/api/admin/approve_settlement', methods=['POST'])
 def admin_approve_settlement():
-    if not _require_admin():
-        return jsonify({"status": "unauthorized", "message": "🔒 Admin token required!"}), 401
-    try:
-        _ensure_db()
-        data = request.json or {}
-        org_code = str(data.get("orgCode") or "").strip().upper()
-        req_id = str(data.get("requestId") or "").strip()
-        if org_code:
-            db.collection("organizers").document(org_code).update({"manualSettled": True})
-        if req_id:
-            db.collection("settlements").document(req_id).update({"status": "approved"})
-        return jsonify({"status": "success", "message": "Settlement approved"}), 200
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
+    data = request.json or {}
+    org_code = data.get('orgCode')
+    req_id = data.get('requestId')
+    if org_code:
+        db.collection('organizers').document(org_code).update({"manualSettled": True})
+    if req_id:
+        db.collection('settlements').document(req_id).update({"status": "approved"})
+    return jsonify({"status": "success", "message": "Settlement approved"})
 
-
-@app.route("/api/admin/complete_payout", methods=["POST"])
+@app.route('/api/admin/complete_payout', methods=['POST'])
 def admin_complete_payout():
-    if not _require_admin():
-        return jsonify({"status": "unauthorized", "message": "🔒 Admin token required!"}), 401
-    try:
-        _ensure_db()
-        data = request.json or {}
-        payout_id = str(data.get("payoutId") or "").strip()
-        if payout_id:
-            db.collection("payouts").document(payout_id).update({"status": "completed"})
-        return jsonify({"status": "success", "message": "Payout completed"}), 200
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
-
+    data = request.json or {}
+    payout_id = data.get('payoutId')
+    if payout_id:
+        db.collection('payouts').document(payout_id).update({"status": "completed"})
+    return jsonify({"status": "success", "message": "Payout completed"})
 
 # ==========================================================================
 # 6. ORGANIZER PORTAL & STUDENTS MATRIX
 # ==========================================================================
-@app.route("/api/organizer/login", methods=["POST"])
+@app.route('/api/organizer/login', methods=['POST'])
 def organizer_login():
-    ip = _get_client_ip()
-    if _rate_limited(f"org_login:{ip}", max_requests=15, window_seconds=300):
-        return jsonify({"status": "rate_limited", "message": "⏳ Too many login attempts. Try again later."}), 429
-    try:
-        _ensure_db()
-        data = request.json or {}
-        org_code = str(data.get("orgCode", "")).strip().upper()
-        password = str(data.get("password", "")).strip()
-        org_doc = db.collection("organizers").document(org_code).get()
-        if not org_doc.exists:
-            return jsonify({"status": "error", "message": "Invalid credentials"}), 401
-        stored_pass = str(org_doc.to_dict().get("password", "")).strip()
-        if not _verify_secret_value(password, stored_pass):
-            return jsonify({"status": "error", "message": "Invalid credentials"}), 401
+    data = request.json or {}
+    org_code = str(data.get('orgCode', '')).strip().upper()
+    password = str(data.get('password', '')).strip()
+    org_doc = db.collection('organizers').document(org_code).get()
+    if not org_doc.exists or str(org_doc.to_dict().get('password', '')).strip() != password:
+        return jsonify({"status": "error", "message": "Invalid credentials"}), 401
+    org_data = org_doc.to_dict()
+    org_data['code'] = org_code
+    if "password" in org_data:
+        del org_data["password"]
+    return jsonify({"status": "success", "data": org_data}), 200
 
-        org_data = org_doc.to_dict()
-        org_data["code"] = org_code
-        org_data.pop("password", None)
-        org_data.pop("pin", None)
-        org_data["orgToken"] = _create_signed_token({"role": "organizer", "orgCode": org_code}, ttl_seconds=28800)
-        return jsonify({"status": "success", "data": org_data}), 200
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
-
-
-@app.route("/api/organizer/recover_password", methods=["POST"])
-def organizer_recover_password():
-    ip = _get_client_ip()
-    if _rate_limited(f"org_recover:{ip}", max_requests=10, window_seconds=300):
-        return jsonify({"status": "rate_limited", "message": "⏳ Too many recovery attempts. Try again later."}), 429
-    try:
-        _ensure_db()
-        data = request.json or {}
-        org_code = str(data.get("orgCode", "")).strip().upper()
-        contact = "".join(ch for ch in str(data.get("contact", "")) if ch.isdigit())
-        pin = str(data.get("pin", "")).strip()
-        new_password = str(data.get("newPassword", "")).strip()
-
-        if not org_code or len(contact) < 10 or len(pin) != 6 or not pin.isdigit():
-            return jsonify({"status": "error", "message": "Enter valid Organizer Code, Mobile Number, and 6-digit PIN."}), 400
-
-        org_doc = db.collection("organizers").document(org_code).get()
-        if not org_doc.exists:
-            return jsonify({"status": "error", "message": "Organizer Code not found."}), 404
-
-        od = org_doc.to_dict()
-        stored_contact = "".join(ch for ch in str(od.get("contact", "")) if ch.isdigit())
-        stored_pin = str(od.get("pin", "")).strip()
-
-        if contact != stored_contact or not _verify_secret_value(pin, stored_pin):
-            return jsonify({"status": "error", "message": "Mobile number or 6-digit PIN does not match."}), 401
-
-        if new_password:
-            if len(new_password) < 4:
-                return jsonify({"status": "error", "message": "New password must be at least 4 characters."}), 400
-            db.collection("organizers").document(org_code).update({
-                "password": generate_password_hash(new_password)
-            })
-            return jsonify({"status": "success", "message": "Password reset successfully!"}), 200
-
-        stored_pass = str(od.get("password", "")).strip()
-        if stored_pass and not (stored_pass.startswith("scrypt:") or stored_pass.startswith("pbkdf2:")):
-            return jsonify({"status": "success", "password": stored_pass}), 200
-
-        return jsonify({"status": "error", "message": "Please enter a New Password to reset your hashed credential."}), 400
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
-
-
-@app.route("/api/organizer/register", methods=["POST"])
+@app.route('/api/organizer/register', methods=['POST'])
 def organizer_register():
-    ip = _get_client_ip()
-    if _rate_limited(f"org_reg:{ip}", max_requests=10, window_seconds=300):
-        return jsonify({"status": "rate_limited", "message": "⏳ Too many registration attempts. Try again later."}), 429
-    try:
-        _ensure_db()
-        data = request.json or {}
-        school_name = str(data.get("schoolName", "")).strip()
-        name = str(data.get("name", "")).strip()
-        contact = "".join(ch for ch in str(data.get("contact", "")) if ch.isdigit())
-        password = str(data.get("password", "")).strip()
-        pin = str(data.get("pin", "")).strip()
-        ref_code = str(data.get("refCode", "")).strip().upper()
+    data = request.json or {}
+    school_name = str(data.get('schoolName', '')).strip()
+    name = str(data.get('name', '')).strip()
+    contact = str(data.get('contact', '')).strip()
+    password = str(data.get('password', '')).strip()
+    pin = str(data.get('pin', '')).strip()
+    ref_code = str(data.get('refCode', '')).strip().upper()
 
-        if not school_name or not name or len(contact) < 10 or len(password) < 4 or len(pin) != 6 or not pin.isdigit():
-            return jsonify({"status": "error", "message": "Please fill all fields properly (10-digit mobile, 6-digit PIN)."}), 400
+    rand_num = random.randint(100, 999)
+    org_code = f"NVMS{rand_num}"
+    while db.collection('organizers').document(org_code).get().exists:
+        org_code = f"NVMS{random.randint(100, 999)}"
 
-        existing_contact = list(db.collection("organizers").where("contact", "==", contact).limit(1).stream())
-        if existing_contact:
-            return jsonify({"status": "error", "message": "An organizer account with this contact number already exists!"}), 409
+    org_payload = {
+        "schoolName": format_school_name(school_name),
+        "name": name,
+        "contact": contact,
+        "password": password,
+        "pin": pin,
+        "refCode": ref_code,
+        "examMode": "online",
+        "principalApproved": False,
+        "manualSettled": False,
+        "totalRegistrations": 0,
+        "timestamp": firestore.SERVER_TIMESTAMP
+    }
+    db.collection('organizers').document(org_code).set(org_payload)
+    return jsonify({"status": "success", "orgCode": org_code}), 200
 
-        rand_num = random.randint(100, 999)
-        org_code = f"NVMS{rand_num}"
-        while db.collection("organizers").document(org_code).get().exists:
-            org_code = f"NVMS{random.randint(100, 999)}"
-
-        org_payload = {
-            "schoolName": format_school_name(school_name),
-            "name": name,
-            "contact": contact,
-            "password": generate_password_hash(password),
-            "pin": generate_password_hash(pin),
-            "refCode": ref_code,
-            "examMode": "online",
-            "principalApproved": False,
-            "manualSettled": False,
-            "totalRegistrations": 0,
-            "timestamp": firestore.SERVER_TIMESTAMP,
-        }
-        db.collection("organizers").document(org_code).set(org_payload)
-        return jsonify({"status": "success", "orgCode": org_code}), 200
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
-
-
-@app.route("/api/organizer/update_profile", methods=["POST"])
+@app.route('/api/organizer/update_profile', methods=['POST'])
 def organizer_update_profile():
-    try:
-        _ensure_db()
-        data = request.json or {}
-        org_code = str(data.get("orgCode", "")).strip().upper()
-        verified_org = _require_organizer(org_code)
-        if not verified_org:
-            return jsonify({"status": "unauthorized", "message": "🔒 Valid coordinator session required!"}), 401
+    data = request.json or {}
+    org_code = str(data.get('orgCode', '')).strip().upper()
+    if not org_code:
+        return jsonify({"status": "error", "message": "Missing orgCode"}), 400
 
-        exam_mode = str(data.get("examMode", "online")).strip().lower()
-        if exam_mode not in ("online", "offline"):
-            exam_mode = "online"
+    update_fields = {
+        "examMode": str(data.get('examMode', 'online')).lower(),
+        "principalApproved": bool(data.get('principalApproved', False))
+    }
+    upi_val = str(data.get('upiId') or data.get('payoutUpi') or data.get('upi') or '').strip()
+    if upi_val:
+        update_fields["upiId"] = upi_val
+        update_fields["payoutUpi"] = upi_val
 
-        update_fields = {"examMode": exam_mode}
-        upi_val = str(data.get("upiId") or data.get("payoutUpi") or data.get("upi") or "").strip()
-        if upi_val:
-            update_fields["upiId"] = upi_val
-            update_fields["payoutUpi"] = upi_val
+    db.collection('organizers').document(org_code).set(update_fields, merge=True)
+    return jsonify({"status": "success", "message": "Updated"})
 
-        db.collection("organizers").document(verified_org).set(update_fields, merge=True)
-        return jsonify({"status": "success", "message": "Updated"}), 200
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
-
-
-@app.route("/api/organizer/students", methods=["POST"])
+@app.route('/api/organizer/students', methods=['POST'])
 def organizer_get_students():
-    try:
-        _ensure_db()
-        data = request.json or {}
-        req_org = str(data.get("orgCode", "")).strip().upper()
-        org_code = _require_organizer(req_org)
-        if not org_code:
-            return jsonify({"status": "unauthorized", "message": "🔒 Valid coordinator session required!"}), 401
+    data = request.json or {}
+    org_code = str(data.get('orgCode', '')).strip().upper()
+    students = []
+    seen = set()
+    for f in ['orgCode', 'schoolCode']:
+        for doc in db.collection('students').where(f, '==', org_code).stream():
+            if doc.id not in seen:
+                seen.add(doc.id)
+                sd = doc.to_dict()
+                sd['id'] = doc.id
+                students.append(sd)
 
-        students = []
-        seen = set()
-        for f in ["orgCode", "schoolCode"]:
-            for doc in db.collection("students").where(f, "==", org_code).stream():
-                if doc.id not in seen:
-                    seen.add(doc.id)
-                    sd = doc.to_dict()
-                    sd.pop("submittedAnswers", None)
-                    sd["id"] = doc.id
-                    students.append(sd)
+    org_doc = db.collection('organizers').document(org_code).get()
+    org_data = org_doc.to_dict() if org_doc.exists else {}
+    is_settled = bool(org_data.get('manualSettled', False))
+    g_cfg = db.collection('settings').document('portal_config').get().to_dict() or {}
 
-        org_doc = db.collection("organizers").document(org_code).get()
-        org_data = org_doc.to_dict() if org_doc.exists else {}
-        is_settled = bool(org_data.get("manualSettled", False))
-        cfg_doc = db.collection("settings").document("portal_config").get()
-        g_cfg = cfg_doc.to_dict() if cfg_doc.exists else {}
+    approved = [s for s in students if s.get('paymentStatus') == 'Approved' or s.get('paymentVerified') is True]
+    exam_mode = (org_data.get('examMode') or 'online').lower()
 
-        approved = [s for s in students if s.get("paymentStatus") == "Approved" or s.get("paymentVerified") is True]
-        exam_mode = (org_data.get("examMode") or "online").lower()
+    online_fee = int(g_cfg.get('onlineFee', 100) or 100)
+    offline_fee = int(g_cfg.get('offlineFee', 120) or 120)
 
-        online_fee = int(g_cfg.get("onlineFee", 100) or 100)
-        offline_fee = int(g_cfg.get("offlineFee", 120) or 120)
-        current_fee_per_student = offline_fee if exam_mode == "offline" else online_fee
+    current_fee_per_student = offline_fee if exam_mode == 'offline' else online_fee
 
-        cash_approved = [s for s in approved if (s.get("paymentMode") or "").lower() in ["offline", "cash"]]
-        online_approved = [s for s in approved if (s.get("paymentMode") or "").lower() == "online"]
+    cash_approved = [s for s in approved if (s.get('paymentMode') or '').lower() in ['offline', 'cash']]
+    online_approved = [s for s in approved if (s.get('paymentMode') or '').lower() == 'online']
 
-        cash_held = len(cash_approved) * current_fee_per_student
-        online_collected_by_nvms = len(online_approved) * current_fee_per_student
-        gross_total = len(approved) * current_fee_per_student
+    cash_held = len(cash_approved) * current_fee_per_student
+    online_collected_by_nvms = len(online_approved) * current_fee_per_student
+    gross_total = len(approved) * current_fee_per_student
 
-        base_fee_total = len(approved) * online_fee
-        direct_comm = int(base_fee_total * 0.15)
+    # 15% Direct Commission on THIS organizer's own verified registrations
+    base_fee_total = len(approved) * online_fee
+    direct_comm = int(base_fee_total * 0.15)
 
-        referred_organizers_summary = []
-        ref_comm = 0
-        for ref_doc in db.collection("organizers").where("refCode", "==", org_code).stream():
+    # 5% Referral Commission goes to THIS organizer (`org_code`) from OTHER organizers who used `org_code` as their refCode
+    referred_organizers_summary = []
+    ref_comm = 0
+    if org_code:
+        for ref_doc in db.collection('organizers').where('refCode', '==', org_code).stream():
             ref_org_code = str(ref_doc.id).strip().upper()
             if not ref_org_code or ref_org_code == org_code:
                 continue
 
             ref_students = []
             ref_seen = set()
-            for rf in ["orgCode", "schoolCode"]:
-                for s_doc in db.collection("students").where(rf, "==", ref_org_code).stream():
+            for rf in ['orgCode', 'schoolCode']:
+                for s_doc in db.collection('students').where(rf, '==', ref_org_code).stream():
                     if s_doc.id not in ref_seen:
                         ref_seen.add(s_doc.id)
                         ref_students.append(s_doc.to_dict())
 
             ref_approved_count = len([
                 s for s in ref_students
-                if s.get("paymentStatus") == "Approved" or s.get("paymentVerified") is True
+                if s.get('paymentStatus') == 'Approved' or s.get('paymentVerified') is True
             ])
             ref_earned = int(ref_approved_count * online_fee * 0.05)
             ref_comm += ref_earned
             referred_organizers_summary.append({
                 "orgCode": ref_org_code,
-                "schoolName": ref_doc.to_dict().get("schoolName", ref_org_code),
+                "schoolName": ref_doc.to_dict().get('schoolName', ref_org_code),
                 "approvedRegistrations": ref_approved_count,
-                "referralCommission": ref_earned,
+                "referralCommission": ref_earned
             })
 
-        total_commission = direct_comm + ref_comm
-        net_balance = cash_held - total_commission
+    total_commission = direct_comm + ref_comm
 
-        net_payable_to_nvms = 0
-        nvms_owes_organizer = 0
-        if not is_settled:
-            if net_balance >= 0:
-                net_payable_to_nvms = net_balance
-            else:
-                nvms_owes_organizer = abs(net_balance)
+    net_balance = cash_held - total_commission
 
-        return jsonify({
-            "status": "success",
-            "students": students,
-            "isSettled": is_settled,
-            "adminUpiId": g_cfg.get("adminUpiId", "narmada@upi"),
-            "isResultDeclared": bool(g_cfg.get("isResultDeclared", False)),
-            "referredOrganizers": referred_organizers_summary,
-            "financials": {
-                "totalRegistrations": len(students),
-                "approvedRegistrations": len(approved),
-                "totalFees": gross_total,
-                "cashHeld": cash_held,
-                "onlineCollected": online_collected_by_nvms,
-                "totalCommission": total_commission,
-                "directCommission": direct_comm,
-                "referralCommission": ref_comm,
-                "netPayableToNvms": net_payable_to_nvms,
-                "nvmsOwesOrganizer": nvms_owes_organizer,
-            },
-        }), 200
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
+    net_payable_to_nvms = 0
+    nvms_owes_organizer = 0
 
+    if not is_settled:
+        if net_balance >= 0:
+            net_payable_to_nvms = net_balance
+        else:
+            nvms_owes_organizer = abs(net_balance)
 
-@app.route("/api/organizer/approve_cash", methods=["POST"])
+    return jsonify({
+        "status": "success",
+        "students": students,
+        "isSettled": is_settled,
+        "adminUpiId": g_cfg.get('adminUpiId', 'narmada@upi'),
+        "isResultDeclared": bool(g_cfg.get('isResultDeclared', False)),
+        "referredOrganizers": referred_organizers_summary,
+        "financials": {
+            "totalRegistrations": len(students),
+            "approvedRegistrations": len(approved),
+            "totalFees": gross_total,
+            "cashHeld": cash_held,
+            "onlineCollected": online_collected_by_nvms,
+            "totalCommission": total_commission,
+            "directCommission": direct_comm,
+            "referralCommission": ref_comm,
+            "netPayableToNvms": net_payable_to_nvms,
+            "nvmsOwesOrganizer": nvms_owes_organizer
+        }
+    }), 200
+
+@app.route('/api/organizer/approve_cash', methods=['POST'])
 def organizer_approve_cash():
-    try:
-        _ensure_db()
-        data = request.json or {}
-        student_id = str(data.get("studentId") or "").strip()
-        req_org = str(data.get("orgCode") or "").strip().upper()
-        org_code = _require_organizer(req_org)
-        if not org_code:
-            return jsonify({"status": "unauthorized", "message": "🔒 Valid coordinator session required!"}), 401
-        if not student_id:
-            return jsonify({"status": "error", "message": "Missing student ID"}), 400
+    data = request.json or {}
+    student_id = data.get('studentId')
+    if student_id:
+        db.collection('students').document(student_id).update({"paymentVerified": True, "paymentStatus": "Approved"})
+        return jsonify({"status": "success", "message": "Cash approved"})
+    return jsonify({"status": "error", "message": "Missing student ID"}), 400
 
-        st_doc = db.collection("students").document(student_id).get()
-        if not st_doc.exists:
-            return jsonify({"status": "error", "message": "Student not found"}), 404
-
-        st_data = st_doc.to_dict()
-        if str(st_data.get("orgCode") or "").strip().upper() != org_code:
-            return jsonify({"status": "unauthorized", "message": "Student does not belong to your school"}), 403
-        if str(st_data.get("paymentMode") or "").strip().lower() not in ("offline", "cash"):
-            return jsonify({"status": "error", "message": "Only offline/cash registrations can be approved by coordinator"}), 400
-
-        db.collection("students").document(student_id).update({"paymentVerified": True, "paymentStatus": "Approved"})
-        return jsonify({"status": "success", "message": "Cash approved"}), 200
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
-
-
-@app.route("/api/organizer/submit_settlement", methods=["POST"])
+@app.route('/api/organizer/submit_settlement', methods=['POST'])
 def organizer_submit_settlement():
-    try:
-        _ensure_db()
-        data = request.json or {}
-        req_org = str(data.get("orgCode") or "").strip().upper()
-        org_code = _require_organizer(req_org)
-        if not org_code:
-            return jsonify({"status": "unauthorized", "message": "🔒 Valid coordinator session required!"}), 401
+    data = request.json or {}
+    db.collection('settlements').document().set({
+        "orgCode": data.get('orgCode'),
+        "utrNumber": data.get('utrNumber'),
+        "amount": data.get('amount'),
+        "status": "pending",
+        "timestamp": firestore.SERVER_TIMESTAMP
+    })
+    return jsonify({"status": "success", "message": "Submitted"})
 
-        utr = str(data.get("utrNumber") or "").strip().upper()
-        amount = float(data.get("amount") or 0)
-        if not utr or len(utr) < 6 or amount <= 0:
-            return jsonify({"status": "error", "message": "Valid UTR number and amount required"}), 400
-
-        db.collection("settlements").document().set({
-            "orgCode": org_code,
-            "utrNumber": utr,
-            "amount": amount,
-            "status": "pending",
-            "timestamp": firestore.SERVER_TIMESTAMP,
-        })
-        return jsonify({"status": "success", "message": "Submitted"}), 200
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
-
-
-@app.route("/api/organizer/request_payout", methods=["POST"])
+@app.route('/api/organizer/request_payout', methods=['POST'])
 def organizer_request_payout():
-    try:
-        _ensure_db()
-        data = request.json or {}
-        req_org = str(data.get("orgCode") or "").strip().upper()
-        org_code = _require_organizer(req_org)
-        if not org_code:
-            return jsonify({"status": "unauthorized", "message": "🔒 Valid coordinator session required!"}), 401
-
-        upi_id = str(data.get("upiId") or "").strip()
-        amount = float(data.get("amount") or 0)
-        if "@" not in upi_id or amount <= 0:
-            return jsonify({"status": "error", "message": "Valid UPI ID and amount required"}), 400
-
-        db.collection("payouts").document().set({
-            "orgCode": org_code,
-            "upiId": upi_id,
-            "amount": amount,
-            "status": "pending",
-            "timestamp": firestore.SERVER_TIMESTAMP,
-        })
-        return jsonify({"status": "success", "message": "Requested"}), 200
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
-
+    data = request.json or {}
+    db.collection('payouts').document().set({
+        "orgCode": data.get('orgCode'),
+        "upiId": data.get('upiId'),
+        "amount": data.get('amount'),
+        "status": "pending",
+        "timestamp": firestore.SERVER_TIMESTAMP
+    })
+    return jsonify({"status": "success", "message": "Requested"})
 
 # ==========================================================================
 # 7. CHAT & QUESTION BANK ROUTERS
 # ==========================================================================
-@app.route("/api/admin/queries", methods=["GET"])
+@app.route('/api/admin/queries', methods=['GET'])
 def get_queries():
-    if not _require_admin():
-        return jsonify({"status": "unauthorized", "message": "🔒 Admin token required!"}), 401
-    try:
-        _ensure_db()
-        queries = [{**doc.to_dict(), "ticketId": doc.id} for doc in db.collection("supportTickets").stream()]
-        return jsonify({"status": "success", "queries": queries}), 200
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
+    queries = [{**doc.to_dict(), "ticketId": doc.id} for doc in db.collection('supportTickets').stream()]
+    return jsonify({"status": "success", "queries": queries})
 
-
-@app.route("/api/admin/query_messages", methods=["GET"])
+@app.route('/api/admin/query_messages', methods=['GET'])
 def get_query_messages():
-    if not _require_admin():
-        return jsonify({"status": "unauthorized", "message": "🔒 Admin token required!"}), 401
-    try:
-        _ensure_db()
-        ticket_id = str(request.args.get("ticketId") or "").strip()
-        if not ticket_id:
-            return jsonify({"status": "error", "message": "Missing ticketId"}), 400
-        msgs = [
-            doc.to_dict()
-            for doc in db.collection("supportTickets").document(ticket_id).collection("messages").order_by("createdAt").stream()
-        ]
-        return jsonify({"status": "success", "messages": msgs}), 200
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
+    ticket_id = request.args.get('ticketId')
+    if not ticket_id:
+        return jsonify({"status": "error", "message": "Missing ticketId"}), 400
+    msgs = [doc.to_dict() for doc in db.collection('supportTickets').document(ticket_id).collection('messages').order_by('createdAt').stream()]
+    return jsonify({"status": "success", "messages": msgs})
 
-
-@app.route("/api/admin/reply_query", methods=["POST"])
+@app.route('/api/admin/reply_query', methods=['POST'])
 def reply_query():
-    if not _require_admin():
-        return jsonify({"status": "unauthorized", "message": "🔒 Admin token required!"}), 401
-    try:
-        _ensure_db()
-        data = request.json or {}
-        t_id = str(data.get("ticketId") or "").strip()
-        msg = str(data.get("message") or "").strip()
-        if not t_id:
-            return jsonify({"status": "error", "message": "Missing ticketId"}), 400
-        db.collection("supportTickets").document(t_id).collection("messages").add({
-            "text": msg,
-            "imageUrl": data.get("imageUrl", ""),
-            "isAdmin": True,
-            "createdAt": firestore.SERVER_TIMESTAMP,
-        })
-        db.collection("supportTickets").document(t_id).set({"lastMessage": msg}, merge=True)
-        return jsonify({"status": "success", "message": "Replied"}), 200
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
+    data = request.json or {}
+    t_id = data.get('ticketId')
+    msg = data.get('message', '')
+    if not t_id:
+        return jsonify({"status": "error", "message": "Missing ticketId"}), 400
+    db.collection('supportTickets').document(t_id).collection('messages').add({"text": msg, "imageUrl": data.get('imageUrl', ''), "isAdmin": True, "createdAt": firestore.SERVER_TIMESTAMP})
+    db.collection('supportTickets').document(t_id).set({"lastMessage": msg}, merge=True)
+    return jsonify({"status": "success", "message": "Replied"})
 
-
-@app.route("/api/organizer/send_query", methods=["POST"])
+@app.route('/api/organizer/send_query', methods=['POST'])
 def organizer_send_query():
-    try:
-        _ensure_db()
-        data = request.json or {}
-        req_org = str(data.get("orgCode") or "").strip().upper()
-        org_code = _require_organizer(req_org)
-        if not org_code:
-            return jsonify({"status": "unauthorized", "message": "🔒 Valid coordinator session required!"}), 401
+    data = request.json or {}
+    org_code = str(data.get('orgCode', '')).strip().upper()
+    t_id = f"TICKET_{org_code}"
+    db.collection('supportTickets').document(t_id).set({"orgCode": org_code, "senderName": data.get('senderName'), "lastMessage": data.get('message', ''), "updatedAt": firestore.SERVER_TIMESTAMP}, merge=True)
+    db.collection('supportTickets').document(t_id).collection('messages').add({"text": data.get('message', ''), "imageUrl": data.get('imageUrl', ''), "isAdmin": False, "createdAt": firestore.SERVER_TIMESTAMP})
+    return jsonify({"status": "success", "message": "Sent"})
 
-        t_id = f"TICKET_{org_code}"
-        msg_text = str(data.get("message") or "").strip()
-        db.collection("supportTickets").document(t_id).set({
-            "orgCode": org_code,
-            "senderName": data.get("senderName") or f"School ({org_code})",
-            "lastMessage": msg_text,
-            "updatedAt": firestore.SERVER_TIMESTAMP,
-        }, merge=True)
-        db.collection("supportTickets").document(t_id).collection("messages").add({
-            "text": msg_text,
-            "imageUrl": data.get("imageUrl", ""),
-            "isAdmin": False,
-            "createdAt": firestore.SERVER_TIMESTAMP,
-        })
-        return jsonify({"status": "success", "message": "Sent"}), 200
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
-
-
-@app.route("/api/organizer/query_messages", methods=["GET"])
+@app.route('/api/organizer/query_messages', methods=['GET'])
 def organizer_get_query_messages():
-    try:
-        _ensure_db()
-        req_org = str(request.args.get("orgCode") or "").strip().upper()
-        org_code = _require_organizer(req_org)
-        if not org_code:
-            return jsonify({"status": "unauthorized", "message": "🔒 Valid coordinator session required!"}), 401
+    org_code = request.args.get('orgCode', '').strip().upper()
+    if not org_code:
+        return jsonify({"status": "error", "message": "Missing orgCode"}), 400
+    msgs = [doc.to_dict() for doc in db.collection('supportTickets').document(f"TICKET_{org_code}").collection('messages').order_by('createdAt').stream()]
+    return jsonify({"status": "success", "messages": msgs})
 
-        msgs = [
-            doc.to_dict()
-            for doc in db.collection("supportTickets").document(f"TICKET_{org_code}").collection("messages").order_by("createdAt").stream()
-        ]
-        return jsonify({"status": "success", "messages": msgs}), 200
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
-
-
-@app.route("/api/admin/add-question", methods=["POST"])
+@app.route('/api/admin/add-question', methods=['POST'])
 def admin_add_question():
-    if not _require_admin():
-        return jsonify({"status": "unauthorized", "message": "🔒 Admin token required!"}), 401
-    try:
-        _ensure_db()
-        data = request.json or {}
-        class_grp = str(data.get("classGroup") or data.get("classRange") or "").strip()
-        q_text = str(data.get("questionText") or "").strip()
-        if not class_grp or not q_text:
-            return jsonify({"status": "error", "message": "Class group and question text are required"}), 400
+    data = request.json or {}
+    class_grp = str(data.get('classGroup') or data.get('classRange') or '')
+    db.collection('questions').add({
+        "classRange": class_grp,
+        "classGroup": class_grp,
+        "subject": str(data.get('subject', '')),
+        "negativeMarking": float(data.get('negativeMarking', 0)),
+        "questionText": str(data.get('questionText', '')),
+        "optionA": str(data.get('optionA', '')),
+        "optionB": str(data.get('optionB', '')),
+        "optionC": str(data.get('optionC', '')),
+        "optionD": str(data.get('optionD', '')),
+        "correctOption": str(data.get('correctOption', 'A')),
+        "timestamp": firestore.SERVER_TIMESTAMP
+    })
+    return jsonify({"status": "success", "message": "Question added"})
 
-        db.collection("questions").add({
-            "classRange": class_grp,
-            "classGroup": class_grp,
-            "subject": str(data.get("subject", "")).strip(),
-            "negativeMarking": float(data.get("negativeMarking", 0) or 0),
-            "questionText": q_text,
-            "optionA": str(data.get("optionA", "")).strip(),
-            "optionB": str(data.get("optionB", "")).strip(),
-            "optionC": str(data.get("optionC", "")).strip(),
-            "optionD": str(data.get("optionD", "")).strip(),
-            "correctOption": str(data.get("correctOption", "A")).strip().upper(),
-            "timestamp": firestore.SERVER_TIMESTAMP,
-        })
-        return jsonify({"status": "success", "message": "Question added"}), 200
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
-
-
-@app.route("/api/admin/all_questions", methods=["GET"])
+@app.route('/api/admin/all_questions', methods=['GET'])
 def admin_get_all_questions():
-    if not _require_admin():
-        return jsonify({"status": "unauthorized", "message": "🔒 Admin token required!"}), 401
-    try:
-        _ensure_db()
-        questions = [{**doc.to_dict(), "id": doc.id} for doc in db.collection("questions").stream()]
-        return jsonify({"status": "success", "questions": questions}), 200
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
+    questions = [{**doc.to_dict(), "id": doc.id} for doc in db.collection('questions').stream()]
+    return jsonify({"status": "success", "questions": questions})
 
-
-@app.route("/api/admin/delete-question", methods=["POST"])
+@app.route('/api/admin/delete-question', methods=['POST'])
 def admin_delete_question():
-    if not _require_admin():
-        return jsonify({"status": "unauthorized", "message": "🔒 Admin token required!"}), 401
-    try:
-        _ensure_db()
-        data = request.json or {}
-        q_id = str(data.get("questionId") or "").strip()
-        if not q_id:
-            return jsonify({"status": "error", "message": "Missing ID"}), 400
-        db.collection("questions").document(q_id).delete()
-        return jsonify({"status": "success", "message": "Question deleted"}), 200
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
+    data = request.json or {}
+    q_id = data.get('questionId')
+    if q_id:
+        db.collection('questions').document(q_id).delete()
+        return jsonify({"status": "success", "message": "Question deleted"})
+    return jsonify({"status": "error", "message": "Missing ID"}), 400
 
-
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
