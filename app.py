@@ -274,6 +274,22 @@ def _filter_questions_for_student(questions_list, student_data):
     return filtered
 
 
+def _sanitize_org_profile(org_code: str, od: dict) -> dict:
+    clean = dict(od or {})
+    clean.pop("password", None)
+    clean.pop("pin", None)
+    clean["code"] = org_code
+    clean["orgCode"] = org_code
+    clean["examMode"] = str(clean.get("examMode") or "online").strip().lower()
+    if clean["examMode"] not in ("online", "offline"):
+        clean["examMode"] = "online"
+    upi_val = str(clean.get("upiId") or clean.get("payoutUpi") or "").strip()
+    clean["upiId"] = upi_val
+    clean["payoutUpi"] = upi_val
+    clean["principalApproved"] = bool(clean.get("principalApproved", False))
+    return clean
+
+
 # ==========================================================================
 # 1. ADMIN AUTHENTICATION ENGINE
 # ==========================================================================
@@ -708,11 +724,7 @@ def admin_get_all_data():
         _ensure_db()
         orgs = []
         for doc in db.collection("organizers").stream():
-            od = doc.to_dict()
-            od.pop("password", None)
-            od.pop("pin", None)
-            od["code"] = doc.id
-            orgs.append(od)
+            orgs.append(_sanitize_org_profile(doc.id, doc.to_dict()))
         students = []
         for doc in db.collection("students").stream():
             sd = doc.to_dict()
@@ -879,10 +891,7 @@ def organizer_login():
         if not _verify_secret_value(password, stored_pass):
             return jsonify({"status": "error", "message": "Invalid credentials"}), 401
 
-        org_data = org_doc.to_dict()
-        org_data["code"] = org_code
-        org_data.pop("password", None)
-        org_data.pop("pin", None)
+        org_data = _sanitize_org_profile(org_code, org_doc.to_dict())
         org_data["orgToken"] = _create_signed_token({"role": "organizer", "orgCode": org_code}, ttl_seconds=28800)
         return jsonify({"status": "success", "data": org_data}), 200
     except Exception as e:
@@ -968,6 +977,8 @@ def organizer_register():
             "pin": generate_password_hash(pin),
             "refCode": ref_code,
             "examMode": "online",
+            "upiId": "",
+            "payoutUpi": "",
             "principalApproved": False,
             "manualSettled": False,
             "totalRegistrations": 0,
@@ -989,18 +1000,38 @@ def organizer_update_profile():
         if not verified_org:
             return jsonify({"status": "unauthorized", "message": "🔒 Valid coordinator session required!"}), 401
 
-        exam_mode = str(data.get("examMode", "online")).strip().lower()
-        if exam_mode not in ("online", "offline"):
-            exam_mode = "online"
+        update_fields = {}
 
-        update_fields = {"examMode": exam_mode}
-        upi_val = str(data.get("upiId") or data.get("payoutUpi") or data.get("upi") or "").strip()
-        if upi_val:
+        if "examMode" in data and data.get("examMode") is not None:
+            exam_mode = str(data.get("examMode", "online")).strip().lower()
+            if exam_mode not in ("online", "offline"):
+                exam_mode = "online"
+            update_fields["examMode"] = exam_mode
+
+        if "principalApproved" in data and data.get("principalApproved") is not None:
+            update_fields["principalApproved"] = bool(data.get("principalApproved"))
+
+        upi_raw = data.get("upiId") if "upiId" in data else (
+            data.get("payoutUpi") if "payoutUpi" in data else data.get("upi")
+        )
+        if upi_raw is not None:
+            upi_val = str(upi_raw).strip()
             update_fields["upiId"] = upi_val
             update_fields["payoutUpi"] = upi_val
 
-        db.collection("organizers").document(verified_org).set(update_fields, merge=True)
-        return jsonify({"status": "success", "message": "Updated"}), 200
+        if not update_fields:
+            return jsonify({"status": "error", "message": "No profile fields provided to update"}), 400
+
+        org_ref = db.collection("organizers").document(verified_org)
+        org_ref.set(update_fields, merge=True)
+        updated_doc = org_ref.get()
+        sanitized = _sanitize_org_profile(verified_org, updated_doc.to_dict() if updated_doc.exists else update_fields)
+
+        return jsonify({
+            "status": "success",
+            "message": "Updated",
+            "data": sanitized,
+        }), 200
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
@@ -1027,13 +1058,14 @@ def organizer_get_students():
                     students.append(sd)
 
         org_doc = db.collection("organizers").document(org_code).get()
-        org_data = org_doc.to_dict() if org_doc.exists else {}
-        is_settled = bool(org_data.get("manualSettled", False))
+        org_raw = org_doc.to_dict() if org_doc.exists else {}
+        org_clean = _sanitize_org_profile(org_code, org_raw)
+        is_settled = bool(org_raw.get("manualSettled", False))
         cfg_doc = db.collection("settings").document("portal_config").get()
         g_cfg = cfg_doc.to_dict() if cfg_doc.exists else {}
 
         approved = [s for s in students if s.get("paymentStatus") == "Approved" or s.get("paymentVerified") is True]
-        exam_mode = (org_data.get("examMode") or "online").lower()
+        exam_mode = org_clean["examMode"]
 
         online_fee = int(g_cfg.get("onlineFee", 100) or 100)
         offline_fee = int(g_cfg.get("offlineFee", 120) or 120)
@@ -1091,6 +1123,7 @@ def organizer_get_students():
         return jsonify({
             "status": "success",
             "students": students,
+            "organizer": org_clean,
             "isSettled": is_settled,
             "adminUpiId": g_cfg.get("adminUpiId", "narmada@upi"),
             "isResultDeclared": bool(g_cfg.get("isResultDeclared", False)),
@@ -1178,10 +1211,15 @@ def organizer_request_payout():
         if not org_code:
             return jsonify({"status": "unauthorized", "message": "🔒 Valid coordinator session required!"}), 401
 
-        upi_id = str(data.get("upiId") or "").strip()
+        upi_id = str(data.get("upiId") or data.get("payoutUpi") or "").strip()
         amount = float(data.get("amount") or 0)
         if "@" not in upi_id or amount <= 0:
             return jsonify({"status": "error", "message": "Valid UPI ID and amount required"}), 400
+
+        db.collection("organizers").document(org_code).set({
+            "upiId": upi_id,
+            "payoutUpi": upi_id,
+        }, merge=True)
 
         db.collection("payouts").document().set({
             "orgCode": org_code,
