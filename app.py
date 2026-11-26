@@ -927,6 +927,7 @@ def admin_approve_settlement():
                 "manualSettled": True,
                 "settledApprovedCount": len(totals["approved"]),
                 "settledCashBase": totals["total_cash_held"],
+                "settledOnlineBase": totals["total_online_collected"],
                 "settledDirectCommBase": totals["total_direct_comm"],
                 "settledAt": firestore.SERVER_TIMESTAMP,
             }, merge=True)
@@ -1099,6 +1100,7 @@ def organizer_register():
             "principalApproved": False,
             "manualSettled": False,
             "settledCashBase": 0,
+            "settledOnlineBase": 0,
             "settledDirectCommBase": 0,
             "settledRefCommBase": 0,
             "totalRegistrations": 0,
@@ -1187,19 +1189,19 @@ def organizer_get_students():
         totals = _compute_org_ledger_totals(org_code, org_raw, students, g_cfg)
 
         settled_cash_base = int(org_raw.get("settledCashBase", 0) or 0) if is_settled else 0
+        settled_online_base = int(org_raw.get("settledOnlineBase", 0) or 0) if is_settled else 0
         settled_direct_base = int(org_raw.get("settledDirectCommBase", 0) or 0) if is_settled else 0
         settled_ref_base = int(org_raw.get("settledRefCommBase", 0) or 0)
 
         active_cash_held = max(0, totals["total_cash_held"] - settled_cash_base)
+        active_online_collected = max(0, totals["total_online_collected"] - settled_online_base)
         active_direct_comm = max(0, totals["total_direct_comm"] - settled_direct_base)
         active_ref_comm = max(0, totals["total_ref_comm"] - settled_ref_base)
         active_total_comm = active_direct_comm + active_ref_comm
 
-        # Referral commission is paid by NVMS Portal only; never deducted from cash collection.
-        cash_net_balance = active_cash_held - active_direct_comm
-        net_payable_to_nvms = max(0, cash_net_balance)
-        direct_shortfall = max(0, -cash_net_balance)
-        nvms_owes_organizer = direct_shortfall + active_ref_comm
+        # Referral commission is paid separately via referral settlement and never adjusted from cash collection.
+        net_payable_to_nvms = max(0, active_cash_held - active_direct_comm)
+        nvms_owes_organizer = active_ref_comm
 
         return jsonify({
             "status": "success",
@@ -1214,7 +1216,7 @@ def organizer_get_students():
                 "approvedRegistrations": len(totals["approved"]),
                 "totalFees": totals["gross_total"],
                 "cashHeld": active_cash_held,
-                "onlineCollected": totals["total_online_collected"],
+                "onlineCollected": active_online_collected,
                 "totalCommission": active_total_comm,
                 "directCommission": active_direct_comm,
                 "referralCommission": active_ref_comm,
@@ -1389,44 +1391,4 @@ def organizer_send_query():
         msg_text = str(data.get("message") or "").strip()
         db.collection("supportTickets").document(t_id).set({
             "orgCode": org_code,
-            "senderName": data.get("senderName") or f"School ({org_code})",
-            "lastMessage": msg_text,
-            "updatedAt": firestore.SERVER_TIMESTAMP,
-        }, merge=True)
-        db.collection("supportTickets").document(t_id).collection("messages").add({
-            "text": msg_text,
-            "imageUrl": data.get("imageUrl", ""),
-            "isAdmin": False,
-            "createdAt": firestore.SERVER_TIMESTAMP,
-        })
-        return jsonify({"status": "success", "message": "Sent"}), 200
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
-
-
-@app.route("/api/organizer/query_messages", methods=["GET"])
-def organizer_get_query_messages():
-    try:
-        _ensure_db()
-        req_org = str(request.args.get("orgCode") or "").strip().upper()
-        org_code = _require_organizer(req_org)
-        if not org_code:
-            return jsonify({"status": "unauthorized", "message": "🔒 Valid coordinator session required!"}), 401
-
-        msgs = [
-            doc.to_dict()
-            for doc in db.collection("supportTickets").document(f"TICKET_{org_code}").collection("messages").order_by("createdAt").stream()
-        ]
-        return jsonify({"status": "success", "messages": msgs}), 200
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
-
-
-@app.route("/api/admin/add-question", methods=["POST"])
-def admin_add_question():
-    if not _require_admin():
-        return jsonify({"status": "unauthorized", "message": "🔒 Admin token required!"}), 401
-    try:
-        _ensure_db()
-        data = request.json or {}
-        class_grp = str(data.get("classGroup") or
+            "senderName": data.get("senderName") or f"
