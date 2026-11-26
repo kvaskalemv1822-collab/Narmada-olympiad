@@ -1381,14 +1381,4 @@ def reply_query():
 def organizer_send_query():
     try:
         _ensure_db()
-        data = request.json or {}
-        req_org = str(data.get("orgCode") or "").strip().upper()
-        org_code = _require_organizer(req_org)
-        if not org_code:
-            return jsonify({"status": "unauthorized", "message": "🔒 Valid coordinator session required!"}), 401
-
-        t_id = f"TICKET_{org_code}"
-        msg_text = str(data.get("message") or "").strip()
-        db.collection("supportTickets").document(t_id).set({
-            "orgCode": org_code,
-            "senderName": data.get("senderName") or f"
+        data = request.json or
