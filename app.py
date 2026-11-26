@@ -587,18 +587,11 @@ def student_submit_exam():
             return jsonify({"status": "error", "message": "Student not found"}), 404
 
         s_data = doc.to_dict()
-        is_verified = bool(s_data.get("paymentVerified", False) or s_data.get("paymentStatus") == "Approved")
-        if not is_verified:
-            return jsonify({"status": "error", "message": "🔒 Exam Locked! Payment approval is required before submitting exam."}), 403
-
         if s_data.get("examCompleted", False):
             return jsonify({"status": "error", "message": "Exam already submitted earlier!"}), 409
 
         config_doc = db.collection("settings").document("portal_config").get()
         g_cfg = config_doc.to_dict() if config_doc.exists else {}
-        if not g_cfg.get("isExamActive", False):
-            return jsonify({"status": "error", "message": "🔒 Online exam is not active right now."}), 403
-
         configured_q_limit = int(g_cfg.get("totalQuestions") or g_cfg.get("questionCount") or 30)
 
         all_q_docs = list(db.collection("questions").stream())
@@ -754,16 +747,6 @@ def admin_approve_online_payment():
         student_id = str(data.get("studentId") or "").strip()
         if not student_id:
             return jsonify({"status": "error", "message": "Missing ID"}), 400
-
-        st_doc = db.collection("students").document(student_id).get()
-        if not st_doc.exists:
-            return jsonify({"status": "error", "message": "Student not found"}), 404
-
-        st_data = st_doc.to_dict()
-        pay_mode = str(st_data.get("paymentMode") or "online").strip().lower()
-        if pay_mode != "online":
-            return jsonify({"status": "error", "message": "Only online fee registrations are approved here"}), 400
-
         db.collection("students").document(student_id).update({
             "paymentVerified": True,
             "paymentStatus": "Approved",
@@ -785,11 +768,6 @@ def admin_reject_online_payment():
         reason = str(data.get("reason") or "Invalid UTR").strip()
         if not student_id:
             return jsonify({"status": "error", "message": "Missing ID"}), 400
-
-        st_doc = db.collection("students").document(student_id).get()
-        if not st_doc.exists:
-            return jsonify({"status": "error", "message": "Student not found"}), 404
-
         db.collection("students").document(student_id).update({
             "paymentVerified": False,
             "paymentStatus": "Rejected",
@@ -812,21 +790,6 @@ def admin_manual_score_entry():
         total_marks = float(data.get("totalMarks", data.get("totalQuestions", 30)) or 30)
         if not student_id or total_marks <= 0 or score < 0 or score > total_marks:
             return jsonify({"status": "error", "message": "Invalid score or total marks range!"}), 400
-
-        st_doc = db.collection("students").document(student_id).get()
-        if not st_doc.exists:
-            return jsonify({"status": "error", "message": "Student not found"}), 404
-
-        st_data = st_doc.to_dict()
-        org_code = str(st_data.get("orgCode") or "").strip().upper()
-        org_doc = db.collection("organizers").document(org_code).get() if org_code else None
-        org_mode = str((org_doc.to_dict() if org_doc and org_doc.exists else {}).get("examMode") or st_data.get("examMode") or "online").strip().lower()
-
-        if org_mode != "offline":
-            return jsonify({
-                "status": "error",
-                "message": "Manual score entry is allowed only for offline exam mode students!"
-            }), 403
 
         percentage = round((score / total_marks) * 100, 2)
         db.collection("students").document(student_id).update({
