@@ -2,8 +2,8 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>NVMSO - Central Command Panel 2026</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=2.0, user-scalable=yes">
+  <title>NVMSO - Master Central Command</title>
   <link rel="stylesheet" href="central.css?v=24">
   <style>
     .nvms-logo-title span:nth-child(1) { color: #38bdf8; }
@@ -12,213 +12,201 @@
     .nvms-logo-title span:nth-child(4) { color: #f87171; }
     .nvms-logo-title span:nth-child(5) { color: #c084fc; }
     .hidden { display: none !important; }
-
-    .modal-backdrop {
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100vw;
-      height: 100vh;
-      background: rgba(0, 0, 0, 0.85);
-      z-index: 99999;
-      display: flex;
-      align-items: center;
-      justify-content: center;
+    html, body {
+      min-width: 1180px;
+      width: 100%;
+      overflow-x: auto;
     }
   </style>
 </head>
-<body>
+<body style="background:#0b0f19; padding:15px; color:#fff;">
 
-<!-- ADMIN LOGIN SCREEN (CYBER SECURITY MATRIX) -->
-<div id="admin-login-screen" class="login-wrapper">
-  <div class="login-card" style="width: 100%; max-width: 420px; text-align: center;">
-    <h1 class="nvms-logo-title" style="margin: 0 0 4px 0; font-size: 32px; font-weight: 900; letter-spacing: 2px;">
-      <span>N</span><span>V</span><span>M</span><span>S</span><span>O</span>
+<div id="central-main-container" class="container" style="width: 100%; max-width: 1240px; margin: 0 auto;">
+
+  <!-- HEADER -->
+  <div style="text-align: center; border-bottom: 1px solid #374151; padding-bottom: 15px; margin-bottom: 20px;">
+    <h1 class="nvms-logo-title" style="margin: 0; font-size: 26px; font-weight: 900; letter-spacing: 2px;">
+      🛡️ <span>N</span><span>V</span><span>M</span><span>S</span><span>O</span> Master Central Command
     </h1>
-    <div style="font-size: 16px; font-weight: 700; color: #38bdf8; margin-bottom: 6px; letter-spacing: 1px;">Central Command</div>
-    <div class="login-header-sub">Narmada Valley Maths &amp; Science Olympiad 2026</div>
+    <div class="admin-subtitle" style="margin: 4px 0 0 0; color: #94a3b8;">Narmada Valley Maths &amp; Science Olympiad 2026</div>
+  </div>
 
-    <div id="login-security-alert" style="color: #f87171; font-size: 12px; font-weight: bold; margin-bottom: 12px; display: none; background: rgba(248,113,113,0.1); padding: 8px; border-radius: 6px; border: 1px solid #f87171;"></div>
-
-    <form id="admin-login-form" onsubmit="event.preventDefault(); window.verifyAdminPassword();" style="text-align: left;">
-      <div style="margin-bottom: 18px;">
-        <label for="admin-pass-input">Enter Master Admin Password:</label>
-        <input type="password" id="admin-pass-input" placeholder="Enter secure password" autocomplete="current-password" required>
+  <!-- ADMIN LOGIN CARD -->
+  <div id="admin-auth-section" class="login-card" style="max-width:440px; margin: 30px auto 0 auto; background:#0f172a; padding:25px; border-radius:12px; border:1px solid #334155;">
+    <h3 style="color:#38bdf8; text-align:center; margin-bottom:15px;">🔐 Central Admin Security Login</h3>
+    <form onsubmit="event.preventDefault(); verifyAdminPassword();">
+      <div style="margin-bottom:15px;">
+        <label for="admin-pass-input">Master Admin Password:</label>
+        <input type="password" id="admin-pass-input" placeholder="Enter Master Password" autocomplete="current-password" required>
       </div>
-      <button type="submit" id="btn-admin-auth" class="btn-primary" style="width: 100%; cursor:pointer;">Authenticate Panel</button>
+      <button type="submit" class="btn-primary" style="background:#38bdf8; color:#020617; width:100%; cursor:pointer;">Unlock Control Room</button>
     </form>
   </div>
-</div>
 
-<!-- WELCOME CURTAIN REVEAL ANIMATION LAYER -->
-<div id="grand-welcome-screen" class="welcome-overlay hidden">
-  <div class="welcome-curtain-top"></div>
-  <div class="welcome-curtain-bottom"></div>
-  <div class="welcome-box">
-    <div class="pulse-ring" style="font-size: 60px;">⚡</div>
-    <h1 class="welcome-title">WELCOME NVMS CHIEF</h1>
-    <p class="welcome-sub">Initializing Real-time Cloud Pipeline Sync...</p>
-    <div class="loader-bar-bg"><div id="welcome-progress" class="loader-bar-fill"></div></div>
-    <p style="color:#38bdf8; font-size:14px; font-weight:700; margin-top:12px;">Opening Access in <span id="welcome-countdown">3</span> Seconds...</p>
-  </div>
-</div>
+  <!-- MAIN CENTRAL PANEL -->
+  <div id="admin-view" class="hidden">
 
-<!-- MAIN CENTRAL MASTER CONTROL WORKSPACE -->
-<div id="admin-main-container" class="container hidden">
-
-  <!-- CENTERED HEADER -->
-  <div style="text-align: center; border-bottom: 1px solid #374151; padding-bottom: 15px; margin-bottom: 20px;">
-    <h1 class="nvms-logo-title" style="margin: 0; font-size: 28px; font-weight: 900; letter-spacing: 2px;">
-      ⚡ <span>N</span><span>V</span><span>M</span><span>S</span><span>O</span> CENTRAL MASTER PANEL
-    </h1>
-    <div class="admin-subtitle">Narmada Valley Maths &amp; Science Olympiad 2026</div>
-    <div style="margin-top: 12px; display: flex; justify-content: center; gap: 10px; flex-wrap: wrap;">
-      <a href="question.html" class="btn-primary" style="padding: 8px 14px; background: #7c3aed; text-decoration: none; font-size: 12px; font-weight: bold;">📚 MANAGE QUESTION BANK</a>
-      <button type="button" onclick="logoutAdminSession()" style="background: #dc2626; color: #fff; padding: 8px 14px; font-size: 12px; border-radius:6px; border:none; cursor:pointer;">🔴 DISCONNECT</button>
-    </div>
-  </div>
-
-  <!-- BROADCAST BANNER CONFIGURATOR -->
-  <div class="card-box" style="border: 1px solid #f59e0b;">
-    <h3 style="color:#f59e0b; text-align:left; margin-bottom:10px;">📢 Dynamic Alert Notification Banner (Notice Broadcast)</h3>
-    <div style="margin-bottom:12px;">
-      <input type="text" id="admin-broadcast-input" placeholder="Type custom ticker message text to display across coordinator dashboards...">
-    </div>
-    <button type="button" onclick="saveGlobalConfig()" class="btn-primary" style="background:#f59e0b; width:auto; cursor:pointer;">Publish Live Notification Ticker</button>
-  </div>
-
-  <!-- PHASE INTERLOCK & FEE CONFIGURATIONS -->
-  <div class="card-box" style="border: 1px solid #38bdf8;">
-    <h3 style="color:#38bdf8; text-align:left; margin-bottom:12px;">🎛️ Dynamic Portal Phase Commander &amp; Fee Matrices</h3>
-
-    <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap:15px; background:#020617; padding:18px; border-radius:8px; border:1px solid #334155; margin-bottom:15px;">
-      <div style="display:flex; align-items:center; gap:12px;">
-        <input type="checkbox" id="cfg-reg-active" style="width:20px; height:20px; cursor:pointer;">
-        <label for="cfg-reg-active" style="margin-bottom:0; color:#4ade80; font-size:14px; cursor:pointer;">🟢 Turn ON Candidate Registrations</label>
-      </div>
-      <div style="display:flex; align-items:center; gap:12px;">
-        <input type="checkbox" id="cfg-exam-active" style="width:20px; height:20px; cursor:pointer;">
-        <label for="cfg-exam-active" style="margin-bottom:0; color:#38bdf8; font-size:14px; cursor:pointer;">✍️ Turn ON Examination Desk Link</label>
-      </div>
-      <div style="display:flex; align-items:center; gap:12px;">
-        <input type="checkbox" id="cfg-result-allowed" style="width:20px; height:20px; cursor:pointer;">
-        <label for="cfg-result-allowed" style="margin-bottom:0; color:#facc15; font-size:14px; cursor:pointer;">🏆 Turn ON Scorecards / Declaration</label>
+    <!-- TOP STATUS & LOGOUT BAR -->
+    <div style="display:flex; justify-content:space-between; align-items:center; background:#0f172a; padding:12px 20px; border-radius:10px; margin-bottom:15px; border:1px solid #334155; flex-wrap:wrap; gap:10px;">
+      <span style="font-size:13px; color:#4ade80; font-weight:bold;">🟢 Master Control Active (Auto-Sync: 8s)</span>
+      <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+        <a href="question.html" class="btn-primary" style="background:#7c3aed; color:#fff; text-decoration:none; padding:8px 14px; font-size:12px; border-radius:6px;">📚 Question Bank</a>
+        <a href="organizer.html" target="_blank" rel="noopener" class="btn-primary" style="background:#0284c7; color:#fff; text-decoration:none; padding:8px 14px; font-size:12px; border-radius:6px;">🏫 Organizer Panel</a>
+        <button type="button" onclick="logoutAdminSession()" style="background:#dc2626; color:#fff; padding:8px 14px; font-size:12px; border-radius:6px; border:none; cursor:pointer;">🔴 Logout</button>
       </div>
     </div>
 
-    <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap:15px; margin-bottom:15px;">
-      <div>
-        <label for="cfg-online-fee">Online Mode Fee (₹):</label>
-        <input type="number" id="cfg-online-fee" value="100">
+    <!-- KPI SUMMARY CARDS -->
+    <div style="display:grid; grid-template-columns: repeat(4, 1fr); gap:12px; margin-bottom:15px;">
+      <div style="background:#0f172a; padding:14px; border-radius:8px; border:1px solid #334155;">
+        <p style="font-size:11px; color:#94a3b8; margin:0;">Total Registered Students</p>
+        <h2 id="kpi-total-students" style="color:#38bdf8; margin:5px 0 0 0; font-size:22px;">0</h2>
       </div>
-      <div>
-        <label for="cfg-offline-fee">Offline Desk Fee (₹):</label>
-        <input type="number" id="cfg-offline-fee" value="120">
+      <div style="background:#0f172a; padding:14px; border-radius:8px; border:1px solid #334155;">
+        <p style="font-size:11px; color:#94a3b8; margin:0;">Verified / Approved Students</p>
+        <h2 id="kpi-approved-students" style="color:#4ade80; margin:5px 0 0 0; font-size:22px;">0</h2>
       </div>
-      <div>
-        <label for="cfg-total-questions">📝 Questions Count (e.g. 30 / 40):</label>
-        <input type="number" id="cfg-total-questions" min="1" max="200" value="30">
+      <div style="background:#0f172a; padding:14px; border-radius:8px; border:1px solid #334155;">
+        <p style="font-size:11px; color:#94a3b8; margin:0;">Pending Payment / Cash</p>
+        <h2 id="kpi-pending-payments" style="color:#facc15; margin:5px 0 0 0; font-size:22px;">0</h2>
       </div>
-      <div>
-        <label for="cfg-exam-duration">⏱️ Paper Time Limit (Minutes):</label>
-        <input type="number" id="cfg-exam-duration" min="5" max="300" value="30">
-      </div>
-      <div>
-        <label>🕒 System Live Time Tracker:</label>
-        <div id="admin-live-clock" style="background: #020617; border: 1px solid #475569; padding: 12px; border-radius: 8px; color: #38bdf8; font-weight: bold; font-size: 14px; text-align: center;">Loading...</div>
+      <div style="background:#0f172a; padding:14px; border-radius:8px; border:1px solid #334155;">
+        <p style="font-size:11px; color:#94a3b8; margin:0;">Exams Completed</p>
+        <h2 id="kpi-exams-completed" style="color:#c084fc; margin:5px 0 0 0; font-size:22px;">0</h2>
       </div>
     </div>
-    <button type="button" onclick="saveGlobalConfig()" class="btn-primary" style="background:#10b981; width:auto; cursor:pointer;">💾 Save Master Parameters</button>
-  </div>
 
-  <!-- 1. ASSOCIATED SCHOOL ORGANIZERS, EXAM MODE & SETTLEMENTS -->
-  <div class="card-box" style="border: 1px solid #38bdf8;">
-    <h3 style="color:#38bdf8; text-align:left; margin-bottom:12px;">🏫 Associated School Organizers, Exam Modes &amp; Settlement Manager</h3>
-    <div style="overflow-x: auto;">
-      <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 13px;">
-        <thead>
-          <tr style="border-bottom: 2px solid #334155; color: #94a3b8;">
-            <th style="padding:10px;">Org Code, School &amp; Mode</th>
-            <th style="padding:10px;">Coordinator &amp; Payout UPI</th>
-            <th style="padding:10px;">Reg (Online/Cash)</th>
-            <th style="padding:10px;">Direct Comm. (15%)</th>
-            <th style="padding:10px;">Referral Comm. (5%)</th>
-            <th style="padding:10px;">Net Cash Settlement</th>
-            <th style="padding:10px;">UTR / Status</th>
-            <th style="padding:10px;">Action / Payout</th>
-          </tr>
-        </thead>
-        <tbody id="admin-organizers-rows" style="color: #f8fafc;"></tbody>
-      </table>
-    </div>
-  </div>
+    <!-- PORTAL LIFECYCLE & PARAMETERS -->
+    <div class="control-box" style="border:1px solid #10b981; background:#0f172a; padding:20px; border-radius:12px; margin-bottom:15px;">
+      <h3 style="color:#10b981; margin-top:0; margin-bottom:15px;">⚙️ Portal Phase Lifecycle &amp; Exam Parameters</h3>
 
-  <!-- 2. LIVE SUPPORT & QUERY RESOLUTION CHAT DESK (HIDDEN) -->
-  <div id="support-chat-section" class="card-box hidden" style="border: 1px solid #c084fc;">
-    <h3 style="color:#c084fc; text-align:left; margin-bottom:12px;">💬 Live Support &amp; Query Resolution Chat Desk</h3>
-  </div>
+      <div style="display:grid; grid-template-columns: repeat(3, 1fr); gap:12px; margin-bottom:15px;">
+        <label style="display:flex; align-items:center; gap:8px; background:#020617; padding:12px; border-radius:8px; border:1px solid #334155; cursor:pointer;">
+          <input type="checkbox" id="cfg-reg-open">
+          <span>🟢 Registration Open</span>
+        </label>
+        <label style="display:flex; align-items:center; gap:8px; background:#020617; padding:12px; border-radius:8px; border:1px solid #334155; cursor:pointer;">
+          <input type="checkbox" id="cfg-exam-active">
+          <span>✍️ Online Exam Active</span>
+        </label>
+        <label style="display:flex; align-items:center; gap:8px; background:#020617; padding:12px; border-radius:8px; border:1px solid #334155; cursor:pointer;">
+          <input type="checkbox" id="cfg-result-declared">
+          <span>🏆 Results Declared</span>
+        </label>
+      </div>
 
-  <!-- 3. SCHOOL-WISE RANKING (DUAL-COLUMN SPLIT GRID) -->
-  <div class="card-box" style="border: 1px solid #facc15;">
-    <h3 style="color:#facc15; text-align:left; margin-bottom:12px;">🏆 School-Wise Dual-Column Split Rankings</h3>
-    <div style="margin-bottom:15px;">
-      <select id="ranking-school-select" onchange="loadSchoolRankings()" style="min-width: 250px; background:#020617; color:#fff; border:1px solid #475569; padding:8px; border-radius:6px;">
-        <option value="ALL">🏫 All Schools Combined</option>
-      </select>
-    </div>
-    <div id="school-rankings-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 15px;"></div>
-  </div>
+      <div style="display:grid; grid-template-columns: repeat(5, 1fr); gap:12px; margin-bottom:15px;">
+        <div>
+          <label for="cfg-online-fee">Online Fee (₹):</label>
+          <input type="number" id="cfg-online-fee" min="0" value="100">
+        </div>
+        <div>
+          <label for="cfg-offline-fee">Offline Fee (₹):</label>
+          <input type="number" id="cfg-offline-fee" min="0" value="120">
+        </div>
+        <div>
+          <label for="cfg-total-questions">Total Questions:</label>
+          <input type="number" id="cfg-total-questions" min="1" max="300" value="30">
+        </div>
+        <div>
+          <label for="cfg-exam-duration">Duration (Mins):</label>
+          <input type="number" id="cfg-exam-duration" min="1" max="360" value="30">
+        </div>
+        <div>
+          <label for="cfg-admin-upi">Admin UPI ID:</label>
+          <input type="text" id="cfg-admin-upi" placeholder="narmada@upi">
+        </div>
+      </div>
 
-  <!-- 4. SCHOOL-WISE STUDENT DETAILS LEDGER -->
-  <div class="card-box" style="border: 1px solid #10b981;">
-    <h3 style="color:#10b981; text-align:left; margin-bottom:12px;">📋 School-Wise Student Details Ledger &amp; Manual Score Entry</h3>
-    <div style="margin-bottom:15px;">
-      <select id="ledger-school-select" onchange="loadSchoolStudentLedger()" style="min-width: 250px; background:#020617; color:#fff; border:1px solid #475569; padding:8px; border-radius:6px;">
-        <option value="ALL">📋 All Schools Ledger</option>
-      </select>
-    </div>
-    <div style="overflow-x: auto;">
-      <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 13px;">
-        <thead>
-          <tr style="border-bottom: 2px solid #334155; color: #94a3b8;">
-            <th style="padding:10px;">Student Name</th>
-            <th style="padding:10px;">Class</th>
-            <th style="padding:10px;">Payment Status &amp; UTR</th>
-            <th style="padding:10px;">Marks / %</th>
-            <th style="padding:10px;">Action / Manual Score</th>
-          </tr>
-        </thead>
-        <tbody id="ledger-student-rows" style="color: #f8fafc;"></tbody>
-      </table>
-    </div>
-  </div>
+      <div style="margin-bottom:15px;">
+        <label for="cfg-broadcast-notice">Broadcast Notice (Shown on Organizer Panel):</label>
+        <input type="text" id="cfg-broadcast-notice" placeholder="Optional announcement for coordinators...">
+      </div>
 
-</div>
-
-<!-- MANUAL SCORE ENTRY MODAL (OFFLINE OMR STUDENTS) -->
-<div id="manual-score-modal" class="modal-backdrop hidden">
-  <div style="background:#0f172a; border:2px solid #38bdf8; padding:25px; border-radius:12px; width:100%; max-width:400px; box-shadow: 0 10px 25px rgba(0,0,0,0.5);">
-    <h3 style="color:#38bdf8; margin-bottom:10px;">✍️ Manual Score Entry (Offline / OMR)</h3>
-    <p id="modal-student-info" style="font-size:12px; color:#cbd5e1; margin-bottom:15px; font-weight:600;"></p>
-    <input type="hidden" id="modal-student-id">
-
-    <div style="margin-bottom:12px;">
-      <label for="modal-score" style="font-size:12px; color:#94a3b8; display:block; margin-bottom:4px;">Obtained Score:</label>
-      <input type="number" id="modal-score" step="0.5" placeholder="e.g. 25" style="width:100%; padding:8px; background:#020617; border:1px solid #334155; color:#fff; border-radius:6px;">
+      <button type="button" onclick="savePortalConfig()" class="btn-primary" style="background:#10b981; color:#020617; font-weight:800; cursor:pointer;">💾 Save &amp; Sync Portal Configuration</button>
     </div>
 
-    <div style="margin-bottom:18px;">
-      <label for="modal-total" style="font-size:12px; color:#94a3b8; display:block; margin-bottom:4px;">Total Maximum Marks:</label>
-      <input type="number" id="modal-total" value="30" style="width:100%; padding:8px; background:#020617; border:1px solid #334155; color:#fff; border-radius:6px;">
+    <!-- FINANCIAL SETTLEMENT & PAYOUT REQUESTS -->
+    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:15px; margin-bottom:15px;">
+      <div class="control-box" style="border:1px solid #f59e0b; background:#0f172a; padding:18px; border-radius:12px;">
+        <h3 style="color:#f59e0b; margin-top:0;">📥 Pending Settlement UTR Proofs</h3>
+        <div id="pending-settlements-list" style="font-size:12px; color:#cbd5e1;">No pending settlements.</div>
+      </div>
+      <div class="control-box" style="border:1px solid #c084fc; background:#0f172a; padding:18px; border-radius:12px;">
+        <h3 style="color:#c084fc; margin-top:0;">📤 Pending Coordinator Payout Requests</h3>
+        <div id="pending-payouts-list" style="font-size:12px; color:#cbd5e1;">No pending payouts.</div>
+      </div>
     </div>
 
-    <div style="display:flex; gap:10px;">
-      <button type="button" onclick="saveManualScore()" class="btn-primary" style="background:#10b981; flex:1; cursor:pointer; padding:10px;">💾 Save Score</button>
-      <button type="button" onclick="closeManualScoreModal()" class="btn-primary" style="background:#dc2626; flex:1; cursor:pointer; padding:10px;">❌ Cancel</button>
+    <!-- ORGANIZER DIRECTORY & COMMISSION MATRIX -->
+    <div class="control-box" style="border:1px solid #334155; background:#0f172a; padding:18px; border-radius:12px; margin-bottom:15px;">
+      <h3 style="color:#38bdf8; margin-top:0;">🏫 School Coordinators &amp; Commission Ledger</h3>
+      <div style="width:100%; overflow-x:auto;">
+        <table style="width:100%; min-width:980px; border-collapse:collapse; text-align:left; font-size:12px;">
+          <thead>
+            <tr style="border-bottom:2px solid #334155; color:#94a3b8;">
+              <th style="padding:8px;">Code</th>
+              <th style="padding:8px;">School Name</th>
+              <th style="padding:8px;">Coordinator / Contact</th>
+              <th style="padding:8px;">Mode / UPI</th>
+              <th style="padding:8px;">Approved</th>
+              <th style="padding:8px;">Cash / Online</th>
+              <th style="padding:8px;">Direct (15%)</th>
+              <th style="padding:8px;">Ref (5%)</th>
+              <th style="padding:8px;">Net Status</th>
+            </tr>
+          </thead>
+          <tbody id="organizers-matrix-body"></tbody>
+        </table>
+      </div>
     </div>
+
+    <!-- STUDENTS MASTER ROSTER & MANUAL SCORE / PAYMENT CONTROL -->
+    <div class="control-box" style="border:1px solid #334155; background:#0f172a; padding:18px; border-radius:12px; margin-bottom:15px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:12px;">
+        <h3 style="color:#4ade80; margin:0;">📋 Students Master Roster, Payments &amp; Marks</h3>
+        <input type="text" id="student-search-input" oninput="renderStudentsTable()" placeholder="Search by Name, Roll No, School Code, or UTR..." style="max-width:340px;">
+      </div>
+      <div style="width:100%; overflow-x:auto;">
+        <table style="width:100%; min-width:1050px; border-collapse:collapse; text-align:left; font-size:12px;">
+          <thead>
+            <tr style="border-bottom:2px solid #334155; color:#94a3b8;">
+              <th style="padding:8px;">Student</th>
+              <th style="padding:8px;">School / Roll</th>
+              <th style="padding:8px;">Class / Stream</th>
+              <th style="padding:8px;">Payment &amp; UTR</th>
+              <th style="padding:8px;">Score / %</th>
+              <th style="padding:8px;">Manual Score</th>
+              <th style="padding:8px;">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="students-master-body"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- SUPPORT TICKETS & LIVE CHAT -->
+    <div class="control-box" style="border:1px solid #0284c7; background:#0f172a; padding:18px; border-radius:12px;">
+      <h3 style="color:#38bdf8; margin-top:0;">💬 Coordinator Support Tickets</h3>
+      <div style="display:grid; grid-template-columns: 280px 1fr; gap:15px;">
+        <div>
+          <label for="ticket-select">Select Ticket:</label>
+          <select id="ticket-select" onchange="loadTicketMessages(this.value)" style="width:100%; margin-bottom:10px;"></select>
+          <div id="tickets-summary-list" style="max-height:180px; overflow-y:auto; font-size:12px; color:#cbd5e1;"></div>
+        </div>
+        <div>
+          <div id="admin-ticket-messages" style="height:180px; overflow-y:auto; background:#020617; border:1px solid #334155; border-radius:8px; padding:10px; margin-bottom:10px;"></div>
+          <div style="display:flex; gap:8px;">
+            <input type="text" id="admin-reply-input" placeholder="Type reply to coordinator..." style="flex:1;">
+            <button type="button" onclick="sendAdminTicketReply()" class="btn-primary" style="background:#0284c7; width:auto; cursor:pointer;">Send Reply</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
   </div>
 </div>
 
-<script src="central.js?v=24"></script>
+<script src="central.js?v=25"></script>
 </body>
 </html>
