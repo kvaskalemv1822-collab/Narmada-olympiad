@@ -1,4 +1,4 @@
-const SERVER_URL = "https://nvmso-backend.onrender.com";
+Const SERVER_URL = "https://nvmso-backend.onrender.com";
 const ADMIN_TOKEN_KEY = "nvmso_admin_token";
 
 let adminToken = sessionStorage.getItem(ADMIN_TOKEN_KEY) || "";
@@ -7,8 +7,6 @@ let allOrganizersCache = [];
 let pendingSettlementsCache = [];
 let pendingPayoutsCache = [];
 let centralPortalConfig = {};
-let supportTicketsCache = [];
-let activeTicketId = "";
 let autoRefreshTimer = null;
 
 function int(val) {
@@ -76,6 +74,7 @@ function getOrganizerPayoutUpi(org) {
   return fromObj || fromLocal || "";
 }
 
+// 🔄 PERSISTENT SESSION CHECK ON PAGE LOAD
 document.addEventListener("DOMContentLoaded", () => {
   startLiveClockTracker();
 
@@ -239,14 +238,11 @@ function initializeCentralPanelData() {
 
         setupSmartSwitchesExclusiveRule();
         fetchAllCentralData();
-        fetchAdminSupportTickets();
 
+        // 🔄 AUTO-REFRESH LIVE SYNC (8s poll)
         if (!autoRefreshTimer) {
           autoRefreshTimer = setInterval(() => {
-            if (adminToken) {
-              fetchAllCentralData();
-              fetchAdminSupportTickets();
-            }
+            if (adminToken) fetchAllCentralData();
           }, 8000);
         }
       }
@@ -417,16 +413,13 @@ function renderMergedOrganizersTable() {
 
     const examMode = String(org.examMode || "online").toLowerCase();
 
-    const rawCashGross = cashRegs * (examMode === "offline" ? offlineFeeConfig : onlineFeeConfig);
-    const rawDirectComm = int(totalReg * onlineFeeConfig * 0.15);
+    const cashGross = cashRegs * (examMode === "offline" ? offlineFeeConfig : onlineFeeConfig);
+    const baseFeeTotal = totalReg * onlineFeeConfig;
 
-    const settledCashBase = isSettled ? int(org.settledCashBase) : 0;
-    const settledDirectBase = isSettled ? int(org.settledDirectCommBase) : 0;
-    const settledRefBase = int(org.settledRefCommBase);
+    // 15% Direct Commission on this organizer's own verified registrations
+    const directComm = int(baseFeeTotal * 0.15);
 
-    const cashGross = Math.max(0, rawCashGross - settledCashBase);
-    const directComm = Math.max(0, rawDirectComm - settledDirectBase);
-
+    // 5% Referral Commission goes to THIS organizer (referrer) from other organizers who used `code` as their refCode
     const referredOrganizers = allOrganizersCache.filter(otherOrg => {
       const otherCode = String(otherOrg.code || otherOrg.orgCode || "").trim().toUpperCase();
       const otherRefCode = String(otherOrg.refCode || "").trim().toUpperCase();
@@ -440,7 +433,7 @@ function renderMergedOrganizersTable() {
       );
     });
 
-    let rawRefComm = 0;
+    let refComm = 0;
     referredOrganizers.forEach(refOrg => {
       const refOrgCode = String(refOrg.code || refOrg.orgCode || "").trim().toUpperCase();
       const refOrgVerifiedStudents = allStudentsCache.filter(
@@ -448,51 +441,31 @@ function renderMergedOrganizersTable() {
           String(s.orgCode || "").trim().toUpperCase() === refOrgCode &&
           (s.paymentStatus === "Approved" || s.paymentVerified === true)
       );
-      rawRefComm += int(refOrgVerifiedStudents.length * onlineFeeConfig * 0.05);
+      const refBaseFeeTotal = refOrgVerifiedStudents.length * onlineFeeConfig;
+      refComm += int(refBaseFeeTotal * 0.05);
     });
 
-    const refComm = Math.max(0, rawRefComm - settledRefBase);
-    const netCashToPortal = Math.max(0, cashGross - directComm);
+    const totalComm = directComm + refComm;
+
+    const netBalance = cashGross - totalComm;
+    const netCashToPortal = isSettled ? 0 : Math.max(0, netBalance);
 
     const sett = pendingSettlementsCache.find(
       s => String(s.orgCode || "").trim().toUpperCase() === code
     );
-    const payoutReq = pendingPayoutsCache.find(
-      p => String(p.orgCode || "").trim().toUpperCase() === code
-    );
 
-    let settCell =
-      netCashToPortal === 0 && (isSettled || cashGross === 0)
-        ? "<span style='color:#4ade80; font-weight:bold;'>✔️ Settled (₹0 Due)</span>"
-        : "<span style='color:#f87171;'>Pending Settlement</span>";
+    let settCell = isSettled
+      ? "<span style='color:#4ade80; font-weight:bold;'>✔️ Settled (₹0 Due)</span>"
+      : "<span style='color:#f87171;'>Pending Settlement</span>";
 
-    if (sett) {
+    if (!isSettled && sett) {
       settCell = `<code style="color:#facc15;">UTR: ${escapeHtml(sett.utrNumber)}<br>(₹${escapeHtml(sett.amount)})</code>`;
-    } else if (payoutReq) {
-      settCell = `<code style="color:#c084fc;">Payout Req: ₹${escapeHtml(payoutReq.amount)}<br>(${escapeHtml(payoutReq.upiId || "")})</code>`;
     }
 
-    const actionButtons = [];
-    if (sett) {
-      actionButtons.push(
-        `<button type="button" onclick="approveOrganizerSettlement('${escapeHtml(code)}', '${escapeHtml(sett.id)}')" style="background:#10b981; color:#fff; border:none; padding:4px 8px; font-size:10px; border-radius:4px; font-weight:bold; cursor:pointer; margin-bottom:3px;">Verify UTR</button>`
-      );
-    } else if (netCashToPortal > 0) {
-      actionButtons.push(
-        `<button type="button" onclick="approveOrganizerSettlement('${escapeHtml(code)}', '')" style="background:#0284c7; color:#fff; border:none; padding:4px 8px; font-size:10px; border-radius:4px; font-weight:bold; cursor:pointer; margin-bottom:3px;">Mark Settled</button>`
-      );
-    }
-
-    if (payoutReq && refComm > 0) {
-      actionButtons.push(
-        `<button type="button" onclick="completeOrganizerPayout('${escapeHtml(payoutReq.id)}', '${escapeHtml(code)}')" style="background:#f59e0b; color:#020617; border:none; padding:4px 8px; font-size:10px; border-radius:4px; font-weight:bold; cursor:pointer;">Pay Referral</button>`
-      );
-    }
-
-    const actionCell = actionButtons.length
-      ? actionButtons.join("<br>")
-      : netCashToPortal === 0 && refComm === 0
+    let actionCell = isSettled
       ? "<span style='color:#38bdf8; font-weight:bold;'>Completed</span>"
+      : sett
+      ? `<button type="button" onclick="approveOrganizerSettlement('${escapeHtml(code)}', '${escapeHtml(sett.id)}')" style="background:#10b981; color:#fff; border:none; padding:4px 8px; font-size:10px; border-radius:4px; font-weight:bold; cursor:pointer;">Verify UTR</button>`
       : "Awaiting";
 
     const pendingBadge =
@@ -500,11 +473,12 @@ function renderMergedOrganizersTable() {
         ? `<br><span style="font-size:9px; color:#f59e0b; font-weight:bold;">(${pendingReviewCount} Pending)</span>`
         : "";
 
+    // Coordinator's own saved UPI ID (never fallback to admin UPI)
     const orgUpi = getOrganizerPayoutUpi(org);
     const orgLabel = org.schoolName || "Organizer";
 
     let directCommHtml = `₹${directComm}`;
-    if (directComm > 0) {
+    if (directComm > 0 && !isSettled) {
       if (orgUpi) {
         const directUpiLink = `upi://pay?pa=${encodeURIComponent(orgUpi)}&pn=${encodeURIComponent(orgLabel)}&am=${directComm}&cu=INR`;
         directCommHtml += `<br><a href="${directUpiLink}" style="background:#10b981; color:#fff; padding:2px 7px; font-size:9px; border-radius:3px; text-decoration:none; display:inline-block; margin-top:3px; font-weight:bold;">Pay</a><br><span style="font-size:9px; color:#cbd5e1; word-break:break-all;">${escapeHtml(orgUpi)}</span>`;
@@ -514,7 +488,7 @@ function renderMergedOrganizersTable() {
     }
 
     let refCommHtml = `₹${refComm}`;
-    if (refComm > 0) {
+    if (refComm > 0 && !isSettled) {
       if (orgUpi) {
         const refUpiLink = `upi://pay?pa=${encodeURIComponent(orgUpi)}&pn=${encodeURIComponent(orgLabel)}&am=${refComm}&cu=INR`;
         refCommHtml += `<br><a href="${refUpiLink}" style="background:#f59e0b; color:#020617; padding:2px 7px; font-size:9px; border-radius:3px; text-decoration:none; display:inline-block; margin-top:3px; font-weight:bold;">Pay</a><br><span style="font-size:9px; color:#cbd5e1; word-break:break-all;">${escapeHtml(orgUpi)}</span>`;
@@ -550,143 +524,6 @@ function renderMergedOrganizersTable() {
     `;
   });
 }
-
-window.fetchAdminSupportTickets = function () {
-  if (!adminToken) return;
-  const selectEl = document.getElementById("admin-chat-ticket-select");
-  const msgBox = document.getElementById("admin-chat-messages");
-  if (!selectEl || !msgBox) return;
-
-  fetch(`${SERVER_URL}/api/admin/queries`, {
-    method: "GET",
-    headers: getAdminHeaders(false)
-  })
-    .then(async res => {
-      if (res.status === 401) {
-        window.logoutAdminSession();
-        return null;
-      }
-      return res.json();
-    })
-    .then(data => {
-      if (!data || data.status !== "success") return;
-      supportTicketsCache = Array.isArray(data.queries) ? data.queries : [];
-      const prevSelected = activeTicketId || selectEl.value;
-
-      let opts = `<option value="">Select School Support Ticket (${supportTicketsCache.length})...</option>`;
-      supportTicketsCache.forEach(t => {
-        const tid = String(t.ticketId || t.id || "").trim();
-        if (!tid) return;
-        const orgTag = t.orgCode ? `[${t.orgCode}] ` : "";
-        const label = `${orgTag}${t.senderName || tid}${t.lastMessage ? " - " + String(t.lastMessage).slice(0, 28) : ""}`;
-        opts += `<option value="${escapeHtml(tid)}">${escapeHtml(label)}</option>`;
-      });
-
-      selectEl.innerHTML = opts;
-      if (prevSelected && [...selectEl.options].some(o => o.value === prevSelected)) {
-        selectEl.value = prevSelected;
-        activeTicketId = prevSelected;
-        fetchAdminTicketMessages(prevSelected);
-      } else if (supportTicketsCache.length > 0 && !activeTicketId) {
-        const firstId = String(supportTicketsCache[0].ticketId || supportTicketsCache[0].id || "").trim();
-        if (firstId) {
-          selectEl.value = firstId;
-          activeTicketId = firstId;
-          fetchAdminTicketMessages(firstId);
-        }
-      }
-    })
-    .catch(() => {});
-};
-
-window.onAdminTicketChange = function () {
-  const selectEl = document.getElementById("admin-chat-ticket-select");
-  activeTicketId = (selectEl?.value || "").trim();
-  if (activeTicketId) {
-    fetchAdminTicketMessages(activeTicketId);
-  } else {
-    const msgBox = document.getElementById("admin-chat-messages");
-    if (msgBox) {
-      msgBox.innerHTML = `<p style="color:#64748b; font-size:12px; text-align:center;">Select a coordinator ticket to view conversation.</p>`;
-    }
-  }
-};
-
-function fetchAdminTicketMessages(ticketId) {
-  if (!adminToken || !ticketId) return;
-  const msgBox = document.getElementById("admin-chat-messages");
-  if (!msgBox) return;
-
-  fetch(`${SERVER_URL}/api/admin/query_messages?ticketId=${encodeURIComponent(ticketId)}`, {
-    method: "GET",
-    headers: getAdminHeaders(false)
-  })
-    .then(async res => {
-      if (res.status === 401) {
-        window.logoutAdminSession();
-        return null;
-      }
-      return res.json();
-    })
-    .then(data => {
-      if (!data || data.status !== "success") return;
-      const msgs = Array.isArray(data.messages) ? data.messages : [];
-      if (!msgs.length) {
-        msgBox.innerHTML = `<p style="color:#64748b; font-size:12px; text-align:center;">No messages in this ticket yet.</p>`;
-        return;
-      }
-      msgBox.innerHTML = msgs
-        .map(m => {
-          const isAdminMsg = !!m.isAdmin;
-          const imgHtml = m.imageUrl
-            ? `<br><img src="${escapeHtml(m.imageUrl)}" alt="Attachment" style="max-width:180px; border-radius:6px; margin-top:6px; display:block;">`
-            : "";
-          const textHtml = m.text ? `<span>${escapeHtml(m.text)}</span>` : "";
-          return `<div style="text-align:${isAdminMsg ? "right" : "left"}; margin-bottom:8px;"><span style="background:${isAdminMsg ? "#7e22ce" : "#1e293b"}; padding:6px 10px; border-radius:6px; color:#fff; font-size:12px; display:inline-block; max-width:85%;">${textHtml}${imgHtml}</span></div>`;
-        })
-        .join("");
-      msgBox.scrollTop = msgBox.scrollHeight;
-    })
-    .catch(() => {});
-}
-
-window.sendAdminChatReply = function () {
-  if (!adminToken) return;
-  const selectEl = document.getElementById("admin-chat-ticket-select");
-  const inputEl = document.getElementById("admin-chat-reply-input");
-  const ticketId = (activeTicketId || selectEl?.value || "").trim();
-  const replyText = (inputEl?.value || "").trim();
-
-  if (!ticketId) {
-    alert("⚠️ Please select a coordinator ticket first.");
-    return;
-  }
-  if (!replyText) return;
-
-  fetch(`${SERVER_URL}/api/admin/reply_query`, {
-    method: "POST",
-    headers: getAdminHeaders(true),
-    body: JSON.stringify({ ticketId: ticketId, message: replyText })
-  })
-    .then(async res => {
-      if (res.status === 401) {
-        window.logoutAdminSession();
-        return null;
-      }
-      return res.json();
-    })
-    .then(data => {
-      if (!data) return;
-      if (data.status === "success") {
-        if (inputEl) inputEl.value = "";
-        fetchAdminTicketMessages(ticketId);
-        fetchAdminSupportTickets();
-      } else {
-        alert("❌ Error: " + (data?.message || "Failed to send reply"));
-      }
-    })
-    .catch(() => alert("❌ Network error while sending reply."));
-};
 
 function populateSchoolDropdowns() {
   const rankSelect = document.getElementById("ranking-school-select");
@@ -908,6 +745,7 @@ window.loadSchoolStudentLedger = function () {
   });
 };
 
+// 🛑 MANUAL SCORE ENTRY MODAL FUNCTIONS (OFFLINE EXAM MODE ONLY)
 window.openManualScoreModal = function (studentId, name, studentClass, maxMarks) {
   const st = allStudentsCache.find(item => String(item.id) === String(studentId));
   if (st && getStudentExamMode(st) !== "offline") {
@@ -1073,11 +911,11 @@ window.triggerReExam = function (studentId) {
 
 window.approveOrganizerSettlement = function (orgCode, reqId) {
   if (!adminToken) return;
-  if (!confirm(`Confirm settlement approval for ${orgCode}? This will reset cash & direct commission cycle to ₹0.`)) return;
+  if (!confirm(`Confirm settlement approval for ${orgCode}? This will reset their Net Payable balance to ₹0.`)) return;
   fetch(`${SERVER_URL}/api/admin/approve_settlement`, {
     method: "POST",
     headers: getAdminHeaders(true),
-    body: JSON.stringify({ orgCode: orgCode, requestId: reqId || "" })
+    body: JSON.stringify({ orgCode: orgCode, requestId: reqId })
   })
     .then(async res => {
       if (res.status === 401) {
@@ -1089,40 +927,13 @@ window.approveOrganizerSettlement = function (orgCode, reqId) {
     .then(d => {
       if (!d) return;
       if (d && d.status === "success") {
-        alert("✅ Settlement Verified & Cycle Reset to ₹0!");
+        alert("✅ Settlement Verified & Account Reset to ₹0 Payable!");
         fetchAllCentralData();
       } else {
         alert("❌ Error: " + (d?.message || "Failed to verify settlement"));
       }
     })
     .catch(() => alert("❌ Network error while verifying settlement."));
-};
-
-window.completeOrganizerPayout = function (payoutId, orgCode) {
-  if (!adminToken || !payoutId) return;
-  if (!confirm(`Mark referral commission payout as completed for ${orgCode || "organizer"}?`)) return;
-  fetch(`${SERVER_URL}/api/admin/complete_payout`, {
-    method: "POST",
-    headers: getAdminHeaders(true),
-    body: JSON.stringify({ payoutId: payoutId, orgCode: orgCode || "" })
-  })
-    .then(async res => {
-      if (res.status === 401) {
-        window.logoutAdminSession();
-        return null;
-      }
-      return res.json();
-    })
-    .then(d => {
-      if (!d) return;
-      if (d && d.status === "success") {
-        alert("✅ Referral payout marked completed!");
-        fetchAllCentralData();
-      } else {
-        alert("❌ Error: " + (d?.message || "Failed to complete payout"));
-      }
-    })
-    .catch(() => alert("❌ Network error while completing payout."));
 };
 
 window.logoutAdminSession = () => {
