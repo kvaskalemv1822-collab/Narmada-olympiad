@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>NVMSO - Question Bank &amp; Parameters Manager</title>
-  <link rel="stylesheet" href="central.css?v=24">
+  <link rel="stylesheet" href="central.css?v=25">
   <style>
     @media print {
       body {
@@ -28,20 +28,37 @@
     #printable-paper-sheet {
       display: none;
     }
+    .control-box input[type="text"],
+    .control-box textarea,
+    .control-box select {
+      background: #020617;
+      color: #f8fafc;
+      border: 1px solid #475569;
+      border-radius: 6px;
+      padding: 9px 12px;
+      box-sizing: border-box;
+      font-size: 13px;
+    }
+    .btn-primary {
+      border: none;
+      border-radius: 6px;
+      color: #fff;
+      font-weight: 700;
+    }
   </style>
 </head>
-<body style="background: #0b0f19; padding: 15px; color:#fff; width:100vw;">
+<body style="background: #0b0f19; padding: 15px; color:#fff; width:100vw; margin:0; box-sizing:border-box;">
 
 <div id="question-main-container" style="width: 100%; max-width: 1200px; margin: 0 auto;">
   <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #374151; padding-bottom: 15px; margin-bottom: 20px; flex-wrap: wrap; gap: 10px;">
     <div>
       <h1 style="font-size: 22px; margin:0;">📚 Exam Question Bank &amp; Parameters Manager</h1>
-      <div style="font-size: 12px; color: #94a3b8;">
+      <div style="font-size: 12px; color: #94a3b8; margin-top:4px;">
         Formulate Questions, Negative Marking, Print Limit: <strong id="exam-q-limit-badge" style="color:#38bdf8;">30</strong> Questions
       </div>
     </div>
     <div>
-      <a href="central.html" class="btn-primary" style="text-decoration: none; background: #4b5563; font-size: 12px; padding: 8px 12px;">⬅ Back to Control Room</a>
+      <a href="central.html" class="btn-primary" style="text-decoration: none; background: #4b5563; font-size: 12px; padding: 8px 14px; display:inline-block;">⬅ Back to Control Room</a>
     </div>
   </div>
 
@@ -78,19 +95,19 @@
 
     <div style="display:grid; grid-template-columns:1fr 1fr; gap:15px; margin-bottom: 15px;">
       <div>
-        <label for="q-opt-a" style="font-size:11px; color:#94a3b8;">Option A:</label>
+        <label for="q-opt-a" style="font-size:11px; color:#94a3b8; display:block; margin-bottom:4px;">Option A:</label>
         <input type="text" id="q-opt-a" placeholder="Option A" style="width:100%;">
       </div>
       <div>
-        <label for="q-opt-b" style="font-size:11px; color:#94a3b8;">Option B:</label>
+        <label for="q-opt-b" style="font-size:11px; color:#94a3b8; display:block; margin-bottom:4px;">Option B:</label>
         <input type="text" id="q-opt-b" placeholder="Option B" style="width:100%;">
       </div>
       <div>
-        <label for="q-opt-c" style="font-size:11px; color:#94a3b8;">Option C:</label>
+        <label for="q-opt-c" style="font-size:11px; color:#94a3b8; display:block; margin-bottom:4px;">Option C:</label>
         <input type="text" id="q-opt-c" placeholder="Option C" style="width:100%;">
       </div>
       <div>
-        <label for="q-opt-d" style="font-size:11px; color:#94a3b8;">Option D:</label>
+        <label for="q-opt-d" style="font-size:11px; color:#94a3b8; display:block; margin-bottom:4px;">Option D:</label>
         <input type="text" id="q-opt-d" placeholder="Option D" style="width:100%;">
       </div>
     </div>
@@ -135,6 +152,6 @@
 <!-- PEN & PAPER QUESTION SHEET (SHOWN ON PRINT) -->
 <div id="printable-paper-sheet"></div>
 
-<script src="question.js?v=13"></script>
+<script src="question.js?v=14"></script>
 </body>
 </html>
