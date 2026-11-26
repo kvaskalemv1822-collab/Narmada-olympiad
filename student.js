@@ -237,7 +237,7 @@ window.fetchSchoolName = function (val) {
   fetch(`${SERVER_URL}/api/student/verify-school`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ orgCode: val })
+    body: JSON.stringify({ orgCode: val.trim().toUpperCase() })
   })
     .then(res => res.json())
     .then(data => {
