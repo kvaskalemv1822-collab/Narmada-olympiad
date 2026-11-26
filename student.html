@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>NVMSO - Student Portal 2026</title>
-  <link rel="stylesheet" href="student.css?v=25">
+  <link rel="stylesheet" href="student.css?v=26">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 </head>
 <body>
@@ -16,7 +16,7 @@
 
   <!-- VIEW 1: REGISTRATION -->
   <div id="registration-view" class="hidden">
-    <form id="reg-form">
+    <form id="reg-form" onsubmit="event.preventDefault();">
 
       <!-- STEP 1: INPUT DETAILS -->
       <div id="details-section">
@@ -24,7 +24,9 @@
           <strong>⚠️ Notice:</strong> Participation requires verified School Organizer Code. Password format is Mother's first 2 capital letters + Roll Number.
         </div>
 
-        <div class="form-group"><div id="display-student-exam-mode" class="highlight-text">Exam Conduct Mode: ENTER ORGANIZER CODE FIRST</div></div>
+        <div class="form-group">
+          <div id="display-student-exam-mode" class="highlight-text">Exam Conduct Mode: ENTER ORGANIZER CODE FIRST</div>
+        </div>
         <div class="form-group">
           <label for="org-code">School Organizer Code:</label>
           <input type="text" id="org-code" placeholder="e.g. NVMS540" required oninput="fetchSchoolName(this.value)">
@@ -178,6 +180,6 @@
 
 </div>
 
-<script src="student.js?v=25"></script>
+<script src="student.js?v=26"></script>
 </body>
 </html>
