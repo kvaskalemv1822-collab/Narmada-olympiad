@@ -290,6 +290,63 @@ def _sanitize_org_profile(org_code: str, od: dict) -> dict:
     return clean
 
 
+def _compute_org_ledger_totals(org_code: str, org_raw: dict, students: list, g_cfg: dict):
+    approved = [s for s in students if s.get("paymentStatus") == "Approved" or s.get("paymentVerified") is True]
+    exam_mode = str(org_raw.get("examMode") or "online").strip().lower()
+    if exam_mode not in ("online", "offline"):
+        exam_mode = "online"
+
+    online_fee = int(g_cfg.get("onlineFee", 100) or 100)
+    offline_fee = int(g_cfg.get("offlineFee", 120) or 120)
+    current_fee_per_student = offline_fee if exam_mode == "offline" else online_fee
+
+    cash_approved = [s for s in approved if (s.get("paymentMode") or "").lower() in ["offline", "cash"]]
+    online_approved = [s for s in approved if (s.get("paymentMode") or "").lower() == "online"]
+
+    total_cash_held = len(cash_approved) * current_fee_per_student
+    total_online_collected = len(online_approved) * online_fee
+    gross_total = len(approved) * current_fee_per_student
+    total_direct_comm = int(len(approved) * online_fee * 0.15)
+
+    referred_organizers_summary = []
+    total_ref_comm = 0
+    for ref_doc in db.collection("organizers").where("refCode", "==", org_code).stream():
+        ref_org_code = str(ref_doc.id).strip().upper()
+        if not ref_org_code or ref_org_code == org_code:
+            continue
+
+        ref_students = []
+        ref_seen = set()
+        for rf in ["orgCode", "schoolCode"]:
+            for s_doc in db.collection("students").where(rf, "==", ref_org_code).stream():
+                if s_doc.id not in ref_seen:
+                    ref_seen.add(s_doc.id)
+                    ref_students.append(s_doc.to_dict())
+
+        ref_approved_count = len([
+            s for s in ref_students
+            if s.get("paymentStatus") == "Approved" or s.get("paymentVerified") is True
+        ])
+        ref_earned = int(ref_approved_count * online_fee * 0.05)
+        total_ref_comm += ref_earned
+        referred_organizers_summary.append({
+            "orgCode": ref_org_code,
+            "schoolName": ref_doc.to_dict().get("schoolName", ref_org_code),
+            "approvedRegistrations": ref_approved_count,
+            "referralCommission": ref_earned,
+        })
+
+    return {
+        "approved": approved,
+        "gross_total": gross_total,
+        "total_cash_held": total_cash_held,
+        "total_online_collected": total_online_collected,
+        "total_direct_comm": total_direct_comm,
+        "total_ref_comm": total_ref_comm,
+        "referred_organizers_summary": referred_organizers_summary,
+    }
+
+
 # ==========================================================================
 # 1. ADMIN AUTHENTICATION ENGINE
 # ==========================================================================
@@ -847,10 +904,36 @@ def admin_approve_settlement():
         data = request.json or {}
         org_code = str(data.get("orgCode") or "").strip().upper()
         req_id = str(data.get("requestId") or "").strip()
+
         if org_code:
-            db.collection("organizers").document(org_code).update({"manualSettled": True})
+            org_ref = db.collection("organizers").document(org_code)
+            org_doc = org_ref.get()
+            org_raw = org_doc.to_dict() if org_doc.exists else {}
+
+            cfg_doc = db.collection("settings").document("portal_config").get()
+            g_cfg = cfg_doc.to_dict() if cfg_doc.exists else {}
+
+            students = []
+            seen = set()
+            for f in ["orgCode", "schoolCode"]:
+                for doc in db.collection("students").where(f, "==", org_code).stream():
+                    if doc.id not in seen:
+                        seen.add(doc.id)
+                        students.append(doc.to_dict())
+
+            totals = _compute_org_ledger_totals(org_code, org_raw, students, g_cfg)
+
+            org_ref.set({
+                "manualSettled": True,
+                "settledApprovedCount": len(totals["approved"]),
+                "settledCashBase": totals["total_cash_held"],
+                "settledDirectCommBase": totals["total_direct_comm"],
+                "settledAt": firestore.SERVER_TIMESTAMP,
+            }, merge=True)
+
         if req_id:
             db.collection("settlements").document(req_id).update({"status": "approved"})
+
         return jsonify({"status": "success", "message": "Settlement approved"}), 200
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
@@ -865,7 +948,29 @@ def admin_complete_payout():
         data = request.json or {}
         payout_id = str(data.get("payoutId") or "").strip()
         if payout_id:
-            db.collection("payouts").document(payout_id).update({"status": "completed"})
+            payout_ref = db.collection("payouts").document(payout_id)
+            payout_doc = payout_ref.get()
+            payout_ref.update({"status": "completed"})
+            if payout_doc.exists:
+                p_data = payout_doc.to_dict()
+                org_code = str(p_data.get("orgCode") or "").strip().upper()
+                if org_code:
+                    org_ref = db.collection("organizers").document(org_code)
+                    org_raw = org_ref.get().to_dict() or {}
+                    cfg_doc = db.collection("settings").document("portal_config").get()
+                    g_cfg = cfg_doc.to_dict() if cfg_doc.exists else {}
+                    students = []
+                    seen = set()
+                    for f in ["orgCode", "schoolCode"]:
+                        for s_doc in db.collection("students").where(f, "==", org_code).stream():
+                            if s_doc.id not in seen:
+                                seen.add(s_doc.id)
+                                students.append(s_doc.to_dict())
+                    totals = _compute_org_ledger_totals(org_code, org_raw, students, g_cfg)
+                    org_ref.set({
+                        "settledRefCommBase": totals["total_ref_comm"],
+                        "payoutSettledAt": firestore.SERVER_TIMESTAMP,
+                    }, merge=True)
         return jsonify({"status": "success", "message": "Payout completed"}), 200
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
@@ -993,6 +1098,9 @@ def organizer_register():
             "payoutUpi": "",
             "principalApproved": False,
             "manualSettled": False,
+            "settledCashBase": 0,
+            "settledDirectCommBase": 0,
+            "settledRefCommBase": 0,
             "totalRegistrations": 0,
             "timestamp": firestore.SERVER_TIMESTAMP,
         }
@@ -1076,61 +1184,22 @@ def organizer_get_students():
         cfg_doc = db.collection("settings").document("portal_config").get()
         g_cfg = cfg_doc.to_dict() if cfg_doc.exists else {}
 
-        approved = [s for s in students if s.get("paymentStatus") == "Approved" or s.get("paymentVerified") is True]
-        exam_mode = org_clean["examMode"]
+        totals = _compute_org_ledger_totals(org_code, org_raw, students, g_cfg)
 
-        online_fee = int(g_cfg.get("onlineFee", 100) or 100)
-        offline_fee = int(g_cfg.get("offlineFee", 120) or 120)
-        current_fee_per_student = offline_fee if exam_mode == "offline" else online_fee
+        settled_cash_base = int(org_raw.get("settledCashBase", 0) or 0) if is_settled else 0
+        settled_direct_base = int(org_raw.get("settledDirectCommBase", 0) or 0) if is_settled else 0
+        settled_ref_base = int(org_raw.get("settledRefCommBase", 0) or 0)
 
-        cash_approved = [s for s in approved if (s.get("paymentMode") or "").lower() in ["offline", "cash"]]
-        online_approved = [s for s in approved if (s.get("paymentMode") or "").lower() == "online"]
+        active_cash_held = max(0, totals["total_cash_held"] - settled_cash_base)
+        active_direct_comm = max(0, totals["total_direct_comm"] - settled_direct_base)
+        active_ref_comm = max(0, totals["total_ref_comm"] - settled_ref_base)
+        active_total_comm = active_direct_comm + active_ref_comm
 
-        cash_held = len(cash_approved) * current_fee_per_student
-        online_collected_by_nvms = len(online_approved) * current_fee_per_student
-        gross_total = len(approved) * current_fee_per_student
-
-        base_fee_total = len(approved) * online_fee
-        direct_comm = int(base_fee_total * 0.15)
-
-        referred_organizers_summary = []
-        ref_comm = 0
-        for ref_doc in db.collection("organizers").where("refCode", "==", org_code).stream():
-            ref_org_code = str(ref_doc.id).strip().upper()
-            if not ref_org_code or ref_org_code == org_code:
-                continue
-
-            ref_students = []
-            ref_seen = set()
-            for rf in ["orgCode", "schoolCode"]:
-                for s_doc in db.collection("students").where(rf, "==", ref_org_code).stream():
-                    if s_doc.id not in ref_seen:
-                        ref_seen.add(s_doc.id)
-                        ref_students.append(s_doc.to_dict())
-
-            ref_approved_count = len([
-                s for s in ref_students
-                if s.get("paymentStatus") == "Approved" or s.get("paymentVerified") is True
-            ])
-            ref_earned = int(ref_approved_count * online_fee * 0.05)
-            ref_comm += ref_earned
-            referred_organizers_summary.append({
-                "orgCode": ref_org_code,
-                "schoolName": ref_doc.to_dict().get("schoolName", ref_org_code),
-                "approvedRegistrations": ref_approved_count,
-                "referralCommission": ref_earned,
-            })
-
-        total_commission = direct_comm + ref_comm
-        net_balance = cash_held - total_commission
-
-        net_payable_to_nvms = 0
-        nvms_owes_organizer = 0
-        if not is_settled:
-            if net_balance >= 0:
-                net_payable_to_nvms = net_balance
-            else:
-                nvms_owes_organizer = abs(net_balance)
+        # Referral commission is paid by NVMS Portal only; never deducted from cash collection.
+        cash_net_balance = active_cash_held - active_direct_comm
+        net_payable_to_nvms = max(0, cash_net_balance)
+        direct_shortfall = max(0, -cash_net_balance)
+        nvms_owes_organizer = direct_shortfall + active_ref_comm
 
         return jsonify({
             "status": "success",
@@ -1139,16 +1208,16 @@ def organizer_get_students():
             "isSettled": is_settled,
             "adminUpiId": g_cfg.get("adminUpiId", "narmada@upi"),
             "isResultDeclared": bool(g_cfg.get("isResultDeclared", False)),
-            "referredOrganizers": referred_organizers_summary,
+            "referredOrganizers": totals["referred_organizers_summary"],
             "financials": {
                 "totalRegistrations": len(students),
-                "approvedRegistrations": len(approved),
-                "totalFees": gross_total,
-                "cashHeld": cash_held,
-                "onlineCollected": online_collected_by_nvms,
-                "totalCommission": total_commission,
-                "directCommission": direct_comm,
-                "referralCommission": ref_comm,
+                "approvedRegistrations": len(totals["approved"]),
+                "totalFees": totals["gross_total"],
+                "cashHeld": active_cash_held,
+                "onlineCollected": totals["total_online_collected"],
+                "totalCommission": active_total_comm,
+                "directCommission": active_direct_comm,
+                "referralCommission": active_ref_comm,
                 "netPayableToNvms": net_payable_to_nvms,
                 "nvmsOwesOrganizer": nvms_owes_organizer,
             },
@@ -1181,6 +1250,7 @@ def organizer_approve_cash():
             return jsonify({"status": "error", "message": "Only offline/cash registrations can be approved by coordinator"}), 400
 
         db.collection("students").document(student_id).update({"paymentVerified": True, "paymentStatus": "Approved"})
+        db.collection("organizers").document(org_code).set({"manualSettled": False}, merge=True)
         return jsonify({"status": "success", "message": "Cash approved"}), 200
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
@@ -1359,42 +1429,4 @@ def admin_add_question():
     try:
         _ensure_db()
         data = request.json or {}
-        class_grp = str(data.get("classGroup") or data.get("classRange") or "").strip()
-        q_text = str(data.get("questionText") or "").strip()
-        if not class_grp or not q_text:
-            return jsonify({"status": "error", "message": "Class group and question text are required"}), 400
-
-        db.collection("questions").add({
-            "classRange": class_grp,
-            "classGroup": class_grp,
-            "subject": str(data.get("subject", "")).strip(),
-            "negativeMarking": float(data.get("negativeMarking", 0) or 0),
-            "questionText": q_text,
-            "optionA": str(data.get("optionA", "")).strip(),
-            "optionB": str(data.get("optionB", "")).strip(),
-            "optionC": str(data.get("optionC", "")).strip(),
-            "optionD": str(data.get("optionD", "")).strip(),
-            "correctOption": str(data.get("correctOption", "A")).strip().upper(),
-            "timestamp": firestore.SERVER_TIMESTAMP,
-        })
-        return jsonify({"status": "success", "message": "Question added"}), 200
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
-
-
-@app.route("/api/admin/all_questions", methods=["GET"])
-def admin_get_all_questions():
-    if not _require_admin():
-        return jsonify({"status": "unauthorized", "message": "🔒 Admin token required!"}), 401
-    try:
-        _ensure_db()
-        questions = [{**doc.to_dict(), "id": doc.id} for doc in db.collection("questions").stream()]
-        return jsonify({"status": "success", "questions": questions}), 200
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
-
-
-@app.route("/api/admin/delete-question", methods=["POST"])
-def admin_delete_question():
-    if not _require_admin():
-        return jsonify({"status": "unauthorized", "message": "
+        class_grp = str(data.get("classGroup") or
