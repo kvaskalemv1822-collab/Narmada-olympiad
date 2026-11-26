@@ -130,6 +130,23 @@ function removeTermsNearLogout() {
   }
 }
 
+function getLocalCycleState(codeKey) {
+  if (!codeKey) return null;
+  try {
+    const raw = localStorage.getItem(`nvmso_org_cycle_${codeKey}`);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+function setLocalCycleState(codeKey, stateObj) {
+  if (!codeKey) return;
+  try {
+    localStorage.setItem(`nvmso_org_cycle_${codeKey}`, JSON.stringify(stateObj));
+  } catch {}
+}
+
 function mergeServerOrgProfile(serverOrg, fallbackCode) {
   const codeKey = String(serverOrg?.code || serverOrg?.orgCode || fallbackCode || getOrgCodeUpper())
     .trim()
@@ -582,28 +599,100 @@ window.togglePrincipalPermission = function (isChecked) {
     .catch(() => {});
 };
 
-function updateSettlementCardDisplay(netPayableToNvms, nvmsOwesOrganizer, isSettled) {
+function updateSettlementCardDisplay(netPayableToNvms, refComm, isSettled) {
   const labelEl = document.getElementById("fin-settlement-label");
   const amountEl = document.getElementById("fin-settlement-amount");
   if (!labelEl || !amountEl) return;
 
-  if (isSettled) {
-    labelEl.textContent = "Pay to NVMS / Payout";
-    amountEl.textContent = "₹0 (Settled)";
-    amountEl.style.color = "#4ade80";
-  } else if (netPayableToNvms > 0) {
+  if (netPayableToNvms > 0) {
     labelEl.textContent = "Pay to NVMS";
     amountEl.textContent = `₹${netPayableToNvms}`;
     amountEl.style.color = "#f87171";
-  } else if (nvmsOwesOrganizer > 0) {
-    labelEl.textContent = "Payout Amount";
-    amountEl.textContent = `₹${nvmsOwesOrganizer}`;
+  } else if (refComm > 0) {
+    labelEl.textContent = "Referral Settlement";
+    amountEl.textContent = `₹${refComm}`;
+    amountEl.style.color = "#4ade80";
+  } else if (isSettled) {
+    labelEl.textContent = "Settlement Status";
+    amountEl.textContent = "₹0 (Settled)";
     amountEl.style.color = "#4ade80";
   } else {
-    labelEl.textContent = "Pay to NVMS / Payout";
+    labelEl.textContent = "Settlement Status";
     amountEl.textContent = "₹0";
     amountEl.style.color = "#facc15";
   }
+}
+
+function normalizeFinancialsForDisplay(rawFin, backendSettled, codeKey) {
+  let cashHeld = Math.max(0, Number(rawFin.cashHeld) || 0);
+  let onlineCollected = Math.max(0, Number(rawFin.onlineCollected) || 0);
+  let directComm = Math.max(0, Number(rawFin.directCommission) || 0);
+  let refComm = Math.max(0, Number(rawFin.referralCommission) || 0);
+
+  const localCycle = getLocalCycleState(codeKey);
+  const hasServerSettlementBaseline =
+    rawFin.settledCashBase !== undefined ||
+    rawFin.settledOnlineBase !== undefined ||
+    rawFin.settledDirectCommBase !== undefined;
+
+  if (backendSettled && !hasServerSettlementBaseline) {
+    if (!localCycle || !localCycle.settled) {
+      setLocalCycleState(codeKey, {
+        settled: true,
+        settledCash: cashHeld,
+        settledOnline: onlineCollected,
+        settledDirectComm: directComm,
+        settledRefComm: 0
+      });
+      cashHeld = 0;
+      onlineCollected = 0;
+      directComm = 0;
+    } else {
+      cashHeld = Math.max(0, cashHeld - (Number(localCycle.settledCash) || 0));
+      onlineCollected = Math.max(0, onlineCollected - (Number(localCycle.settledOnline) || 0));
+      directComm = Math.max(0, directComm - (Number(localCycle.settledDirectComm) || 0));
+    }
+  } else if (!backendSettled && localCycle?.settled) {
+    const deltaCash = Math.max(0, cashHeld - (Number(localCycle.settledCash) || 0));
+    const deltaOnline = Math.max(0, onlineCollected - (Number(localCycle.settledOnline) || 0));
+    const deltaDirect = Math.max(0, directComm - (Number(localCycle.settledDirectComm) || 0));
+
+    if (deltaCash === 0 && deltaOnline === 0 && deltaDirect === 0) {
+      cashHeld = 0;
+      onlineCollected = 0;
+      directComm = 0;
+    } else {
+      setLocalCycleState(codeKey, {
+        ...(localCycle || {}),
+        settled: false
+      });
+      cashHeld = deltaCash;
+      onlineCollected = deltaOnline;
+      directComm = deltaDirect;
+    }
+  }
+
+  if (rawFin.settledRefCommBase === undefined && localCycle?.settledRefComm > 0) {
+    refComm = Math.max(0, refComm - (Number(localCycle.settledRefComm) || 0));
+  }
+
+  // Referral commission is settled separately via referral payout and never adjusted from cash collection
+  const netPayableToNvms = Math.max(0, cashHeld - directComm);
+  const isSettled =
+    (backendSettled || !!localCycle?.settled) &&
+    cashHeld === 0 &&
+    onlineCollected === 0 &&
+    directComm === 0;
+
+  return {
+    approvedRegistrations: Number(rawFin.approvedRegistrations) || 0,
+    cashHeld,
+    onlineCollected,
+    directComm,
+    refComm,
+    netPayableToNvms,
+    isSettled
+  };
 }
 
 function fetchRegisteredStudentsList() {
@@ -639,24 +728,18 @@ function fetchRegisteredStudentsList() {
       const studentsList = Array.isArray(data.students) ? data.students : [];
 
       if (data.financials) {
-        const cashHeld = Number(data.financials.cashHeld) || 0;
-        const onlineCollected = Number(data.financials.onlineCollected) || 0;
-        const directComm = Number(data.financials.directCommission) || 0;
-        const refComm = Number(data.financials.referralCommission) || 0;
-        const netPayableToNvms = Number(data.financials.netPayableToNvms) || 0;
-        const nvmsOwesOrganizer = Number(data.financials.nvmsOwesOrganizer) || 0;
         const adminUpi = data.adminUpiId || portalConfig.adminUpiId || "narmada@upi";
-        const isSettled = !!data.isSettled && netPayableToNvms === 0 && nvmsOwesOrganizer === 0;
+        const fin = normalizeFinancialsForDisplay(data.financials, !!data.isSettled, orgCodeKey);
 
         const totalRegsEl = document.getElementById("fin-total-regs");
-        if (totalRegsEl) totalRegsEl.textContent = Number(data.financials.approvedRegistrations) || 0;
-        document.getElementById("fin-cash-held").textContent = `₹${cashHeld}`;
-        document.getElementById("fin-online-collected").textContent = `₹${onlineCollected}`;
-        document.getElementById("fin-direct-comm").textContent = `₹${directComm}`;
-        document.getElementById("fin-ref-comm").textContent = `₹${refComm}`;
+        if (totalRegsEl) totalRegsEl.textContent = fin.approvedRegistrations;
+        document.getElementById("fin-cash-held").textContent = `₹${fin.cashHeld}`;
+        document.getElementById("fin-online-collected").textContent = `₹${fin.onlineCollected}`;
+        document.getElementById("fin-direct-comm").textContent = `₹${fin.directComm}`;
+        document.getElementById("fin-ref-comm").textContent = `₹${fin.refComm}`;
 
-        updateSettlementCardDisplay(netPayableToNvms, nvmsOwesOrganizer, isSettled);
-        renderDynamicFinancialAction(netPayableToNvms, nvmsOwesOrganizer, isSettled, adminUpi);
+        updateSettlementCardDisplay(fin.netPayableToNvms, fin.refComm, fin.isSettled);
+        renderDynamicFinancialAction(fin.netPayableToNvms, fin.refComm, fin.isSettled, adminUpi);
       }
 
       if (!studentsList.length) {
@@ -712,15 +795,13 @@ function fetchRegisteredStudentsList() {
     .catch(() => {});
 }
 
-function renderDynamicFinancialAction(netPayable, nvmsOwesOrg, isSettled, adminUpi) {
+function renderDynamicFinancialAction(netPayable, refComm, isSettled, adminUpi) {
   const actionContainer = document.getElementById("dynamic-financial-action-container");
   if (!actionContainer) return;
 
   const upiPayLink = `upi://pay?pa=${encodeURIComponent(adminUpi)}&pn=${encodeURIComponent("NVMSO Central Admin")}&am=${netPayable}&cu=INR`;
 
-  if (isSettled) {
-    actionContainer.innerHTML = `<p style="text-align: center; color: #4ade80; font-size: 13px; font-weight: bold; margin: 0;">✅ Account Settled & Verified by Central Admin! (Balance: ₹0)</p>`;
-  } else if (netPayable > 0) {
+  if (netPayable > 0) {
     const existingUtrVal = (document.getElementById("settlement-utr-input")?.value || "").trim();
     const existingAmtVal = Number(document.getElementById("settlement-amount-input")?.value) || netPayable;
     actionContainer.innerHTML = `
@@ -739,19 +820,24 @@ function renderDynamicFinancialAction(netPayable, nvmsOwesOrg, isSettled, adminU
         <button type="button" onclick="submitSettlementProof(${netPayable})" class="btn-primary" style="background: #0284c7; width: auto; cursor:pointer;">Submit UTR</button>
       </div>
     `;
-  } else if (nvmsOwesOrg > 0) {
+  } else if (refComm > 0) {
     const existingPayoutVal = (document.getElementById("payout-upi-input")?.value || "").trim();
     const resolvedPayoutUpi = existingPayoutVal || getSavedUpi(getOrgCodeUpper());
     actionContainer.innerHTML = `
       <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
-        <div><p style="font-size: 13px; color: #4ade80; font-weight: bold; margin: 0;">Payout Amount (NVMS Owes You):</p><h2 style="color: #4ade80; margin: 5px 0 0 0;">₹${nvmsOwesOrg}</h2></div>
+        <div>
+          <p style="font-size: 13px; color: #4ade80; font-weight: bold; margin: 0;">Referral Commission Settlement:</p>
+          <h2 style="color: #4ade80; margin: 5px 0 0 0;">₹${refComm}</h2>
+        </div>
       </div>
       <div style="border-top: 1px dashed #334155; padding-top: 10px; margin-top: 10px; display: flex; gap: 10px; flex-wrap: wrap;">
-        <input type="text" id="payout-upi-input" value="${escapeHtml(resolvedPayoutUpi)}" placeholder="Enter your UPI ID (e.g. user@paytm)" style="flex: 1; min-width: 200px;">
-        <input type="number" id="payout-amount-input" value="${nvmsOwesOrg}" style="width: 110px;">
-        <button type="button" onclick="requestCommissionPayout(${nvmsOwesOrg})" class="btn-primary" style="background: #f59e0b; width: auto; cursor:pointer;">📤 Request Payout</button>
+        <input type="text" id="payout-upi-input" value="${escapeHtml(resolvedPayoutUpi)}" placeholder="Enter UPI ID for Referral Settlement (e.g. user@paytm)" style="flex: 1; min-width: 200px;">
+        <input type="number" id="payout-amount-input" value="${refComm}" style="width: 110px;">
+        <button type="button" onclick="requestCommissionPayout(${refComm})" class="btn-primary" style="background: #f59e0b; width: auto; cursor:pointer;">📤 Request Referral Settlement</button>
       </div>
     `;
+  } else if (isSettled) {
+    actionContainer.innerHTML = `<p style="text-align: center; color: #4ade80; font-size: 13px; font-weight: bold; margin: 0;">✅ Account Settled & Verified by Central Admin! (Balance: ₹0)</p>`;
   } else {
     actionContainer.innerHTML = `<p style="text-align: center; color: #4ade80; font-size: 13px; font-weight: bold; margin: 0;">✅ All accounts fully settled! (Balance: ₹0)</p>`;
   }
@@ -880,7 +966,7 @@ window.requestCommissionPayout = function (maxAmount) {
     .then(data => {
       if (!data) return;
       if (data && data.status === "success") {
-        alert(`✅ Commission payout request (₹${amountVal}) sent to Central Admin on UPI: ${upiId}`);
+        alert(`✅ Referral settlement request (₹${amountVal}) sent to Central Admin on UPI: ${upiId}`);
         fetchRegisteredStudentsList();
       } else {
         alert("❌ Error: " + (data?.message || "Failed to request payout"));
