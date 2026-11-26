@@ -1,7 +1,4 @@
-const SERVER_URL = "https://nvmso-backend.onrender.com";
-const ADMIN_TOKEN_KEY = "nvmso_admin_token";
-
-let adminToken = sessionStorage.getItem(ADMIN_TOKEN_KEY) || "";
+Const SERVER_URL = "https://nvmso-backend.onrender.com";
 let allStudentsCache = [];
 let allOrganizersCache = [];
 let pendingSettlementsCache = [];
@@ -20,20 +17,6 @@ function escapeHtml(str) {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
-}
-
-function getAdminHeaders(includeJson = true) {
-  const headers = {};
-  if (includeJson) headers["Content-Type"] = "application/json";
-  if (adminToken) headers["Authorization"] = `Bearer ${adminToken}`;
-  return headers;
-}
-
-function getStudentExamMode(student) {
-  const orgCodeUpper = String(student?.orgCode || "").trim().toUpperCase();
-  const orgObj =
-    allOrganizersCache.find(o => String(o.code || o.orgCode || "").trim().toUpperCase() === orgCodeUpper) || {};
-  return String(orgObj.examMode || student?.examMode || "online").trim().toLowerCase();
 }
 
 function getConfiguredTotalQuestions(student) {
@@ -78,16 +61,12 @@ function getOrganizerPayoutUpi(org) {
 document.addEventListener("DOMContentLoaded", () => {
   startLiveClockTracker();
 
-  if (sessionStorage.getItem("nvmso_admin_logged") === "true" && adminToken) {
+  if (sessionStorage.getItem("nvmso_admin_logged") === "true") {
     const loginScreen = document.getElementById("admin-login-screen");
     const mainContainer = document.getElementById("admin-main-container");
     if (loginScreen) loginScreen.classList.add("hidden");
     if (mainContainer) mainContainer.classList.remove("hidden");
     initializeCentralPanelData();
-  } else {
-    sessionStorage.removeItem("nvmso_admin_logged");
-    sessionStorage.removeItem(ADMIN_TOKEN_KEY);
-    adminToken = "";
   }
 });
 
@@ -130,24 +109,17 @@ window.verifyAdminPassword = async () => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ password: passInput })
     });
-    const data = await res.json().catch(() => ({}));
 
-    if (res.status === 200 && data && data.status === "success" && data.token) {
-      adminToken = data.token;
-      sessionStorage.setItem(ADMIN_TOKEN_KEY, adminToken);
+    if (res.status === 200) {
       sessionStorage.setItem("nvmso_admin_logged", "true");
       triggerGrandWelcome();
       initializeCentralPanelData();
-    } else if (res.status === 401 || data?.status === "unauthorized") {
-      throw new Error("Wrong password");
-    } else if (res.status === 429 || data?.status === "rate_limited") {
-      throw new Error("Too many wrong attempts. Try again later.");
     } else {
-      throw new Error(data?.message || "Master Password Verification Failed");
+      throw new Error("Master Password Verification Failed");
     }
   } catch (err) {
     if (alertBox) {
-      alertBox.textContent = `🚨 Security Alert: ${err?.message || "Master Password Verification Failed!"}`;
+      alertBox.textContent = "🚨 Security Alert: Master Password Verification Failed!";
       alertBox.style.display = "block";
     }
     if (submitBtn) {
@@ -200,8 +172,6 @@ function triggerGrandWelcome() {
 }
 
 function initializeCentralPanelData() {
-  if (!adminToken) return;
-
   fetch(`${SERVER_URL}/api/portal/config`)
     .then(res => res.json())
     .then(data => {
@@ -242,7 +212,7 @@ function initializeCentralPanelData() {
         // 🔄 AUTO-REFRESH LIVE SYNC (8s poll)
         if (!autoRefreshTimer) {
           autoRefreshTimer = setInterval(() => {
-            if (adminToken) fetchAllCentralData();
+            fetchAllCentralData();
           }, 8000);
         }
       }
@@ -278,11 +248,6 @@ function setupSmartSwitchesExclusiveRule() {
 }
 
 window.saveGlobalConfig = async () => {
-  if (!adminToken) {
-    alert("⚠️ Admin session expired. Please authenticate again.");
-    return;
-  }
-
   const adminUpiEl = document.getElementById("cfg-admin-upi");
   const totalQuestionsVal = Number(document.getElementById("cfg-total-questions")?.value) || 30;
   const examDurationVal = Number(document.getElementById("cfg-exam-duration")?.value) || 30;
@@ -303,18 +268,11 @@ window.saveGlobalConfig = async () => {
 
   fetch(`${SERVER_URL}/api/admin/update_config`, {
     method: "POST",
-    headers: getAdminHeaders(true),
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload)
   })
-    .then(async res => {
-      if (res.status === 401) {
-        window.logoutAdminSession();
-        return null;
-      }
-      return res.json();
-    })
+    .then(res => res.json())
     .then(data => {
-      if (!data) return;
       if (data && data.status === "success") {
         centralPortalConfig = { ...centralPortalConfig, ...payload };
         alert("✅ Command Dispatched: Portal phases, question count, and paper time limit updated!");
@@ -328,33 +286,11 @@ window.saveGlobalConfig = async () => {
 };
 
 function fetchAllCentralData() {
-  if (!adminToken) return;
-
   Promise.all([
-    fetch(`${SERVER_URL}/api/admin/all_data`, {
-      method: "POST",
-      headers: getAdminHeaders(true),
-      body: JSON.stringify({})
-    }).then(res => {
-      if (res.status === 401) {
-        window.logoutAdminSession();
-        return null;
-      }
-      return res.json();
-    }),
-    fetch(`${SERVER_URL}/api/admin/financial_requests`, {
-      method: "GET",
-      headers: getAdminHeaders(false)
-    }).then(res => {
-      if (res.status === 401) {
-        window.logoutAdminSession();
-        return null;
-      }
-      return res.json();
-    })
+    fetch(`${SERVER_URL}/api/admin/all_data`, { method: "POST" }).then(res => res.json()),
+    fetch(`${SERVER_URL}/api/admin/financial_requests`).then(res => res.json())
   ])
     .then(([data1, data2]) => {
-      if (!data1 && !data2) return;
       if (data1 && data1.status === "success") {
         allOrganizersCache = Array.isArray(data1.organizers) ? data1.organizers : [];
         allStudentsCache = Array.isArray(data1.students) ? data1.students : [];
@@ -688,7 +624,14 @@ window.loadSchoolStudentLedger = function () {
   tbody.innerHTML = "";
 
   students.forEach(s => {
-    const orgExamMode = getStudentExamMode(s);
+    const orgCodeUpper = String(s.orgCode || "").trim().toUpperCase();
+    const orgObj =
+      allOrganizersCache.find(o => String(o.code || o.orgCode || "").trim().toUpperCase() === orgCodeUpper) || {};
+
+    // Manual score option appears only when the coordinator's exam mode is OFFLINE
+    const orgExamMode = String(orgObj.examMode || s.examMode || "online")
+      .trim()
+      .toLowerCase();
     const isOfflineExam = orgExamMode === "offline";
 
     const isApproved =
@@ -745,14 +688,8 @@ window.loadSchoolStudentLedger = function () {
   });
 };
 
-// 🛑 MANUAL SCORE ENTRY MODAL FUNCTIONS (OFFLINE EXAM MODE ONLY)
+// 🛑 MANUAL SCORE ENTRY MODAL FUNCTIONS
 window.openManualScoreModal = function (studentId, name, studentClass, maxMarks) {
-  const st = allStudentsCache.find(item => String(item.id) === String(studentId));
-  if (st && getStudentExamMode(st) !== "offline") {
-    alert("🔒 Manual score entry is allowed ONLY for OFFLINE exam mode students. Online scores are auto-fetched.");
-    return;
-  }
-
   const idEl = document.getElementById("modal-student-id");
   const infoEl = document.getElementById("modal-student-info");
   const scoreEl = document.getElementById("modal-score");
@@ -772,29 +709,18 @@ window.closeManualScoreModal = () => {
 };
 
 window.saveManualScore = function () {
-  if (!adminToken) {
-    alert("⚠️ Admin session expired. Please authenticate again.");
-    return;
-  }
-
   const studentId = document.getElementById("modal-student-id")?.value;
-  const st = allStudentsCache.find(item => String(item.id) === String(studentId));
-  if (st && getStudentExamMode(st) !== "offline") {
-    alert("🔒 Manual score entry is blocked for ONLINE exam mode students.");
-    return;
-  }
-
   const score = parseFloat(document.getElementById("modal-score")?.value);
   const total = parseFloat(document.getElementById("modal-total")?.value) || getConfiguredTotalQuestions();
 
-  if (isNaN(score) || score < 0 || score > total) {
-    alert(`⚠️ Please enter a valid score between 0 and ${total}.`);
+  if (isNaN(score)) {
+    alert("⚠️ Please enter a valid score.");
     return;
   }
 
   fetch(`${SERVER_URL}/api/admin/manual_score_entry`, {
     method: "POST",
-    headers: getAdminHeaders(true),
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       studentId: studentId,
       score: score,
@@ -802,15 +728,8 @@ window.saveManualScore = function () {
       totalQuestions: total
     })
   })
-    .then(async res => {
-      if (res.status === 401) {
-        window.logoutAdminSession();
-        return null;
-      }
-      return res.json();
-    })
+    .then(res => res.json())
     .then(data => {
-      if (!data) return;
       if (data && data.status === "success") {
         alert("✅ Offline student score saved successfully via Central Panel!");
         closeManualScoreModal();
@@ -823,23 +742,15 @@ window.saveManualScore = function () {
 };
 
 window.approveOnlinePayment = function (studentId) {
-  if (!adminToken) return;
   if (!confirm("Are you sure you want to approve this online payment UTR?")) return;
 
   fetch(`${SERVER_URL}/api/admin/approve_payment`, {
     method: "POST",
-    headers: getAdminHeaders(true),
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ studentId: studentId })
   })
-    .then(async res => {
-      if (res.status === 401) {
-        window.logoutAdminSession();
-        return null;
-      }
-      return res.json();
-    })
+    .then(res => res.json())
     .then(data => {
-      if (!data) return;
       if (data && data.status === "success") {
         alert("✅ Online payment approved successfully!");
         fetchAllCentralData();
@@ -851,7 +762,6 @@ window.approveOnlinePayment = function (studentId) {
 };
 
 window.rejectOnlinePayment = function (studentId) {
-  if (!adminToken) return;
   const reason = prompt(
     "Enter reason for rejecting this UTR (e.g., Fake UTR / Payment not received):",
     "Fake or Invalid UTR Number"
@@ -860,18 +770,11 @@ window.rejectOnlinePayment = function (studentId) {
 
   fetch(`${SERVER_URL}/api/admin/reject_payment`, {
     method: "POST",
-    headers: getAdminHeaders(true),
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ studentId: studentId, reason: reason })
   })
-    .then(async res => {
-      if (res.status === 401) {
-        window.logoutAdminSession();
-        return null;
-      }
-      return res.json();
-    })
+    .then(res => res.json())
     .then(data => {
-      if (!data) return;
       if (data && data.status === "success") {
         alert("❌ UTR rejected successfully!");
         fetchAllCentralData();
@@ -883,22 +786,14 @@ window.rejectOnlinePayment = function (studentId) {
 };
 
 window.triggerReExam = function (studentId) {
-  if (!adminToken) return;
   if (!confirm("Reset this student's exam status to allow Re-Exam?")) return;
   fetch(`${SERVER_URL}/api/admin/reexam`, {
     method: "POST",
-    headers: getAdminHeaders(true),
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ studentId: studentId })
   })
-    .then(async res => {
-      if (res.status === 401) {
-        window.logoutAdminSession();
-        return null;
-      }
-      return res.json();
-    })
+    .then(res => res.json())
     .then(d => {
-      if (!d) return;
       if (d && d.status === "success") {
         alert("✅ Re-Exam triggered successfully!");
         fetchAllCentralData();
@@ -910,22 +805,14 @@ window.triggerReExam = function (studentId) {
 };
 
 window.approveOrganizerSettlement = function (orgCode, reqId) {
-  if (!adminToken) return;
   if (!confirm(`Confirm settlement approval for ${orgCode}? This will reset their Net Payable balance to ₹0.`)) return;
   fetch(`${SERVER_URL}/api/admin/approve_settlement`, {
     method: "POST",
-    headers: getAdminHeaders(true),
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ orgCode: orgCode, requestId: reqId })
   })
-    .then(async res => {
-      if (res.status === 401) {
-        window.logoutAdminSession();
-        return null;
-      }
-      return res.json();
-    })
+    .then(res => res.json())
     .then(d => {
-      if (!d) return;
       if (d && d.status === "success") {
         alert("✅ Settlement Verified & Account Reset to ₹0 Payable!");
         fetchAllCentralData();
@@ -937,12 +824,6 @@ window.approveOrganizerSettlement = function (orgCode, reqId) {
 };
 
 window.logoutAdminSession = () => {
-  if (autoRefreshTimer) {
-    clearInterval(autoRefreshTimer);
-    autoRefreshTimer = null;
-  }
-  adminToken = "";
-  sessionStorage.removeItem(ADMIN_TOKEN_KEY);
   sessionStorage.removeItem("nvmso_admin_logged");
   location.reload();
 };
