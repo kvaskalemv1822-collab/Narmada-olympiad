@@ -319,7 +319,6 @@ window.printExamQuestionPaper = function () {
     if (overlayEl) overlayEl.style.display = "block";
   }
 
-  // Fallback preview modal for environments where window.print() is suppressed
   setTimeout(() => {
     if (overlayEl && !document.hidden) {
       overlayEl.style.display = "block";
