@@ -1,11 +1,10 @@
-const SERVER_URL = "https://nvmso-backend.onrender.com";
+Const SERVER_URL = "https://nvmso-backend.onrender.com";
 const ORG_TOKEN_KEY = "nvmso_org_token";
 
 let orgToken = sessionStorage.getItem(ORG_TOKEN_KEY) || "";
 let currentOrg = null;
 let portalConfig = {};
 let autoRefreshTimer = null;
-let payoutRequestInFlight = false;
 
 function escapeHtml(str) {
   return String(str ?? "")
@@ -144,26 +143,8 @@ function getLocalCycleState(codeKey) {
 function setLocalCycleState(codeKey, stateObj) {
   if (!codeKey) return;
   try {
-    const prev = getLocalCycleState(codeKey) || {};
-    const merged = {
-      ...prev,
-      ...stateObj,
-      settledRefComm: Math.max(
-        Math.floor(Number(prev.settledRefComm) || 0),
-        Math.floor(Number(stateObj.settledRefComm) || 0)
-      )
-    };
-    localStorage.setItem(`nvmso_org_cycle_${codeKey}`, JSON.stringify(merged));
+    localStorage.setItem(`nvmso_org_cycle_${codeKey}`, JSON.stringify(stateObj));
   } catch {}
-}
-
-function getSettledReferralBaseline(rawFin, codeKey) {
-  const localCycle = getLocalCycleState(codeKey);
-  const serverSettledBase = Math.floor(
-    Number(rawFin?.settledRefCommBase ?? rawFin?.referralPaidOut ?? currentOrg?.settledRefCommBase ?? 0) || 0
-  );
-  const localSettledBase = Math.floor(Number(localCycle?.settledRefComm || 0) || 0);
-  return Math.max(serverSettledBase, localSettledBase);
 }
 
 function mergeServerOrgProfile(serverOrg, fallbackCode) {
@@ -285,13 +266,8 @@ function fetchGlobalConfigAndNotice() {
 
         const noticeBanner = document.getElementById("admin-notice-banner");
         const noticeText = document.getElementById("notice-text");
-        const cleanNotice = String(portalConfig.broadcastNotice || "")
-          .replace(/^Broadcast Alert from Central Admin\s*:?\s*/i, "")
-          .replace(/^Broadcast Alert from NVMS\s*:?\s*/i, "")
-          .trim();
-
-        if (cleanNotice && noticeBanner && noticeText) {
-          noticeText.textContent = cleanNotice;
+        if (portalConfig.broadcastNotice && noticeBanner && noticeText) {
+          noticeText.textContent = portalConfig.broadcastNotice;
           noticeBanner.classList.remove("hidden");
         } else if (noticeBanner) {
           noticeBanner.classList.add("hidden");
@@ -633,7 +609,7 @@ function updateSettlementCardDisplay(netPayableToNvms, refComm, isSettled) {
     amountEl.textContent = `₹${netPayableToNvms}`;
     amountEl.style.color = "#f87171";
   } else if (refComm > 0) {
-    labelEl.textContent = "New Referral Due";
+    labelEl.textContent = "Referral Settlement";
     amountEl.textContent = `₹${refComm}`;
     amountEl.style.color = "#4ade80";
   } else if (isSettled) {
@@ -651,7 +627,7 @@ function normalizeFinancialsForDisplay(rawFin, backendSettled, codeKey) {
   let cashHeld = Math.max(0, Number(rawFin.cashHeld) || 0);
   let onlineCollected = Math.max(0, Number(rawFin.onlineCollected) || 0);
   let directComm = Math.max(0, Number(rawFin.directCommission) || 0);
-  const rawRefComm = Math.max(0, Number(rawFin.referralCommission) || 0);
+  let refComm = Math.max(0, Number(rawFin.referralCommission) || 0);
 
   const localCycle = getLocalCycleState(codeKey);
   const hasServerSettlementBaseline =
@@ -665,7 +641,8 @@ function normalizeFinancialsForDisplay(rawFin, backendSettled, codeKey) {
         settled: true,
         settledCash: cashHeld,
         settledOnline: onlineCollected,
-        settledDirectComm: directComm
+        settledDirectComm: directComm,
+        settledRefComm: 0
       });
       cashHeld = 0;
       onlineCollected = 0;
@@ -695,31 +672,23 @@ function normalizeFinancialsForDisplay(rawFin, backendSettled, codeKey) {
     }
   }
 
-  const settledRefBase = getSettledReferralBaseline(rawFin, codeKey);
-  if (settledRefBase > 0 && currentOrg) {
-    currentOrg.settledRefCommBase = Math.max(
-      Math.floor(Number(currentOrg.settledRefCommBase) || 0),
-      settledRefBase
-    );
+  if (rawFin.settledRefCommBase === undefined && localCycle?.settledRefComm > 0) {
+    refComm = Math.max(0, refComm - (Number(localCycle.settledRefComm) || 0));
   }
 
-  // Only new referral commission beyond settledRefBase is due for payout request
-  const refComm = Math.max(0, rawRefComm - settledRefBase);
+  // Referral commission is settled separately via referral payout and never adjusted from cash collection
   const netPayableToNvms = Math.max(0, cashHeld - directComm);
   const isSettled =
     (backendSettled || !!localCycle?.settled) &&
     cashHeld === 0 &&
     onlineCollected === 0 &&
-    directComm === 0 &&
-    refComm === 0;
+    directComm === 0;
 
   return {
     approvedRegistrations: Number(rawFin.approvedRegistrations) || 0,
     cashHeld,
     onlineCollected,
     directComm,
-    rawRefComm,
-    settledRefBase,
     refComm,
     netPayableToNvms,
     isSettled
@@ -770,14 +739,7 @@ function fetchRegisteredStudentsList() {
         document.getElementById("fin-ref-comm").textContent = `₹${fin.refComm}`;
 
         updateSettlementCardDisplay(fin.netPayableToNvms, fin.refComm, fin.isSettled);
-        renderDynamicFinancialAction(
-          fin.netPayableToNvms,
-          fin.refComm,
-          fin.isSettled,
-          adminUpi,
-          fin.rawRefComm,
-          fin.settledRefBase
-        );
+        renderDynamicFinancialAction(fin.netPayableToNvms, fin.refComm, fin.isSettled, adminUpi);
       }
 
       if (!studentsList.length) {
@@ -833,14 +795,7 @@ function fetchRegisteredStudentsList() {
     .catch(() => {});
 }
 
-function renderDynamicFinancialAction(
-  netPayable,
-  refComm,
-  isSettled,
-  adminUpi,
-  rawRefComm = 0,
-  settledRefBase = 0
-) {
+function renderDynamicFinancialAction(netPayable, refComm, isSettled, adminUpi) {
   const actionContainer = document.getElementById("dynamic-financial-action-container");
   if (!actionContainer) return;
 
@@ -868,27 +823,21 @@ function renderDynamicFinancialAction(
   } else if (refComm > 0) {
     const existingPayoutVal = (document.getElementById("payout-upi-input")?.value || "").trim();
     const resolvedPayoutUpi = existingPayoutVal || getSavedUpi(getOrgCodeUpper());
-    const paidInfoHtml =
-      settledRefBase > 0
-        ? `<small style="display:block; color:#94a3b8; margin-top:4px;">Already Settled Referral Base: ₹${settledRefBase} (Total Earned: ₹${rawRefComm}) — Only new ₹${refComm} is eligible.</small>`
-        : "";
-
     actionContainer.innerHTML = `
       <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
         <div>
-          <p style="font-size: 13px; color: #4ade80; font-weight: bold; margin: 0;">New Referral Commission Available for Payout:</p>
+          <p style="font-size: 13px; color: #4ade80; font-weight: bold; margin: 0;">Referral Commission Settlement:</p>
           <h2 style="color: #4ade80; margin: 5px 0 0 0;">₹${refComm}</h2>
-          ${paidInfoHtml}
         </div>
       </div>
       <div style="border-top: 1px dashed #334155; padding-top: 10px; margin-top: 10px; display: flex; gap: 10px; flex-wrap: wrap;">
         <input type="text" id="payout-upi-input" value="${escapeHtml(resolvedPayoutUpi)}" placeholder="Enter UPI ID for Referral Settlement (e.g. user@paytm)" style="flex: 1; min-width: 200px;">
-        <input type="number" id="payout-amount-input" value="${refComm}" max="${refComm}" min="1" style="width: 110px;">
-        <button id="btn-request-ref-payout" type="button" onclick="requestCommissionPayout(${refComm}, ${rawRefComm}, ${settledRefBase})" class="btn-primary" style="background: #f59e0b; color:#020617; width: auto; cursor:pointer;">📤 Request Referral Settlement (₹${refComm})</button>
+        <input type="number" id="payout-amount-input" value="${refComm}" style="width: 110px;">
+        <button type="button" onclick="requestCommissionPayout(${refComm})" class="btn-primary" style="background: #f59e0b; width: auto; cursor:pointer;">📤 Request Referral Settlement</button>
       </div>
     `;
-  } else if (settledRefBase > 0 || isSettled) {
-    actionContainer.innerHTML = `<p style="text-align: center; color: #4ade80; font-size: 13px; font-weight: bold; margin: 0;">✅ Referral &amp; Settlement Cycle Complete! Current Due: ₹0 (New payout request unlocks automatically when new referrals generate fresh commission)</p>`;
+  } else if (isSettled) {
+    actionContainer.innerHTML = `<p style="text-align: center; color: #4ade80; font-size: 13px; font-weight: bold; margin: 0;">✅ Account Settled & Verified by Central Admin! (Balance: ₹0)</p>`;
   } else {
     actionContainer.innerHTML = `<p style="text-align: center; color: #4ade80; font-size: 13px; font-weight: bold; margin: 0;">✅ All accounts fully settled! (Balance: ₹0)</p>`;
   }
@@ -969,24 +918,15 @@ window.submitSettlementProof = function (defaultAmount) {
     .catch(() => alert("❌ Network error while submitting settlement."));
 };
 
-window.requestCommissionPayout = function (maxNewDue, rawRefComm = 0, settledRefBase = 0) {
-  if (payoutRequestInFlight) return;
+window.requestCommissionPayout = function (maxAmount) {
   if (!orgToken) {
     alert("🔒 Valid coordinator session required! Please login again.");
     return;
   }
-
   const orgCodeKey = getOrgCodeUpper();
-  const eligibleDue = Math.max(0, Math.floor(Number(maxNewDue) || 0));
-  if (eligibleDue <= 0) {
-    alert("⚠️ Koi naya referral commission due nahi hai (₹0). Naye referrals aane par hi nayi payout request bheji ja sakegi.");
-    return;
-  }
-
   const payoutInput = document.getElementById("payout-upi-input");
   const upiId = (payoutInput?.value || getSavedUpi(orgCodeKey) || "").trim();
-  const rawReqVal = Math.floor(Number(document.getElementById("payout-amount-input")?.value) || eligibleDue);
-  const amountVal = Math.min(eligibleDue, rawReqVal);
+  const amountVal = Number(document.getElementById("payout-amount-input")?.value) || Number(maxAmount) || 0;
 
   if (!upiId || !upiId.includes("@")) {
     alert("⚠️ Pehle apna valid UPI ID (e.g. name@upi) daal kar Save UPI karein ya Payout box mein bharein.");
@@ -1004,42 +944,17 @@ window.requestCommissionPayout = function (maxNewDue, rawRefComm = 0, settledRef
     return;
   }
 
-  const newSettledBase = Math.max(
-    Math.floor(Number(settledRefBase) || 0),
-    Math.floor(Number(rawRefComm) || 0)
-  );
-
-  payoutRequestInFlight = true;
-  const reqBtn = document.getElementById("btn-request-ref-payout");
-  if (reqBtn) reqBtn.disabled = true;
-
   localStorage.setItem(`nvmso_org_upi_${orgCodeKey}`, upiId);
   if (currentOrg) {
     currentOrg.upiId = upiId;
     currentOrg.payoutUpi = upiId;
-    if (newSettledBase > 0) {
-      currentOrg.settledRefCommBase = Math.max(
-        Math.floor(Number(currentOrg.settledRefCommBase) || 0),
-        newSettledBase
-      );
-    }
   }
   syncUpiInputs(upiId);
-
-  if (newSettledBase > 0) {
-    setLocalCycleState(orgCodeKey, { settledRefComm: newSettledBase });
-  }
 
   fetch(`${SERVER_URL}/api/organizer/request_payout`, {
     method: "POST",
     headers: getOrgHeaders(true),
-    body: JSON.stringify({
-      orgCode: orgCodeKey,
-      upiId: upiId,
-      payoutUpi: upiId,
-      amount: amountVal,
-      settledRefCommBase: newSettledBase
-    })
+    body: JSON.stringify({ orgCode: orgCodeKey, upiId: upiId, payoutUpi: upiId, amount: amountVal })
   })
     .then(async res => {
       if (res.status === 401) {
@@ -1055,17 +970,9 @@ window.requestCommissionPayout = function (maxNewDue, rawRefComm = 0, settledRef
         fetchRegisteredStudentsList();
       } else {
         alert("❌ Error: " + (data?.message || "Failed to request payout"));
-        fetchRegisteredStudentsList();
       }
     })
-    .catch(() => {
-      alert("❌ Network error while requesting payout.");
-    })
-    .finally(() => {
-      payoutRequestInFlight = false;
-      const btn = document.getElementById("btn-request-ref-payout");
-      if (btn) btn.disabled = false;
-    });
+    .catch(() => alert("❌ Network error while requesting payout."));
 };
 
 function checkResultAndRankingStatus() {
@@ -1105,31 +1012,9 @@ function checkResultAndRankingStatus() {
 
 window.toggleOrganizerChatBox = function () {
   const chatArea = document.getElementById("organizer-chat-collapsible-area");
-  const iconEl = document.getElementById("chat-toggle-icon");
   if (!chatArea) return;
   chatArea.classList.toggle("hidden");
-  const isOpen = !chatArea.classList.contains("hidden");
-  if (iconEl) iconEl.textContent = isOpen ? "▲ Close Chat" : "▼ Open Chat";
-  if (isOpen) fetchOrganizerChatMessages();
-};
-
-window.openOrganizerChatFromHeader = function () {
-  const chatArea = document.getElementById("organizer-chat-collapsible-area");
-  const iconEl = document.getElementById("chat-toggle-icon");
-  const chatSection = document.getElementById("organizer-support-chat-section");
-  const chatInput = document.getElementById("organizer-chat-input");
-
-  if (chatArea && chatArea.classList.contains("hidden")) {
-    chatArea.classList.remove("hidden");
-    if (iconEl) iconEl.textContent = "▲ Close Chat";
-  }
-  fetchOrganizerChatMessages();
-  if (chatSection) {
-    chatSection.scrollIntoView({ behavior: "smooth", block: "start" });
-  }
-  if (chatInput) {
-    setTimeout(() => chatInput.focus(), 250);
-  }
+  if (!chatArea.classList.contains("hidden")) fetchOrganizerChatMessages();
 };
 
 function fetchOrganizerChatMessages() {
