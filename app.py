@@ -1,4 +1,4 @@
-import os
+Import os
 import json
 import hmac
 import time
@@ -293,7 +293,6 @@ def _sanitize_org_profile(org_code: str, od: dict) -> dict:
     clean["upiId"] = upi_val
     clean["payoutUpi"] = upi_val
     clean["principalApproved"] = bool(clean.get("principalApproved", False))
-    clean["settledRefCommBase"] = int(clean.get("settledRefCommBase", 0) or 0)
     return clean
 
 
@@ -354,20 +353,6 @@ def _compute_org_ledger_totals(org_code: str, org_raw: dict, students: list, g_c
     }
 
 
-def _get_org_students_list(org_code: str) -> list:
-    students = []
-    seen = set()
-    for f in ["orgCode", "schoolCode"]:
-        for doc in db.collection("students").where(f, "==", org_code).stream():
-            if doc.id not in seen:
-                seen.add(doc.id)
-                sd = doc.to_dict()
-                sd.pop("submittedAnswers", None)
-                sd["id"] = doc.id
-                students.append(sd)
-    return students
-
-
 # ==========================================================================
 # 1. ADMIN AUTHENTICATION ENGINE
 # ==========================================================================
@@ -418,9 +403,6 @@ def get_global_config():
                 config["totalQuestions"] = int(config.get("questionCount", 30) or 30)
             if "examDurationMinutes" not in config:
                 config["examDurationMinutes"] = int(config.get("paperTimeLimit", 30) or 30)
-            raw_notice = str(config.get("broadcastNotice", "") or "").strip()
-            if raw_notice:
-                config["broadcastNotice"] = raw_notice.replace("Broadcast Alert from Central Admin", "Broadcast Alert from NVMS")
             return jsonify({"status": "success", "config": config}), 200
         return jsonify({"status": "error", "message": "Config mapping trace missing!"}), 404
     except Exception as e:
@@ -452,7 +434,6 @@ def update_master_portal_settings():
         offline_fee = max(0, int(data.get("offlineFee", 120)))
         total_questions = max(1, min(300, int(data.get("totalQuestions", data.get("questionCount", 30)) or 30)))
         exam_duration = max(1, min(360, int(data.get("examDurationMinutes", data.get("paperTimeLimit", 30)) or 30)))
-        notice_val = str(data.get("broadcastNotice", "")).strip().replace("Broadcast Alert from Central Admin", "Broadcast Alert from NVMS")
 
         update_payload = {
             "onlineFee": online_fee,
@@ -465,7 +446,7 @@ def update_master_portal_settings():
             "isRegistrationOpen": is_reg,
             "isExamActive": is_exam,
             "isResultDeclared": is_result,
-            "broadcastNotice": notice_val,
+            "broadcastNotice": str(data.get("broadcastNotice", "")).strip(),
         }
 
         db.collection("settings").document("portal_config").set(update_payload, merge=True)
@@ -942,7 +923,14 @@ def admin_approve_settlement():
             cfg_doc = db.collection("settings").document("portal_config").get()
             g_cfg = cfg_doc.to_dict() if cfg_doc.exists else {}
 
-            students = _get_org_students_list(org_code)
+            students = []
+            seen = set()
+            for f in ["orgCode", "schoolCode"]:
+                for doc in db.collection("students").where(f, "==", org_code).stream():
+                    if doc.id not in seen:
+                        seen.add(doc.id)
+                        students.append(doc.to_dict())
+
             totals = _compute_org_ledger_totals(org_code, org_raw, students, g_cfg)
 
             org_ref.set({
@@ -970,31 +958,30 @@ def admin_complete_payout():
         _ensure_db()
         data = request.json or {}
         payout_id = str(data.get("payoutId") or "").strip()
-        org_code = str(data.get("orgCode") or "").strip().upper()
-        explicit_base = int(data.get("settledRefCommBase", 0) or 0)
-
         if payout_id:
             payout_ref = db.collection("payouts").document(payout_id)
             payout_doc = payout_ref.get()
             payout_ref.update({"status": "completed"})
-            if payout_doc.exists and not org_code:
+            if payout_doc.exists:
                 p_data = payout_doc.to_dict()
                 org_code = str(p_data.get("orgCode") or "").strip().upper()
-
-        if org_code:
-            org_ref = db.collection("organizers").document(org_code)
-            org_raw = org_ref.get().to_dict() or {}
-            cfg_doc = db.collection("settings").document("portal_config").get()
-            g_cfg = cfg_doc.to_dict() if cfg_doc.exists else {}
-            students = _get_org_students_list(org_code)
-            totals = _compute_org_ledger_totals(org_code, org_raw, students, g_cfg)
-            prev_base = int(org_raw.get("settledRefCommBase", 0) or 0)
-            new_base = max(prev_base, totals["total_ref_comm"], explicit_base)
-            org_ref.set({
-                "settledRefCommBase": new_base,
-                "payoutSettledAt": firestore.SERVER_TIMESTAMP,
-            }, merge=True)
-
+                if org_code:
+                    org_ref = db.collection("organizers").document(org_code)
+                    org_raw = org_ref.get().to_dict() or {}
+                    cfg_doc = db.collection("settings").document("portal_config").get()
+                    g_cfg = cfg_doc.to_dict() if cfg_doc.exists else {}
+                    students = []
+                    seen = set()
+                    for f in ["orgCode", "schoolCode"]:
+                        for s_doc in db.collection("students").where(f, "==", org_code).stream():
+                            if s_doc.id not in seen:
+                                seen.add(s_doc.id)
+                                students.append(s_doc.to_dict())
+                    totals = _compute_org_ledger_totals(org_code, org_raw, students, g_cfg)
+                    org_ref.set({
+                        "settledRefCommBase": totals["total_ref_comm"],
+                        "payoutSettledAt": firestore.SERVER_TIMESTAMP,
+                    }, merge=True)
         return jsonify({"status": "success", "message": "Payout completed"}), 200
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
@@ -1191,7 +1178,17 @@ def organizer_get_students():
         if not org_code:
             return jsonify({"status": "unauthorized", "message": "🔒 Valid coordinator session required!"}), 401
 
-        students = _get_org_students_list(org_code)
+        students = []
+        seen = set()
+        for f in ["orgCode", "schoolCode"]:
+            for doc in db.collection("students").where(f, "==", org_code).stream():
+                if doc.id not in seen:
+                    seen.add(doc.id)
+                    sd = doc.to_dict()
+                    sd.pop("submittedAnswers", None)
+                    sd["id"] = doc.id
+                    students.append(sd)
+
         org_doc = db.collection("organizers").document(org_code).get()
         org_raw = org_doc.to_dict() if org_doc.exists else {}
         org_clean = _sanitize_org_profile(org_code, org_raw)
@@ -1233,7 +1230,6 @@ def organizer_get_students():
                 "totalCommission": active_total_comm,
                 "directCommission": active_direct_comm,
                 "referralCommission": active_ref_comm,
-                "settledRefCommBase": settled_ref_base,
                 "netPayableToNvms": net_payable_to_nvms,
                 "nvmsOwesOrganizer": nvms_owes_organizer,
             },
@@ -1314,47 +1310,19 @@ def organizer_request_payout():
             return jsonify({"status": "unauthorized", "message": "🔒 Valid coordinator session required!"}), 401
 
         upi_id = str(data.get("upiId") or data.get("payoutUpi") or "").strip()
-        amount = int(float(data.get("amount") or 0))
+        amount = float(data.get("amount") or 0)
         if "@" not in upi_id or amount <= 0:
             return jsonify({"status": "error", "message": "Valid UPI ID and amount required"}), 400
 
-        pending_existing = list(
-            db.collection("payouts")
-            .where("orgCode", "==", org_code)
-            .where("status", "==", "pending")
-            .limit(1)
-            .stream()
-        )
-        if pending_existing:
-            return jsonify({"status": "error", "message": "A referral payout request is already pending approval!"}), 409
-
-        org_ref = db.collection("organizers").document(org_code)
-        org_raw = org_ref.get().to_dict() or {}
-        cfg_doc = db.collection("settings").document("portal_config").get()
-        g_cfg = cfg_doc.to_dict() if cfg_doc.exists else {}
-        students = _get_org_students_list(org_code)
-        totals = _compute_org_ledger_totals(org_code, org_raw, students, g_cfg)
-
-        settled_ref_base = int(org_raw.get("settledRefCommBase", 0) or 0)
-        available_new_ref_due = max(0, int(totals["total_ref_comm"]) - settled_ref_base)
-
-        if available_new_ref_due <= 0 or amount > available_new_ref_due:
-            return jsonify({
-                "status": "error",
-                "message": f"No new referral commission due (Available: ₹{available_new_ref_due})."
-            }), 400
-
-        org_ref.set({
+        db.collection("organizers").document(org_code).set({
             "upiId": upi_id,
             "payoutUpi": upi_id,
-            "settledRefCommBase": max(settled_ref_base, int(totals["total_ref_comm"])),
         }, merge=True)
 
         db.collection("payouts").document().set({
             "orgCode": org_code,
             "upiId": upi_id,
             "amount": amount,
-            "settledRefCommBase": max(settled_ref_base, int(totals["total_ref_comm"])),
             "status": "pending",
             "timestamp": firestore.SERVER_TIMESTAMP,
         })
@@ -1457,12 +1425,12 @@ def organizer_send_query():
         return jsonify({"status": "error", "message": str(e)}), 500
 
 
-@app.route("/api/organizer/query_messages", methods=["GET", "POST"])
+@app.route("/api/organizer/query_messages", methods=["POST"])
 def organizer_get_query_messages():
     try:
         _ensure_db()
-        data = request.json if request.method == "POST" and request.is_json else {}
-        req_org = str((data or {}).get("orgCode") or request.args.get("orgCode") or "").strip().upper()
+        data = request.json or {}
+        req_org = str(data.get("orgCode") or "").strip().upper()
         org_code = _require_organizer(req_org)
         if not org_code:
             return jsonify({"status": "unauthorized", "message": "🔒 Valid coordinator session required!"}), 401
