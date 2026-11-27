@@ -26,6 +26,14 @@ function escapeHtml(str) {
     .replace(/'/g, "&#39;");
 }
 
+function escapeJsSingle(str) {
+  return String(str ?? "")
+    .replace(/\\/g, "\\\\")
+    .replace(/'/g, "\\'")
+    .replace(/"/g, "&quot;")
+    .replace(/\n/g, " ");
+}
+
 function getLocalRefSettledMap() {
   try {
     const raw = localStorage.getItem(REF_SETTLED_STORAGE_KEY);
@@ -189,7 +197,6 @@ function computeOrganizerMetrics(org, onlineFeeConfig, offlineFeeConfig) {
   const netCashToPortal = Math.max(0, cashGross - directComm);
   const netCashSettledToPortal = isSettled ? Math.max(0, rawCashGross - rawDirectComm) : 0;
 
-  // Net profit received by NVMSO = verified online collection + net cash settled to NVMSO - referral paid out
   const nvmsNetProfit = Math.max(0, rawOnlineGross + netCashSettledToPortal - refCommPaidTotal);
 
   return {
@@ -383,9 +390,8 @@ function initializeCentralPanelData() {
           autoRefreshTimer = setInterval(() => {
             if (adminToken) {
               fetchAllCentralData();
-              fetchAdminSupportTickets();
             }
-          }, 8000);
+          }, 25000);
         }
       }
     })
@@ -397,7 +403,11 @@ function setupSmartSwitchesExclusiveRule() {
   const examChk = document.getElementById("cfg-exam-active");
   const resultChk = document.getElementById("cfg-result-allowed");
 
-  if (regChk && examChk && resultChk) {
+  if (regChk && examChk && resultChk && regChk.dataset.bound !== "1") {
+    regChk.dataset.bound = "1";
+    examChk.dataset.bound = "1";
+    resultChk.dataset.bound = "1";
+
     regChk.addEventListener("change", () => {
       if (regChk.checked) {
         examChk.checked = false;
@@ -555,22 +565,22 @@ function renderMergedOrganizersTable() {
     const actionButtons = [];
     if (sett) {
       actionButtons.push(
-        `<button type="button" onclick="approveOrganizerSettlement('${escapeHtml(code)}', '${escapeHtml(sett.id)}')" style="background:#10b981; color:#fff; border:none; padding:4px 8px; font-size:10px; border-radius:4px; font-weight:bold; cursor:pointer; margin-bottom:3px;">Verify UTR</button>`
+        `<button type="button" onclick="approveOrganizerSettlement('${escapeJsSingle(code)}', '${escapeJsSingle(sett.id)}')" style="background:#10b981; color:#fff; border:none; padding:4px 8px; font-size:10px; border-radius:4px; font-weight:bold; cursor:pointer; margin-bottom:3px;">Verify UTR</button>`
       );
     } else if (m.netCashToPortal > 0) {
       actionButtons.push(
-        `<button type="button" onclick="approveOrganizerSettlement('${escapeHtml(code)}', '')" style="background:#0284c7; color:#fff; border:none; padding:4px 8px; font-size:10px; border-radius:4px; font-weight:bold; cursor:pointer; margin-bottom:3px;">Mark Settled</button>`
+        `<button type="button" onclick="approveOrganizerSettlement('${escapeJsSingle(code)}', '')" style="background:#0284c7; color:#fff; border:none; padding:4px 8px; font-size:10px; border-radius:4px; font-weight:bold; cursor:pointer; margin-bottom:3px;">Mark Settled</button>`
       );
     }
 
     if (m.refComm > 0) {
       actionButtons.push(
-        `<button type="button" onclick="completeOrganizerPayout('${escapeHtml(payoutReq?.id || "")}', '${escapeHtml(code)}', ${m.rawRefComm})" style="background:#f59e0b; color:#020617; border:none; padding:4px 8px; font-size:10px; border-radius:4px; font-weight:bold; cursor:pointer; margin-bottom:3px;">Pay Referral (₹${m.refComm})</button>`
+        `<button type="button" onclick="completeOrganizerPayout('${escapeJsSingle(payoutReq?.id || "")}', '${escapeJsSingle(code)}', ${m.rawRefComm})" style="background:#f59e0b; color:#020617; border:none; padding:4px 8px; font-size:10px; border-radius:4px; font-weight:bold; cursor:pointer; margin-bottom:3px;">Pay Referral (₹${m.refComm})</button>`
       );
     }
 
     actionButtons.push(
-      `<button type="button" onclick="openOrganizerChat('${escapeHtml(code)}')" style="background:#7e22ce; color:#fff; border:none; padding:4px 8px; font-size:10px; border-radius:4px; font-weight:bold; cursor:pointer;">💬 Chat</button>`
+      `<button type="button" onclick="openOrganizerChat('${escapeJsSingle(code)}')" style="background:#7e22ce; color:#fff; border:none; padding:4px 8px; font-size:10px; border-radius:4px; font-weight:bold; cursor:pointer;">💬 Chat</button>`
     );
 
     const actionCell = actionButtons.join("<br>");
@@ -1115,15 +1125,15 @@ window.loadSchoolStudentLedger = function () {
 
     let actionButtons = "";
     if (isOfflineExam) {
-      actionButtons += `<button type="button" onclick="openManualScoreModal('${escapeHtml(s.id)}', '${escapeHtml(s.studentName)}', '${escapeHtml(s.studentClass)}', ${maxQ})" style="background:#f59e0b; color:#fff; border:none; padding:4px 8px; font-size:10px; border-radius:4px; font-weight:bold; cursor:pointer; margin-right:4px;">✍️ Manual Score</button>`;
+      actionButtons += `<button type="button" onclick="openManualScoreModal('${escapeJsSingle(s.id)}', '${escapeJsSingle(s.studentName)}', '${escapeJsSingle(s.studentClass)}', ${maxQ})" style="background:#f59e0b; color:#fff; border:none; padding:4px 8px; font-size:10px; border-radius:4px; font-weight:bold; cursor:pointer; margin-right:4px;">✍️ Manual Score</button>`;
     } else {
       actionButtons += `<span style="color:#38bdf8; font-size:10px; font-weight:bold; margin-right:6px;">⚡ Auto Score</span>`;
     }
-    actionButtons += `<button type="button" onclick="triggerReExam('${escapeHtml(s.id)}')" style="background:#7c3aed; color:#fff; border:none; padding:4px 8px; font-size:10px; border-radius:4px; font-weight:bold; cursor:pointer; margin-right:4px;">🔄 Re-Exam</button>`;
+    actionButtons += `<button type="button" onclick="triggerReExam('${escapeJsSingle(s.id)}')" style="background:#7c3aed; color:#fff; border:none; padding:4px 8px; font-size:10px; border-radius:4px; font-weight:bold; cursor:pointer; margin-right:4px;">🔄 Re-Exam</button>`;
 
     if (String(s.paymentMode || "").toLowerCase() === "online" && !isApproved && !isRejected) {
-      actionButtons += `<button type="button" onclick="approveOnlinePayment('${escapeHtml(s.id)}')" style="background:#10b981; color:#fff; border:none; padding:4px 6px; font-size:10px; border-radius:4px; font-weight:bold; cursor:pointer; margin-right:4px;">✔️ Approve</button>`;
-      actionButtons += `<button type="button" onclick="rejectOnlinePayment('${escapeHtml(s.id)}')" style="background:#dc2626; color:#fff; border:none; padding:4px 6px; font-size:10px; border-radius:4px; font-weight:bold; cursor:pointer;">❌ Reject</button>`;
+      actionButtons += `<button type="button" onclick="approveOnlinePayment('${escapeJsSingle(s.id)}')" style="background:#10b981; color:#fff; border:none; padding:4px 6px; font-size:10px; border-radius:4px; font-weight:bold; cursor:pointer; margin-right:4px;">✔️ Approve</button>`;
+      actionButtons += `<button type="button" onclick="rejectOnlinePayment('${escapeJsSingle(s.id)}')" style="background:#dc2626; color:#fff; border:none; padding:4px 6px; font-size:10px; border-radius:4px; font-weight:bold; cursor:pointer;">❌ Reject</button>`;
     }
 
     tbody.innerHTML += `
