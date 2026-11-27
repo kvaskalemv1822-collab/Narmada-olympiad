@@ -206,137 +206,77 @@ def format_school_name(name_str):
     return " ".join([word.capitalize() for word in name_str.split()])
 
 
-JUNIOR_SUBJECTS = {
-    "mathematics",
-    "maths",
-    "math",
-    "science",
-    "general knowledge",
-    "gk",
-    "reasoning",
-}
-
-SENIOR_MATHS_SUBJECTS = {
-    "mathematics",
-    "maths",
-    "math",
-    "physics",
-    "chemistry",
-    "chemistry (maths)",
-    "reasoning",
-}
-
-SENIOR_BIO_SUBJECTS = {
-    "zoology",
-    "botany",
-    "chemistry",
-    "chemistry (bio)",
-    "general science",
-}
-
-
-def _normalize_subject_name(sub_str: str) -> str:
-    s = str(sub_str or "").strip().lower()
-    if s in ("math", "maths"):
-        return "mathematics"
-    if s == "gk":
-        return "general knowledge"
-    if s in ("chemistry (maths)", "chemistry (bio)"):
-        return "chemistry"
-    return s
-
-
-def _resolve_student_bucket(student_class_str, stream_str="", subject_str=""):
+def _resolve_student_bucket(student_class_str, stream_str=""):
     cls_clean = "".join(ch for ch in str(student_class_str or "") if ch.isdigit())
     cls_num = int(cls_clean) if cls_clean else 0
     stream_low = str(stream_str or "").strip().lower()
-    sub_norm = _normalize_subject_name(subject_str)
 
-    if 1 <= cls_num <= 10:
-        return f"class-{cls_num}", ""
-
+    if 3 <= cls_num <= 5:
+        return "3-5", ""
+    if 6 <= cls_num <= 8:
+        return "6-8", ""
+    if 9 <= cls_num <= 10:
+        return "9-10", ""
     if 11 <= cls_num <= 12:
-        if "math" in stream_low or stream_low in ("m", "pcm") or sub_norm in ("mathematics", "physics"):
-            return f"class-{cls_num}-maths", "maths"
-        if any(k in stream_low for k in ("bio", "zoology", "botany", "pcb")) or sub_norm in ("zoology", "botany", "general science"):
-            return f"class-{cls_num}-biology", "biology"
+        if "math" in stream_low or stream_low == "m":
+            return "11-12-maths", "maths"
         if "sci" in stream_low or stream_low == "s":
-            return f"class-{cls_num}-maths", "maths"
-        return f"class-{cls_num}", ""
-
+            return "11-12-science", "science"
     return "", ""
 
 
 def _resolve_question_bucket(q_data):
     grp = str(q_data.get("classGroup") or q_data.get("classRange") or q_data.get("targetClass") or "").strip().lower()
-    sub_raw = str(q_data.get("subject") or "").strip().lower()
-    stream_raw = str(q_data.get("stream") or "").strip().lower()
-    sub_norm = _normalize_subject_name(sub_raw)
+    sub = str(q_data.get("subject") or q_data.get("stream") or "").strip().lower()
+
+    if grp in ("3-5", "3rd to 5th") or ("3" in grp and "5" in grp):
+        return "3-5", sub
+    if grp in ("6-8", "6th to 8th") or ("6" in grp and "8" in grp):
+        return "6-8", sub
+    if grp in ("9-10", "9th to 10th") or ("9" in grp and "10" in grp):
+        return "9-10", sub
+    if "11" in grp or "12" in grp:
+        if "math" in grp or "math" in sub or sub == "m":
+            return "11-12-maths", "maths"
+        if "sci" in grp or "sci" in sub or sub == "s":
+            return "11-12-science", "science"
 
     cls_clean = "".join(ch for ch in grp if ch.isdigit())
     cls_num = int(cls_clean) if cls_clean else 0
-
-    if 1 <= cls_num <= 10:
-        return f"class-{cls_num}", sub_norm
-
+    if 3 <= cls_num <= 5:
+        return "3-5", sub
+    if 6 <= cls_num <= 8:
+        return "6-8", sub
+    if 9 <= cls_num <= 10:
+        return "9-10", sub
     if 11 <= cls_num <= 12:
-        if any(k in stream_raw for k in ("bio", "zoology", "botany", "pcb")) or "(bio)" in sub_raw or sub_norm in ("zoology", "botany", "general science"):
-            return f"class-{cls_num}-biology", sub_norm
-        if any(k in stream_raw for k in ("math", "pcm")) or "(maths)" in sub_raw or sub_norm in ("mathematics", "physics"):
-            return f"class-{cls_num}-maths", sub_norm
-        return f"class-{cls_num}", sub_norm
-
-    # Legacy range fallbacks if older documents exist
-    if grp in ("3-5", "3rd to 5th") or ("3" in grp and "5" in grp):
-        return "3-5", sub_norm
-    if grp in ("6-8", "6th to 8th") or ("6" in grp and "8" in grp):
-        return "6-8", sub_norm
-    if grp in ("9-10", "9th to 10th") or ("9" in grp and "10" in grp):
-        return "9-10", sub_norm
-    if "11" in grp or "12" in grp:
-        if "bio" in stream_raw or "zoology" in sub_norm or "botany" in sub_norm:
-            return "11-12-biology", sub_norm
-        return "11-12-maths", sub_norm
-
-    return "", sub_norm
+        if "math" in sub or sub == "m":
+            return "11-12-maths", "maths"
+        if "sci" in sub or sub == "s":
+            return "11-12-science", "science"
+    return "", sub
 
 
 def _filter_questions_for_student(questions_list, student_data):
-    raw_cls = student_data.get("studentClass") or student_data.get("class") or ""
-    raw_stream = student_data.get("stream") or ""
-    raw_sub = student_data.get("subject") or ""
-    st_bucket, _ = _resolve_student_bucket(raw_cls, raw_stream, raw_sub)
+    st_bucket, _ = _resolve_student_bucket(
+        student_data.get("studentClass") or student_data.get("class"),
+        student_data.get("stream") or student_data.get("subject"),
+    )
     if not st_bucket:
         return []
-
-    cls_clean = "".join(ch for ch in str(raw_cls) if ch.isdigit())
-    cls_num = int(cls_clean) if cls_clean else 0
-    desired_sub = _normalize_subject_name(raw_sub) if raw_sub and _normalize_subject_name(raw_sub) not in ("maths", "mathematics", "biology", "science") else ""
 
     filtered = []
     for q in questions_list:
         q_bucket, q_sub = _resolve_question_bucket(q)
-        q_cls_digits = "".join(ch for ch in str(q.get("classGroup") or q.get("classRange") or q.get("targetClass") or "") if ch.isdigit())
-        q_cls_num = int(q_cls_digits) if q_cls_digits else 0
-
-        if 1 <= cls_num <= 10:
-            if q_bucket == f"class-{cls_num}" or (q_cls_num == cls_num):
-                if not desired_sub or q_sub == desired_sub:
-                    filtered.append(q)
-        elif 11 <= cls_num <= 12:
-            if st_bucket.endswith("-maths"):
-                valid_bucket = q_bucket in (f"class-{cls_num}-maths", f"class-{cls_num}", "11-12-maths")
-                if valid_bucket and (not q_sub or q_sub in SENIOR_MATHS_SUBJECTS):
-                    if not desired_sub or q_sub == desired_sub:
-                        filtered.append(q)
-            elif st_bucket.endswith("-biology"):
-                valid_bucket = q_bucket in (f"class-{cls_num}-biology", f"class-{cls_num}", "11-12-biology")
-                if valid_bucket and (not q_sub or q_sub in SENIOR_BIO_SUBJECTS):
-                    if not desired_sub or q_sub == desired_sub:
-                        filtered.append(q)
-            else:
-                if q_cls_num == cls_num:
-                    filtered.append(q)
+        if st_bucket == "11-12-maths":
+            if q_bucket == "11-12-maths" and (not q_sub or "math" in q_sub or q_sub == "m"):
+                filtered.append(q)
+        elif st_bucket == "11-12-science":
+            if q_bucket == "11-12-science" and (not q_sub or "sci" in q_sub or q_sub == "s"):
+                filtered.append(q)
+        else:
+            if q_bucket == st_bucket:
+                filtered.append(q)
     return filtered
 
 
@@ -569,8 +509,7 @@ def secure_registration():
         utr_number = str(data.get("utrNumber", "")).strip().upper() or "NOT_PROVIDED"
         mother_name = str(data.get("motherName", "")).strip()
         father_name = str(data.get("fatherName", "")).strip()
-        stream = str(data.get("stream", "")).strip()
-        subject = str(data.get("subject", "")).strip()
+        stream = str(data.get("stream", data.get("subject", ""))).strip()
         contact_number = "".join(ch for ch in str(data.get("contactNumber", "")) if ch.isdigit())
 
         if not org_code or not roll_num or not student_name or not roll_num.isdigit() or len(contact_number) < 10:
@@ -612,7 +551,7 @@ def secure_registration():
             "fatherName": father_name,
             "studentClass": student_class,
             "stream": stream,
-            "subject": subject or stream,
+            "subject": stream,
             "contactNumber": contact_number,
             "paymentMode": payment_mode,
             "utrNumber": utr_number if payment_mode == "online" else "CASH_MODE",
@@ -1547,10 +1486,6 @@ def admin_add_question():
         if not q_text:
             return jsonify({"status": "error", "message": "Question text is required"}), 400
 
-        cls_val = str(data.get("classGroup") or data.get("classRange") or data.get("targetClass") or "6").strip()
-        sub_val = str(data.get("subject") or "").strip()
-        stream_val = str(data.get("stream") or "").strip()
-
         q_payload = {
             "question": q_text,
             "questionText": q_text,
@@ -1560,11 +1495,8 @@ def admin_add_question():
             "optionD": str(data.get("optionD") or "").strip(),
             "correctOption": str(data.get("correctOption") or "A").strip().upper(),
             "negativeMarking": float(data.get("negativeMarking") or 0),
-            "classGroup": cls_val,
-            "classRange": cls_val,
-            "targetClass": cls_val,
-            "subject": sub_val,
-            "stream": stream_val,
+            "classGroup": str(data.get("classGroup") or data.get("targetClass") or "3-5").strip(),
+            "subject": str(data.get("subject") or data.get("stream") or "").strip(),
             "createdAt": firestore.SERVER_TIMESTAMP,
         }
         doc_ref = db.collection("questions").document()
