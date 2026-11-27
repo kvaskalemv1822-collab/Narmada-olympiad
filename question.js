@@ -68,6 +68,10 @@ document.addEventListener("DOMContentLoaded", () => {
     syncSubjectOptionsForClass("q-class-select", "q-subject-select", false);
     syncSubjectOptionsForClass("filter-q-class", "filter-q-subject", true);
   }
+  const printBtn = document.getElementById("print-paper-btn");
+  if (printBtn) {
+    printBtn.addEventListener("click", () => window.printExamQuestionPaper());
+  }
   syncQuestionLimitLabels();
   fetchConfiguredQuestionLimit();
   loadSavedQuestions();
@@ -244,6 +248,11 @@ window.renderFilteredQuestionsPreview = function () {
   });
 };
 
+window.closePrintPreviewOverlay = function () {
+  const overlay = document.getElementById("print-preview-overlay");
+  if (overlay) overlay.style.display = "none";
+};
+
 window.printExamQuestionPaper = function () {
   const classFilterVal = document.getElementById("filter-q-class")?.value || "ALL";
   const subjectFilterVal = document.getElementById("filter-q-subject")?.value || "ALL";
@@ -253,12 +262,6 @@ window.printExamQuestionPaper = function () {
 
   if (!paperQuestions.length) {
     alert("⚠️ No questions available to print for the selected class and subject.");
-    return;
-  }
-
-  const sheetEl = document.getElementById("printable-paper-sheet");
-  if (!sheetEl) {
-    alert("❌ Print sheet container (#printable-paper-sheet) not found.");
     return;
   }
 
@@ -303,40 +306,25 @@ window.printExamQuestionPaper = function () {
     ${questionsHtml}
   `;
 
-  sheetEl.innerHTML = paperMarkup;
+  const sheetEl = document.getElementById("printable-paper-sheet");
+  const overlayEl = document.getElementById("print-preview-overlay");
+  const previewBodyEl = document.getElementById("print-preview-body");
 
+  if (sheetEl) sheetEl.innerHTML = paperMarkup;
+  if (previewBodyEl) previewBodyEl.innerHTML = paperMarkup;
+
+  try {
+    window.print();
+  } catch (e) {
+    if (overlayEl) overlayEl.style.display = "block";
+  }
+
+  // Fallback preview modal for environments where window.print() is suppressed
   setTimeout(() => {
-    try {
-      window.print();
-    } catch (err) {
-      const printWin = window.open("", "_blank", "width=850,height=700");
-      if (printWin) {
-        printWin.document.open();
-        printWin.document.write(`
-          <!DOCTYPE html>
-          <html>
-          <head>
-            <title>NVMSO Question Paper</title>
-            <style>
-              body { font-family: Arial, sans-serif; color: #000; padding: 20px; }
-            </style>
-          </head>
-          <body>
-            ${paperMarkup}
-            <script>
-              window.onload = function () {
-                window.print();
-              };
-            <\/script>
-          </body>
-          </html>
-        `);
-        printWin.document.close();
-      } else {
-        alert("⚠️ Print dialog was blocked by browser. Please allow popups or press Ctrl+P / Cmd+P.");
-      }
+    if (overlayEl && !document.hidden) {
+      overlayEl.style.display = "block";
     }
-  }, 80);
+  }, 250);
 };
 
 function loadSavedQuestions() {
