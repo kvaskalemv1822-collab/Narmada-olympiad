@@ -175,7 +175,6 @@ function fetchPortalConfig() {
   const examView = document.getElementById("exam-login-view");
   const resultView = document.getElementById("result-view");
 
-  // Strict mutual exclusivity: hide all first
   [regView, examView, resultView].forEach(v => v?.classList.add("hidden"));
 
   fetch(`${SERVER_URL}/api/portal/config`)
@@ -508,7 +507,7 @@ function loadExamQuestionsForClass() {
           const qId = escapeHtml(q.id);
           qContainer.innerHTML += `
             <div style="background: #ffffff; border: 1px solid #ccc; padding: 15px; border-radius: 8px; margin-bottom: 12px; color: #333;">
-              <p style="color: #1e3c72; font-weight: bold; margin-bottom: 8px;">Q${idx + 1}. ${escapeHtml(q.questionText)}</p>
+              <p style="color: #1e3c72; font-weight: bold; margin-bottom: 8px;">Q${idx + 1}. ${escapeHtml(q.questionText || q.question || "")}</p>
               <div style="display: flex; flex-direction: column; gap: 6px;">
                 <label><input type="radio" name="q_${qId}" value="A"> A) ${escapeHtml(q.optionA)}</label>
                 <label><input type="radio" name="q_${qId}" value="B"> B) ${escapeHtml(q.optionB)}</label>
@@ -572,11 +571,17 @@ window.submitExamAnswers = function (isAutoSubmit = false) {
     answers[q.id] = sel ? sel.value : "";
   });
 
+  const sessionToken = studentSessionData?.sessionToken || "";
+
   fetch(`${SERVER_URL}/api/student/submit_exam`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      ...(sessionToken ? { "X-Student-Token": sessionToken } : {})
+    },
     body: JSON.stringify({
       studentId: studentSessionData?.studentId,
+      sessionToken: sessionToken,
       answers: answers,
       totalQuestions: currentExamQuestions.length || getConfiguredQuestionLimit(),
       autoSubmitted: !!isAutoSubmit
