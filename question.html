@@ -16,7 +16,8 @@
       }
       #question-main-container,
       .control-box,
-      #saved-questions-container {
+      #saved-questions-container,
+      #print-preview-overlay {
         display: none !important;
       }
       #printable-paper-sheet {
@@ -28,6 +29,15 @@
     }
     #printable-paper-sheet {
       display: none;
+    }
+    #print-preview-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(2, 6, 23, 0.92);
+      z-index: 9999;
+      padding: 20px;
+      overflow-y: auto;
     }
     .control-box input[type="text"],
     .control-box input[type="search"],
@@ -165,7 +175,7 @@
 
         <select id="filter-q-subject" onchange="renderFilteredQuestionsPreview()" style="background:#020617; color:#fff; border:1px solid #475569; padding:6px 10px; border-radius:6px; font-size:12px;"></select>
 
-        <button type="button" onclick="printExamQuestionPaper()" style="background:#10b981; color:#020617; border:none; padding:7px 12px; border-radius:6px; font-size:12px; font-weight:800; cursor:pointer;">
+        <button type="button" id="print-paper-btn" onclick="printExamQuestionPaper()" style="background:#10b981; color:#020617; border:none; padding:7px 12px; border-radius:6px; font-size:12px; font-weight:800; cursor:pointer;">
           🖨️ Print Paper (<span id="print-q-limit-label">30</span> Qs)
         </button>
       </div>
@@ -178,6 +188,20 @@
 
 <!-- PEN & PAPER QUESTION SHEET (SHOWN ON PRINT) -->
 <div id="printable-paper-sheet"></div>
+
+<!-- PRINT PREVIEW OVERLAY (FALLBACK IF BROWSER BLOCKS DIRECT PRINT DIALOG) -->
+<div id="print-preview-overlay">
+  <div style="max-width: 860px; margin: 0 auto; background: #ffffff; color: #000000; border-radius: 10px; padding: 20px; box-shadow: 0 20px 50px rgba(0,0,0,0.6);">
+    <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; border-bottom:1px solid #cbd5e1; padding-bottom:12px; margin-bottom:16px;">
+      <strong style="font-size:15px;">📄 Printable Question Paper Preview</strong>
+      <div style="display:flex; gap:8px;">
+        <button type="button" onclick="window.print()" style="background:#0f172a; color:#ffffff; border:none; padding:8px 14px; border-radius:6px; font-size:12px; font-weight:700; cursor:pointer;">🖨️ Print / Save PDF</button>
+        <button type="button" onclick="closePrintPreviewOverlay()" style="background:#dc2626; color:#ffffff; border:none; padding:8px 14px; border-radius:6px; font-size:12px; font-weight:700; cursor:pointer;">✕ Close</button>
+      </div>
+    </div>
+    <div id="print-preview-body"></div>
+  </div>
+</div>
 
 <script>
   const SUBJECT_SETS = {
@@ -255,6 +279,6 @@
     syncSubjectOptionsForClass("filter-q-class", "filter-q-subject", true);
   });
 </script>
-<script src="question.js?v=14"></script>
+<script src="question.js?v=15"></script>
 </body>
 </html>
