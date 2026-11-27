@@ -958,30 +958,40 @@ def admin_complete_payout():
         _ensure_db()
         data = request.json or {}
         payout_id = str(data.get("payoutId") or "").strip()
+        org_code = str(data.get("orgCode") or "").strip().upper()
+        explicit_ref_base = data.get("settledRefCommBase")
+
         if payout_id:
             payout_ref = db.collection("payouts").document(payout_id)
             payout_doc = payout_ref.get()
             payout_ref.update({"status": "completed"})
-            if payout_doc.exists:
+            if payout_doc.exists and not org_code:
                 p_data = payout_doc.to_dict()
                 org_code = str(p_data.get("orgCode") or "").strip().upper()
-                if org_code:
-                    org_ref = db.collection("organizers").document(org_code)
-                    org_raw = org_ref.get().to_dict() or {}
-                    cfg_doc = db.collection("settings").document("portal_config").get()
-                    g_cfg = cfg_doc.to_dict() if cfg_doc.exists else {}
-                    students = []
-                    seen = set()
-                    for f in ["orgCode", "schoolCode"]:
-                        for s_doc in db.collection("students").where(f, "==", org_code).stream():
-                            if s_doc.id not in seen:
-                                seen.add(s_doc.id)
-                                students.append(s_doc.to_dict())
-                    totals = _compute_org_ledger_totals(org_code, org_raw, students, g_cfg)
-                    org_ref.set({
-                        "settledRefCommBase": totals["total_ref_comm"],
-                        "payoutSettledAt": firestore.SERVER_TIMESTAMP,
-                    }, merge=True)
+
+        if org_code:
+            org_ref = db.collection("organizers").document(org_code)
+            org_raw = org_ref.get().to_dict() or {}
+            cfg_doc = db.collection("settings").document("portal_config").get()
+            g_cfg = cfg_doc.to_dict() if cfg_doc.exists else {}
+            students = []
+            seen = set()
+            for f in ["orgCode", "schoolCode"]:
+                for s_doc in db.collection("students").where(f, "==", org_code).stream():
+                    if s_doc.id not in seen:
+                        seen.add(s_doc.id)
+                        students.append(s_doc.to_dict())
+            totals = _compute_org_ledger_totals(org_code, org_raw, students, g_cfg)
+            ref_base_val = max(
+                int(totals["total_ref_comm"]),
+                int(explicit_ref_base or 0),
+                int(org_raw.get("settledRefCommBase", 0) or 0),
+            )
+            org_ref.set({
+                "settledRefCommBase": ref_base_val,
+                "payoutSettledAt": firestore.SERVER_TIMESTAMP,
+            }, merge=True)
+
         return jsonify({"status": "success", "message": "Payout completed"}), 200
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
@@ -1209,7 +1219,6 @@ def organizer_get_students():
         active_ref_comm = max(0, totals["total_ref_comm"] - settled_ref_base)
         active_total_comm = active_direct_comm + active_ref_comm
 
-        # Referral commission is paid separately via referral settlement and never adjusted from cash collection.
         net_payable_to_nvms = max(0, active_cash_held - active_direct_comm)
         nvms_owes_organizer = active_ref_comm
 
@@ -1372,17 +1381,24 @@ def reply_query():
         _ensure_db()
         data = request.json or {}
         t_id = str(data.get("ticketId") or "").strip()
+        org_code = str(data.get("orgCode") or "").strip().upper()
         msg = str(data.get("message") or "").strip()
         if not t_id:
             return jsonify({"status": "error", "message": "Missing ticketId"}), 400
+
+        ticket_update = {"lastMessage": msg, "updatedAt": firestore.SERVER_TIMESTAMP}
+        if org_code:
+            ticket_update["orgCode"] = org_code
+            ticket_update["senderName"] = f"Coordinator ({org_code})"
+
+        db.collection("supportTickets").document(t_id).set(ticket_update, merge=True)
         db.collection("supportTickets").document(t_id).collection("messages").add({
             "text": msg,
             "imageUrl": data.get("imageUrl", ""),
             "isAdmin": True,
             "createdAt": firestore.SERVER_TIMESTAMP,
         })
-        db.collection("supportTickets").document(t_id).set({"lastMessage": msg}, merge=True)
-        return jsonify({"status": "success", "message": "Replied"}), 200
+        return jsonify({"status": "success", "message": "Replied", "ticketId": t_id}), 200
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
