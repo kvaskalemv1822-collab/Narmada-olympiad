@@ -21,10 +21,22 @@ function getAdminHeaders(includeJson = true) {
   return headers;
 }
 
-function getDefaultSubjectForClassRange(classRange) {
-  if (classRange === "11-12-Maths") return "Maths";
-  if (classRange === "11-12-Science") return "Science";
-  return "General";
+function getDefaultSubjectForClass(classVal) {
+  const num = parseInt(classVal, 10);
+  if (num >= 11 && num <= 12) return "Mathematics";
+  return "Mathematics";
+}
+
+function inferStreamFromSubject(classVal, subjectVal) {
+  const num = parseInt(classVal, 10);
+  const subLow = String(subjectVal || "").toLowerCase();
+  if (num >= 11 && num <= 12) {
+    if (["zoology", "botany", "general science"].some(s => subLow.includes(s)) || subLow.includes("(bio)")) {
+      return "biology";
+    }
+    return "maths";
+  }
+  return "general";
 }
 
 function syncQuestionLimitLabels() {
@@ -37,7 +49,7 @@ function syncQuestionLimitLabels() {
 }
 
 function fetchConfiguredQuestionLimit() {
-  fetch(`${SERVER_URL}/api/portal/config`)
+  return fetch(`${SERVER_URL}/api/portal/config`)
     .then(res => res.json())
     .then(data => {
       if (data && data.status === "success" && data.config) {
@@ -52,6 +64,10 @@ function fetchConfiguredQuestionLimit() {
 }
 
 document.addEventListener("DOMContentLoaded", () => {
+  if (typeof syncSubjectOptionsForClass === "function") {
+    syncSubjectOptionsForClass("q-class-select", "q-subject-select", false);
+    syncSubjectOptionsForClass("filter-q-class", "filter-q-subject", true);
+  }
   syncQuestionLimitLabels();
   fetchConfiguredQuestionLimit();
   loadSavedQuestions();
@@ -69,15 +85,21 @@ window.addNewQuestionToBank = async () => {
     return;
   }
 
-  const selectedClassRange = document.getElementById("q-class-select")?.value || "6-8";
-  const selectedSubject = getDefaultSubjectForClassRange(selectedClassRange);
+  const selectedClass = String(document.getElementById("q-class-select")?.value || "6").trim();
+  const selectedSubject = String(
+    document.getElementById("q-subject-select")?.value || getDefaultSubjectForClass(selectedClass)
+  ).trim();
+  const inferredStream = inferStreamFromSubject(selectedClass, selectedSubject);
 
   const payload = {
-    classRange: selectedClassRange,
-    classGroup: selectedClassRange,
+    classRange: selectedClass,
+    classGroup: selectedClass,
+    targetClass: selectedClass,
     subject: selectedSubject,
+    stream: inferredStream,
     negativeMarking: parseFloat(document.getElementById("q-negative-marking")?.value) || 0,
     questionText: qText,
+    question: qText,
     optionA: optA,
     optionB: optB,
     optionC: optC,
@@ -91,7 +113,7 @@ window.addNewQuestionToBank = async () => {
     submitBtn.textContent = "Syncing Question Element with Cloud Frame...";
   }
 
-  fetch(`${SERVER_URL}/api/admin/add-question`, {
+  fetch(`${SERVER_URL}/api/admin/add_question`, {
     method: "POST",
     headers: getAdminHeaders(true),
     body: JSON.stringify(payload)
@@ -135,12 +157,43 @@ window.addNewQuestionToBank = async () => {
     });
 };
 
+function normalizeClassKey(q) {
+  const raw = String(q.classGroup || q.classRange || q.targetClass || "").trim();
+  const digits = raw.replace(/\D/g, "");
+  return digits || raw;
+}
+
 function getFilteredQuestionsList() {
-  const filterVal = document.getElementById("filter-q-class")?.value || "ALL";
-  if (filterVal === "ALL") return cachedQuestionsList;
-  return cachedQuestionsList.filter(
-    q => String(q.classRange || q.classGroup || "").trim() === filterVal
-  );
+  const classFilterVal = String(document.getElementById("filter-q-class")?.value || "ALL").trim();
+  const subjectFilterVal = String(document.getElementById("filter-q-subject")?.value || "ALL").trim().toLowerCase();
+  const keywordVal = String(document.getElementById("search-q-keyword")?.value || "").trim().toLowerCase();
+
+  return cachedQuestionsList.filter(q => {
+    const qClassKey = normalizeClassKey(q);
+    if (classFilterVal !== "ALL" && qClassKey !== classFilterVal) {
+      return false;
+    }
+
+    const qSubject = String(q.subject || "").trim().toLowerCase();
+    if (subjectFilterVal !== "all" && qSubject !== subjectFilterVal) {
+      return false;
+    }
+
+    if (keywordVal) {
+      const body = String(q.questionText || q.question || "").toLowerCase();
+      const opts = [
+        q.optionA ?? q.options?.A ?? "",
+        q.optionB ?? q.options?.B ?? "",
+        q.optionC ?? q.options?.C ?? "",
+        q.optionD ?? q.options?.D ?? ""
+      ].join(" ").toLowerCase();
+      if (!body.includes(keywordVal) && !opts.includes(keywordVal) && !qSubject.includes(keywordVal)) {
+        return false;
+      }
+    }
+
+    return true;
+  });
 }
 
 window.renderFilteredQuestionsPreview = function () {
@@ -152,13 +205,14 @@ window.renderFilteredQuestionsPreview = function () {
   if (countEl) countEl.textContent = listToShow.length;
 
   if (!listToShow.length) {
-    container.innerHTML = `<p style="color: #64748b; font-size: 13px; text-align: center;">No questions found for this selection.</p>`;
+    container.innerHTML = `<p style="color: #64748b; font-size: 13px; text-align: center;">No questions found for this class/subject selection.</p>`;
     return;
   }
 
   container.innerHTML = "";
   listToShow.forEach((q, idx) => {
-    const grp = q.classRange || q.classGroup || "N/A";
+    const clsLabel = normalizeClassKey(q) ? `Class ${normalizeClassKey(q)}` : "N/A";
+    const subLabel = q.subject || "General";
     const rawId = String(q.id || q.questionId || q._id || "");
     const qId = escapeHtml(rawId);
     const qBody = q.questionText || q.question || "";
@@ -170,8 +224,8 @@ window.renderFilteredQuestionsPreview = function () {
 
     container.innerHTML += `
       <div style="background:#020617; border:1px solid #1e293b; padding:12px; border-radius:8px; margin-bottom:10px; font-size:12px; position:relative;">
-        <div style="display:flex; justify-content:space-between; color:#38bdf8; margin-bottom:4px;">
-          <strong>#${idx + 1} | Class: ${escapeHtml(grp)}</strong>
+        <div style="display:flex; justify-content:space-between; flex-wrap:wrap; gap:6px; color:#38bdf8; margin-bottom:4px;">
+          <strong>#${idx + 1} | ${escapeHtml(clsLabel)} — ${escapeHtml(subLabel)}</strong>
           <div>
             <span style="color:#f87171; margin-right:10px;">Neg: -${escapeHtml(q.negativeMarking || 0)}</span>
             <span style="color:#facc15; font-weight:bold; margin-right:15px;">Correct: ${escapeHtml(qAns)}</span>
@@ -191,13 +245,14 @@ window.renderFilteredQuestionsPreview = function () {
 };
 
 window.printExamQuestionPaper = function () {
-  const filterVal = document.getElementById("filter-q-class")?.value || "ALL";
+  const classFilterVal = document.getElementById("filter-q-class")?.value || "ALL";
+  const subjectFilterVal = document.getElementById("filter-q-subject")?.value || "ALL";
   const filtered = getFilteredQuestionsList();
   const limit = Math.max(1, parseInt(configuredExamQuestionCount, 10) || 30);
   const paperQuestions = filtered.slice(0, limit);
 
   if (!paperQuestions.length) {
-    alert("⚠️ No questions available to print for the selected class range.");
+    alert("⚠️ No questions available to print for the selected class and subject.");
     return;
   }
 
@@ -228,11 +283,14 @@ window.printExamQuestionPaper = function () {
     })
     .join("");
 
+  const classText = classFilterVal === "ALL" ? "Classes 1–12" : `Class ${classFilterVal}`;
+  const subjectText = subjectFilterVal === "ALL" ? "All Subjects" : subjectFilterVal;
+
   sheetEl.innerHTML = `
     <div style="border-bottom: 2px solid #000; padding-bottom: 8px; margin-bottom: 14px; display: flex; justify-content: space-between; align-items: baseline;">
       <div>
         <h2 style="margin: 0; font-size: 18px;">Narmada Valley Maths &amp; Science Olympiad (NVMSO)</h2>
-        <div style="font-size: 12px;">Class Group: ${escapeHtml(filterVal)} | Total Questions: ${paperQuestions.length} (Configured Limit: ${limit})</div>
+        <div style="font-size: 12px;">${escapeHtml(classText)} | Subject: ${escapeHtml(subjectText)} | Questions: ${paperQuestions.length} (Limit: ${limit})</div>
       </div>
       <div style="font-size: 12px; text-align: right;">
         Name: _______________________<br>
@@ -247,9 +305,7 @@ window.printExamQuestionPaper = function () {
 
 function loadSavedQuestions() {
   fetchConfiguredQuestionLimit();
-  fetch(`${SERVER_URL}/api/admin/all_questions`, {
-    headers: getAdminHeaders(false)
-  })
+  fetch(`${SERVER_URL}/api/questions`)
     .then(res => res.json())
     .then(data => {
       if (data && data.status === "success" && Array.isArray(data.questions)) {
@@ -274,7 +330,7 @@ window.deleteQuestion = function (questionId) {
   }
   if (!confirm("Are you sure you want to delete this question?")) return;
 
-  fetch(`${SERVER_URL}/api/admin/delete-question`, {
+  fetch(`${SERVER_URL}/api/admin/delete_question`, {
     method: "POST",
     headers: getAdminHeaders(true),
     body: JSON.stringify({ questionId: questionId, id: questionId })
