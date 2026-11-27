@@ -257,7 +257,10 @@ window.printExamQuestionPaper = function () {
   }
 
   const sheetEl = document.getElementById("printable-paper-sheet");
-  if (!sheetEl) return;
+  if (!sheetEl) {
+    alert("❌ Print sheet container (#printable-paper-sheet) not found.");
+    return;
+  }
 
   const questionsHtml = paperQuestions
     .map((q, index) => {
@@ -286,7 +289,7 @@ window.printExamQuestionPaper = function () {
   const classText = classFilterVal === "ALL" ? "Classes 1–12" : `Class ${classFilterVal}`;
   const subjectText = subjectFilterVal === "ALL" ? "All Subjects" : subjectFilterVal;
 
-  sheetEl.innerHTML = `
+  const paperMarkup = `
     <div style="border-bottom: 2px solid #000; padding-bottom: 8px; margin-bottom: 14px; display: flex; justify-content: space-between; align-items: baseline;">
       <div>
         <h2 style="margin: 0; font-size: 18px;">Narmada Valley Maths &amp; Science Olympiad (NVMSO)</h2>
@@ -300,7 +303,40 @@ window.printExamQuestionPaper = function () {
     ${questionsHtml}
   `;
 
-  window.print();
+  sheetEl.innerHTML = paperMarkup;
+
+  setTimeout(() => {
+    try {
+      window.print();
+    } catch (err) {
+      const printWin = window.open("", "_blank", "width=850,height=700");
+      if (printWin) {
+        printWin.document.open();
+        printWin.document.write(`
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <title>NVMSO Question Paper</title>
+            <style>
+              body { font-family: Arial, sans-serif; color: #000; padding: 20px; }
+            </style>
+          </head>
+          <body>
+            ${paperMarkup}
+            <script>
+              window.onload = function () {
+                window.print();
+              };
+            <\/script>
+          </body>
+          </html>
+        `);
+        printWin.document.close();
+      } else {
+        alert("⚠️ Print dialog was blocked by browser. Please allow popups or press Ctrl+P / Cmd+P.");
+      }
+    }
+  }, 80);
 };
 
 function loadSavedQuestions() {
