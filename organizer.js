@@ -1,4 +1,4 @@
-Const SERVER_URL = "https://nvmso-backend.onrender.com";
+const SERVER_URL = "https://nvmso-backend.onrender.com";
 const ORG_TOKEN_KEY = "nvmso_org_token";
 
 let orgToken = sessionStorage.getItem(ORG_TOKEN_KEY) || "";
