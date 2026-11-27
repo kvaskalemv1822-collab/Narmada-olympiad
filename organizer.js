@@ -198,14 +198,17 @@ function handleUnauthorizedSession() {
 document.addEventListener("DOMContentLoaded", () => {
   removeTermsNearLogout();
   fetchGlobalConfigAndNotice();
+
   const savedOrgCode = (localStorage.getItem("nvmso_org_code") || "").trim().toUpperCase();
-  if (savedOrgCode) {
+  const savedOrgPass = (localStorage.getItem("nvmso_org_pass") || "").trim();
+
+  if (savedOrgCode && savedOrgPass) {
     fetch(`${SERVER_URL}/api/organizer/login`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         orgCode: savedOrgCode,
-        password: localStorage.getItem("nvmso_org_pass") || ""
+        password: savedOrgPass
       })
     })
       .then(res => res.json())
@@ -220,7 +223,6 @@ document.addEventListener("DOMContentLoaded", () => {
           loadDashboardView();
           fetchRegisteredStudentsList();
           fetchOrganizerChatMessages();
-          checkResultAndRankingStatus();
         }
       })
       .catch(() => {});
@@ -272,6 +274,12 @@ function fetchGlobalConfigAndNotice() {
         } else if (noticeBanner) {
           noticeBanner.classList.add("hidden");
         }
+
+        if (portalConfig.isResultDeclared) {
+          document.getElementById("org-result-ranking-box")?.classList.remove("hidden");
+        } else {
+          document.getElementById("org-result-ranking-box")?.classList.add("hidden");
+        }
       }
     })
     .catch(() => {});
@@ -305,7 +313,6 @@ window.verifyOrgLogin = async () => {
       loadDashboardView();
       fetchRegisteredStudentsList();
       fetchOrganizerChatMessages();
-      checkResultAndRankingStatus();
     } else {
       alert("❌ Access Denied! Check Organizer Code or Password.");
     }
@@ -428,9 +435,7 @@ function loadDashboardView() {
     autoRefreshTimer = setInterval(() => {
       fetchGlobalConfigAndNotice();
       fetchRegisteredStudentsList();
-      fetchOrganizerChatMessages();
-      checkResultAndRankingStatus();
-    }, 6000);
+    }, 25000);
   }
 }
 
@@ -676,7 +681,6 @@ function normalizeFinancialsForDisplay(rawFin, backendSettled, codeKey) {
     refComm = Math.max(0, refComm - (Number(localCycle.settledRefComm) || 0));
   }
 
-  // Referral commission is settled separately via referral payout and never adjusted from cash collection
   const netPayableToNvms = Math.max(0, cashHeld - directComm);
   const isSettled =
     (backendSettled || !!localCycle?.settled) &&
@@ -693,6 +697,33 @@ function normalizeFinancialsForDisplay(rawFin, backendSettled, codeKey) {
     netPayableToNvms,
     isSettled
   };
+}
+
+function renderRankingTableFromStudents(studentsList) {
+  const rankBox = document.getElementById("org-result-ranking-box");
+  const rankContainer = document.getElementById("org-ranking-content");
+  if (!rankBox || !rankContainer) return;
+
+  if (!portalConfig?.isResultDeclared) {
+    rankBox.classList.add("hidden");
+    return;
+  }
+
+  rankBox.classList.remove("hidden");
+  const completed = (studentsList || []).filter(s => s.examCompleted);
+  completed.sort((a, b) => (parseFloat(b.score) || 0) - (parseFloat(a.score) || 0));
+
+  if (!completed.length) {
+    rankContainer.innerHTML = `<p style="color:#94a3b8; margin:0;">No completed exam records found yet.</p>`;
+    return;
+  }
+
+  let rankHtml = `<table style="width:100%; border-collapse: collapse; font-size: 13px; color: #fff;"><thead><tr style="background:#1e293b;"><th style="padding:8px;">Rank</th><th style="padding:8px;">Name</th><th style="padding:8px; text-align:right;">Score</th></tr></thead><tbody>`;
+  completed.forEach((s, idx) => {
+    const maxMarks = getConfiguredTotalMarks(s);
+    rankHtml += `<tr style="border-bottom:1px solid #1e293b;"><td style="padding:8px; color:#facc15;">#${idx + 1}</td><td style="padding:8px;">${escapeHtml(s.studentName)}${getSubjectBadge(s)}</td><td style="padding:8px; text-align:right; color:#4ade80;">${escapeHtml(s.score || 0)}/${maxMarks}</td></tr>`;
+  });
+  rankContainer.innerHTML = rankHtml + `</tbody></table>`;
 }
 
 function fetchRegisteredStudentsList() {
@@ -726,6 +757,7 @@ function fetchRegisteredStudentsList() {
       }
 
       const studentsList = Array.isArray(data.students) ? data.students : [];
+      renderRankingTableFromStudents(studentsList);
 
       if (data.financials) {
         const adminUpi = data.adminUpiId || portalConfig.adminUpiId || "narmada@upi";
@@ -975,40 +1007,15 @@ window.requestCommissionPayout = function (maxAmount) {
     .catch(() => alert("❌ Network error while requesting payout."));
 };
 
-function checkResultAndRankingStatus() {
-  if (!currentOrg || !orgToken) return;
-  const orgCodeKey = getOrgCodeUpper();
-  fetch(`${SERVER_URL}/api/portal/config`)
-    .then(res => res.json())
-    .then(data => {
-      if (data && data.status === "success" && data.config?.isResultDeclared) {
-        document.getElementById("org-result-ranking-box")?.classList.remove("hidden");
-        fetch(`${SERVER_URL}/api/organizer/students`, {
-          method: "POST",
-          headers: getOrgHeaders(true),
-          body: JSON.stringify({ orgCode: orgCodeKey })
-        })
-          .then(r => (r.status === 401 ? null : r.json()))
-          .then(stData => {
-            if (stData && stData.status === "success" && Array.isArray(stData.students)) {
-              const completed = stData.students.filter(s => s.examCompleted);
-              completed.sort((a, b) => (parseFloat(b.score) || 0) - (parseFloat(a.score) || 0));
-              let rankHtml = `<table style="width:100%; border-collapse: collapse; font-size: 13px; color: #fff;"><thead><tr style="background:#1e293b;"><th style="padding:8px;">Rank</th><th style="padding:8px;">Name</th><th style="padding:8px; text-align:right;">Score</th></tr></thead><tbody>`;
-              completed.forEach((s, idx) => {
-                const maxMarks = getConfiguredTotalMarks(s);
-                rankHtml += `<tr style="border-bottom:1px solid #1e293b;"><td style="padding:8px; color:#facc15;">#${idx + 1}</td><td style="padding:8px;">${escapeHtml(s.studentName)}${getSubjectBadge(s)}</td><td style="padding:8px; text-align:right; color:#4ade80;">${escapeHtml(s.score || 0)}/${maxMarks}</td></tr>`;
-              });
-              const rankContainer = document.getElementById("org-ranking-content");
-              if (rankContainer) {
-                rankContainer.innerHTML = rankHtml + `</tbody></table>`;
-              }
-            }
-          })
-          .catch(() => {});
-      }
-    })
-    .catch(() => {});
-}
+window.openOrganizerChatFromHeader = function () {
+  const chatArea = document.getElementById("organizer-chat-collapsible-area");
+  const section = document.getElementById("organizer-support-chat-section");
+  if (chatArea && chatArea.classList.contains("hidden")) {
+    chatArea.classList.remove("hidden");
+    fetchOrganizerChatMessages();
+  }
+  section?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+};
 
 window.toggleOrganizerChatBox = function () {
   const chatArea = document.getElementById("organizer-chat-collapsible-area");
