@@ -1,298 +1,260 @@
-const SERVER_URL = "https://nvmso-backend.onrender.com";
-const ADMIN_TOKEN_KEY = "nvmso_admin_token";
-
-let cachedQuestionsList = [];
-let configuredExamQuestionCount = 30;
-
-function escapeHtml(str) {
-  return String(str ?? "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
-
-function getAdminHeaders(includeJson = true) {
-  const token = sessionStorage.getItem(ADMIN_TOKEN_KEY) || "";
-  const headers = {};
-  if (includeJson) headers["Content-Type"] = "application/json";
-  if (token) headers["Authorization"] = `Bearer ${token}`;
-  return headers;
-}
-
-function getDefaultSubjectForClassRange(classRange) {
-  if (classRange === "11-12-Maths") return "Maths";
-  if (classRange === "11-12-Science") return "Science";
-  return "General";
-}
-
-function syncQuestionLimitLabels() {
-  const limit = Math.max(1, parseInt(configuredExamQuestionCount, 10) || 30);
-  configuredExamQuestionCount = limit;
-  const badgeEl = document.getElementById("exam-q-limit-badge");
-  const printBtnLabelEl = document.getElementById("print-q-limit-label");
-  if (badgeEl) badgeEl.textContent = limit;
-  if (printBtnLabelEl) printBtnLabelEl.textContent = limit;
-}
-
-function fetchConfiguredQuestionLimit() {
-  fetch(`${SERVER_URL}/api/portal/config`)
-    .then(res => res.json())
-    .then(data => {
-      if (data && data.status === "success" && data.config) {
-        const cfgLimit = Number(data.config.totalQuestions || data.config.questionCount);
-        if (cfgLimit > 0) {
-          configuredExamQuestionCount = cfgLimit;
-          syncQuestionLimitLabels();
-        }
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>NVMSO - Question Bank &amp; Parameters Manager</title>
+  <link rel="stylesheet" href="central.css?v=25">
+  <style>
+    @media print {
+      body {
+        background: #ffffff !important;
+        color: #000000 !important;
+        padding: 0 !important;
+        width: auto !important;
+        overflow: visible !important;
       }
-    })
-    .catch(() => {});
-}
-
-document.addEventListener("DOMContentLoaded", () => {
-  syncQuestionLimitLabels();
-  fetchConfiguredQuestionLimit();
-  loadSavedQuestions();
-});
-
-window.addNewQuestionToBank = async () => {
-  const qText = document.getElementById("q-text")?.value.trim() || "";
-  const optA = document.getElementById("q-opt-a")?.value.trim() || "";
-  const optB = document.getElementById("q-opt-b")?.value.trim() || "";
-  const optC = document.getElementById("q-opt-c")?.value.trim() || "";
-  const optD = document.getElementById("q-opt-d")?.value.trim() || "";
-
-  if (!qText || !optA || !optB || !optC || !optD) {
-    alert("❌ Operation Blocked: Please fill out the question statement and all 4 options!");
-    return;
-  }
-
-  const selectedClassRange = document.getElementById("q-class-select")?.value || "6-8";
-  const selectedSubject = getDefaultSubjectForClassRange(selectedClassRange);
-
-  const payload = {
-    classRange: selectedClassRange,
-    classGroup: selectedClassRange,
-    subject: selectedSubject,
-    negativeMarking: parseFloat(document.getElementById("q-negative-marking")?.value) || 0,
-    questionText: qText,
-    optionA: optA,
-    optionB: optB,
-    optionC: optC,
-    optionD: optD,
-    correctOption: document.getElementById("q-correct-opt")?.value || "A"
-  };
-
-  const submitBtn = document.querySelector(".control-box button[onclick='addNewQuestionToBank()']");
-  if (submitBtn) {
-    submitBtn.disabled = true;
-    submitBtn.textContent = "Syncing Question Element with Cloud Frame...";
-  }
-
-  fetch(`${SERVER_URL}/api/admin/add-question`, {
-    method: "POST",
-    headers: getAdminHeaders(true),
-    body: JSON.stringify(payload)
-  })
-    .then(async res => {
-      const data = await res.json().catch(() => ({}));
-      if (res.status === 401) {
-        return { status: "error", message: data?.message || "Admin authentication required. Please login in Central Panel." };
+      #question-main-container,
+      .control-box,
+      #saved-questions-container {
+        display: none !important;
       }
-      return data;
-    })
-    .then(data => {
-      if (data && data.status === "success") {
-        alert("✅ Success: Question element securely published to the master database!");
-
-        const qEl = document.getElementById("q-text");
-        const aEl = document.getElementById("q-opt-a");
-        const bEl = document.getElementById("q-opt-b");
-        const cEl = document.getElementById("q-opt-c");
-        const dEl = document.getElementById("q-opt-d");
-        if (qEl) qEl.value = "";
-        if (aEl) aEl.value = "";
-        if (bEl) bEl.value = "";
-        if (cEl) cEl.value = "";
-        if (dEl) dEl.value = "";
-        if (qEl) qEl.focus();
-
-        loadSavedQuestions();
-      } else {
-        alert("❌ Operation Terminated: " + (data?.message || "Failed to save question"));
+      #printable-paper-sheet {
+        display: block !important;
+        background: #ffffff !important;
+        color: #000000 !important;
+        padding: 18px !important;
       }
-    })
-    .catch(() => {
-      alert("❌ Error: Connection trace dropped.");
-    })
-    .finally(() => {
-      if (submitBtn) {
-        submitBtn.disabled = false;
-        submitBtn.textContent = "➕ Save Question to Database Engine";
-      }
-    });
-};
+    }
+    #printable-paper-sheet {
+      display: none;
+    }
+    .control-box input[type="text"],
+    .control-box input[type="search"],
+    .control-box textarea,
+    .control-box select {
+      background: #020617;
+      color: #f8fafc;
+      border: 1px solid #475569;
+      border-radius: 6px;
+      padding: 9px 12px;
+      box-sizing: border-box;
+      font-size: 13px;
+    }
+    .btn-primary {
+      border: none;
+      border-radius: 6px;
+      color: #fff;
+      font-weight: 700;
+    }
+  </style>
+</head>
+<body style="background: #0b0f19; padding: 15px; color:#fff; width:100%; overflow-x:hidden; margin:0; box-sizing:border-box;">
 
-function getFilteredQuestionsList() {
-  const filterVal = document.getElementById("filter-q-class")?.value || "ALL";
-  if (filterVal === "ALL") return cachedQuestionsList;
-  return cachedQuestionsList.filter(
-    q => String(q.classRange || q.classGroup || "").trim() === filterVal
-  );
-}
-
-window.renderFilteredQuestionsPreview = function () {
-  const container = document.getElementById("saved-questions-container");
-  const countEl = document.getElementById("total-q-count");
-  if (!container) return;
-
-  const listToShow = getFilteredQuestionsList();
-  if (countEl) countEl.textContent = listToShow.length;
-
-  if (!listToShow.length) {
-    container.innerHTML = `<p style="color: #64748b; font-size: 13px; text-align: center;">No questions found for this selection.</p>`;
-    return;
-  }
-
-  container.innerHTML = "";
-  listToShow.forEach((q, idx) => {
-    const grp = q.classRange || q.classGroup || "N/A";
-    const rawId = String(q.id || q.questionId || q._id || "");
-    const qId = escapeHtml(rawId);
-    const qBody = q.questionText || q.question || "";
-    const qAns = q.correctOption || q.answer || "A";
-    const optA = q.optionA ?? q.options?.A ?? "";
-    const optB = q.optionB ?? q.options?.B ?? "";
-    const optC = q.optionC ?? q.options?.C ?? "";
-    const optD = q.optionD ?? q.options?.D ?? "";
-
-    container.innerHTML += `
-      <div style="background:#020617; border:1px solid #1e293b; padding:12px; border-radius:8px; margin-bottom:10px; font-size:12px; position:relative;">
-        <div style="display:flex; justify-content:space-between; color:#38bdf8; margin-bottom:4px;">
-          <strong>#${idx + 1} | Class: ${escapeHtml(grp)}</strong>
-          <div>
-            <span style="color:#f87171; margin-right:10px;">Neg: -${escapeHtml(q.negativeMarking || 0)}</span>
-            <span style="color:#facc15; font-weight:bold; margin-right:15px;">Correct: ${escapeHtml(qAns)}</span>
-            <button type="button" onclick="deleteQuestion('${qId}')" style="background:#dc2626; color:#fff; border:none; padding:3px 8px; font-size:10px; border-radius:4px; cursor:pointer; font-weight:bold;">🗑️ Delete</button>
-          </div>
-        </div>
-        <p style="color:#fff; margin:4px 0 8px 0; font-weight:600;">${escapeHtml(qBody)}</p>
-        <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px; color:#94a3b8;">
-          <div>A) ${escapeHtml(optA)}</div>
-          <div>B) ${escapeHtml(optB)}</div>
-          <div>C) ${escapeHtml(optC)}</div>
-          <div>D) ${escapeHtml(optD)}</div>
-        </div>
-      </div>
-    `;
-  });
-};
-
-window.printExamQuestionPaper = function () {
-  const filterVal = document.getElementById("filter-q-class")?.value || "ALL";
-  const filtered = getFilteredQuestionsList();
-  const limit = Math.max(1, parseInt(configuredExamQuestionCount, 10) || 30);
-  const paperQuestions = filtered.slice(0, limit);
-
-  if (!paperQuestions.length) {
-    alert("⚠️ No questions available to print for the selected class range.");
-    return;
-  }
-
-  const sheetEl = document.getElementById("printable-paper-sheet");
-  if (!sheetEl) return;
-
-  const questionsHtml = paperQuestions
-    .map((q, index) => {
-      const qBody = q.questionText || q.question || "";
-      const optA = q.optionA ?? q.options?.A ?? "";
-      const optB = q.optionB ?? q.options?.B ?? "";
-      const optC = q.optionC ?? q.options?.C ?? "";
-      const optD = q.optionD ?? q.options?.D ?? "";
-
-      return `
-      <div style="margin-bottom: 14px; page-break-inside: avoid;">
-        <div style="font-weight: 700; margin-bottom: 4px;">
-          Q${index + 1}. ${escapeHtml(qBody)}
-        </div>
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 4px 16px; padding-left: 14px; font-size: 13px;">
-          <div>(A) ${escapeHtml(optA)}</div>
-          <div>(B) ${escapeHtml(optB)}</div>
-          <div>(C) ${escapeHtml(optC)}</div>
-          <div>(D) ${escapeHtml(optD)}</div>
-        </div>
-      </div>
-    `;
-    })
-    .join("");
-
-  sheetEl.innerHTML = `
-    <div style="border-bottom: 2px solid #000; padding-bottom: 8px; margin-bottom: 14px; display: flex; justify-content: space-between; align-items: baseline;">
-      <div>
-        <h2 style="margin: 0; font-size: 18px;">Narmada Valley Maths &amp; Science Olympiad (NVMSO)</h2>
-        <div style="font-size: 12px;">Class Group: ${escapeHtml(filterVal)} | Total Questions: ${paperQuestions.length} (Configured Limit: ${limit})</div>
-      </div>
-      <div style="font-size: 12px; text-align: right;">
-        Name: _______________________<br>
-        Roll No: _____________________
+<div id="question-main-container" style="width: 100%; max-width: 1200px; margin: 0 auto;">
+  <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #374151; padding-bottom: 15px; margin-bottom: 20px; flex-wrap: wrap; gap: 10px;">
+    <div>
+      <h1 style="font-size: 22px; margin:0;">📚 Exam Question Bank &amp; Parameters Manager</h1>
+      <div style="font-size: 12px; color: #94a3b8; margin-top:4px;">
+        Class 1–12 Individual Papers &amp; Subject Sets | Print Limit: <strong id="exam-q-limit-badge" style="color:#38bdf8;">30</strong> Questions
       </div>
     </div>
-    ${questionsHtml}
-  `;
+    <div>
+      <a href="central.html" class="btn-primary" style="text-decoration: none; background: #4b5563; font-size: 12px; padding: 8px 14px; display:inline-block;">⬅ Back to Control Room</a>
+    </div>
+  </div>
 
-  window.print();
-};
+  <!-- QUESTION MANAGER INPUT VECTOR CONTAINER -->
+  <div class="control-box" style="border: 1px solid #c084fc; background: rgba(15, 23, 42, 0.85); padding: 20px; border-radius: 12px; margin-bottom: 20px;">
+    <h3 style="color:#c084fc; margin-top:0; margin-bottom: 15px;">✍️ Add New Exam Question Element</h3>
 
-function loadSavedQuestions() {
-  fetchConfiguredQuestionLimit();
-  fetch(`${SERVER_URL}/api/admin/all_questions`, {
-    headers: getAdminHeaders(false)
-  })
-    .then(res => res.json())
-    .then(data => {
-      if (data && data.status === "success" && Array.isArray(data.questions)) {
-        cachedQuestionsList = data.questions;
-      } else {
-        cachedQuestionsList = [];
-      }
-      renderFilteredQuestionsPreview();
-    })
-    .catch(() => {
-      const container = document.getElementById("saved-questions-container");
-      if (container) {
-        container.innerHTML = `<p style="color: #f87171; font-size: 13px; text-align: center;">Unable to load questions from server.</p>`;
-      }
-    });
-}
+    <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap:15px; margin-bottom: 15px;">
+      <div>
+        <label for="q-class-select" style="font-size:12px; color:#94a3b8; display:block; margin-bottom:5px;">Target Class (Individual):</label>
+        <select id="q-class-select" onchange="syncSubjectOptionsForClass('q-class-select', 'q-subject-select', false)" style="width:100%;">
+          <option value="1">Class 1</option>
+          <option value="2">Class 2</option>
+          <option value="3">Class 3</option>
+          <option value="4">Class 4</option>
+          <option value="5">Class 5</option>
+          <option value="6" selected>Class 6</option>
+          <option value="7">Class 7</option>
+          <option value="8">Class 8</option>
+          <option value="9">Class 9</option>
+          <option value="10">Class 10</option>
+          <option value="11">Class 11</option>
+          <option value="12">Class 12</option>
+        </select>
+      </div>
 
-window.deleteQuestion = function (questionId) {
-  if (!questionId) {
-    alert("⚠️ Question ID missing.");
-    return;
+      <div>
+        <label for="q-subject-select" style="font-size:12px; color:#94a3b8; display:block; margin-bottom:5px;">Subject / Paper Set:</label>
+        <select id="q-subject-select" style="width:100%; border-color:#38bdf8;"></select>
+      </div>
+
+      <div>
+        <label for="q-negative-marking" style="font-size:12px; color:#94a3b8; display:block; margin-bottom:5px;">Negative Marking (Wrong Ans):</label>
+        <select id="q-negative-marking" style="width:100%; border-color:#f87171;">
+          <option value="0" selected>0 Mark (No Negative)</option>
+          <option value="0.25">-0.25 Marks (1/4th)</option>
+          <option value="0.5">-0.50 Marks (Half)</option>
+          <option value="1">-1.00 Mark (Full)</option>
+        </select>
+      </div>
+    </div>
+
+    <div style="margin-bottom: 15px;">
+      <label for="q-text" style="font-size:12px; color:#94a3b8; display:block; margin-bottom:5px;">Question Statement:</label>
+      <textarea id="q-text" rows="3" placeholder="Type or paste question here..." style="width:100%;"></textarea>
+    </div>
+
+    <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap:15px; margin-bottom: 15px;">
+      <div>
+        <label for="q-opt-a" style="font-size:11px; color:#94a3b8; display:block; margin-bottom:4px;">Option A:</label>
+        <input type="text" id="q-opt-a" placeholder="Option A" style="width:100%;">
+      </div>
+      <div>
+        <label for="q-opt-b" style="font-size:11px; color:#94a3b8; display:block; margin-bottom:4px;">Option B:</label>
+        <input type="text" id="q-opt-b" placeholder="Option B" style="width:100%;">
+      </div>
+      <div>
+        <label for="q-opt-c" style="font-size:11px; color:#94a3b8; display:block; margin-bottom:4px;">Option C:</label>
+        <input type="text" id="q-opt-c" placeholder="Option C" style="width:100%;">
+      </div>
+      <div>
+        <label for="q-opt-d" style="font-size:11px; color:#94a3b8; display:block; margin-bottom:4px;">Option D:</label>
+        <input type="text" id="q-opt-d" placeholder="Option D" style="width:100%;">
+      </div>
+    </div>
+
+    <div style="margin-bottom: 20px; max-width: 250px;">
+      <label for="q-correct-opt" style="font-size:12px; color:#94a3b8; display:block; margin-bottom:5px;">Correct Answer Key:</label>
+      <select id="q-correct-opt" style="width:100%; border-color: #a855f7;">
+        <option value="A">Option A</option>
+        <option value="B">Option B</option>
+        <option value="C">Option C</option>
+        <option value="D">Option D</option>
+      </select>
+    </div>
+
+    <button type="button" class="btn-primary" style="width:100%; background:linear-gradient(135deg, #7c3aed 0%, #c084fc 100%); padding: 12px; font-weight:bold; cursor:pointer;" onclick="addNewQuestionToBank()">➕ Save Question to Database Engine</button>
+  </div>
+
+  <!-- LIVE SAVED QUESTIONS PREVIEW PANEL WITH PRINT & DELETE OPTIONS -->
+  <div class="control-box" style="border: 1px solid #334155; background: rgba(15, 23, 42, 0.85); padding: 20px; border-radius: 12px;">
+    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom: 12px;">
+      <h3 style="color:#38bdf8; margin:0;">📋 Live Saved Questions Preview (<span id="total-q-count">0</span>)</h3>
+      <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+        <input type="search" id="search-q-keyword" oninput="renderFilteredQuestionsPreview()" placeholder="Search question..." style="background:#020617; color:#fff; border:1px solid #475569; padding:6px 10px; border-radius:6px; font-size:12px; min-width:150px;">
+
+        <select id="filter-q-class" onchange="handleFilterClassChange()" style="background:#020617; color:#fff; border:1px solid #475569; padding:6px 10px; border-radius:6px; font-size:12px;">
+          <option value="ALL">All Classes (1–12)</option>
+          <option value="1">Class 1</option>
+          <option value="2">Class 2</option>
+          <option value="3">Class 3</option>
+          <option value="4">Class 4</option>
+          <option value="5">Class 5</option>
+          <option value="6">Class 6</option>
+          <option value="7">Class 7</option>
+          <option value="8">Class 8</option>
+          <option value="9">Class 9</option>
+          <option value="10">Class 10</option>
+          <option value="11">Class 11</option>
+          <option value="12">Class 12</option>
+        </select>
+
+        <select id="filter-q-subject" onchange="renderFilteredQuestionsPreview()" style="background:#020617; color:#fff; border:1px solid #475569; padding:6px 10px; border-radius:6px; font-size:12px;"></select>
+
+        <button type="button" onclick="printExamQuestionPaper()" style="background:#10b981; color:#020617; border:none; padding:7px 12px; border-radius:6px; font-size:12px; font-weight:800; cursor:pointer;">
+          🖨️ Print Paper (<span id="print-q-limit-label">30</span> Qs)
+        </button>
+      </div>
+    </div>
+    <div id="saved-questions-container" style="max-height: 450px; overflow-y: auto;">
+      <p style="color: #64748b; font-size: 13px; text-align: center;">Loading saved questions...</p>
+    </div>
+  </div>
+</div>
+
+<!-- PEN & PAPER QUESTION SHEET (SHOWN ON PRINT) -->
+<div id="printable-paper-sheet"></div>
+
+<script>
+  const SUBJECT_SETS = {
+    junior: [
+      { value: "Mathematics", label: "Mathematics", stream: "general" },
+      { value: "Science", label: "Science", stream: "general" },
+      { value: "General Knowledge", label: "General Knowledge", stream: "general" },
+      { value: "Reasoning", label: "Reasoning", stream: "general" }
+    ],
+    senior: [
+      { value: "Mathematics", label: "Maths Stream: Mathematics", stream: "maths" },
+      { value: "Physics", label: "Maths Stream: Physics", stream: "maths" },
+      { value: "Chemistry (Maths)", label: "Maths Stream: Chemistry", stream: "maths" },
+      { value: "Reasoning", label: "Maths Stream: Reasoning", stream: "maths" },
+      { value: "Zoology", label: "Biology Stream: Zoology", stream: "biology" },
+      { value: "Botany", label: "Biology Stream: Botany", stream: "biology" },
+      { value: "Chemistry (Bio)", label: "Biology Stream: Chemistry", stream: "biology" },
+      { value: "General Science", label: "Biology Stream: General Science", stream: "biology" }
+    ]
+  };
+
+  function getSubjectListForClass(clsVal) {
+    const num = parseInt(clsVal, 10);
+    if (num >= 11 && num <= 12) {
+      return SUBJECT_SETS.senior;
+    }
+    if (num >= 1 && num <= 10) {
+      return SUBJECT_SETS.junior;
+    }
+    return [
+      ...SUBJECT_SETS.junior,
+      ...SUBJECT_SETS.senior.filter(s => !["Mathematics", "Reasoning"].includes(s.value))
+    ];
   }
-  if (!confirm("Are you sure you want to delete this question?")) return;
 
-  fetch(`${SERVER_URL}/api/admin/delete-question`, {
-    method: "POST",
-    headers: getAdminHeaders(true),
-    body: JSON.stringify({ questionId: questionId, id: questionId })
-  })
-    .then(async res => {
-      const data = await res.json().catch(() => ({}));
-      if (res.status === 401) {
-        return { status: "error", message: data?.message || "Admin authentication required." };
-      }
-      return data;
-    })
-    .then(data => {
-      if (data && data.status === "success") {
-        alert("🗑️ Question deleted successfully!");
-        loadSavedQuestions();
-      } else {
-        alert("❌ Error deleting question: " + (data?.message || "Unknown error"));
-      }
-    })
-    .catch(() => alert("❌ Network error while deleting question."));
-};
+  function syncSubjectOptionsForClass(classSelectId, subjectSelectId, includeAllOption) {
+    const clsEl = document.getElementById(classSelectId);
+    const subEl = document.getElementById(subjectSelectId);
+    if (!clsEl || !subEl) return;
+
+    const prevVal = subEl.value;
+    const list = getSubjectListForClass(clsEl.value);
+    subEl.innerHTML = "";
+
+    if (includeAllOption) {
+      const allOpt = document.createElement("option");
+      allOpt.value = "ALL";
+      allOpt.textContent = "All Subjects";
+      subEl.appendChild(allOpt);
+    }
+
+    list.forEach(item => {
+      const opt = document.createElement("option");
+      opt.value = item.value;
+      opt.textContent = item.label;
+      opt.dataset.stream = item.stream;
+      subEl.appendChild(opt);
+    });
+
+    const exists = Array.from(subEl.options).some(o => o.value === prevVal);
+    if (exists) {
+      subEl.value = prevVal;
+    }
+  }
+
+  function handleFilterClassChange() {
+    syncSubjectOptionsForClass("filter-q-class", "filter-q-subject", true);
+    if (typeof renderFilteredQuestionsPreview === "function") {
+      renderFilteredQuestionsPreview();
+    }
+  }
+
+  document.addEventListener("DOMContentLoaded", function () {
+    syncSubjectOptionsForClass("q-class-select", "q-subject-select", false);
+    syncSubjectOptionsForClass("filter-q-class", "filter-q-subject", true);
+  });
+</script>
+<script src="question.js?v=14"></script>
+</body>
+</html>
