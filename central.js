@@ -1,5 +1,6 @@
 const SERVER_URL = "https://nvmso-backend.onrender.com";
 const ADMIN_TOKEN_KEY = "nvmso_admin_token";
+const REF_SETTLED_STORAGE_KEY = "nvmso_settled_ref_base_map";
 
 let adminToken = sessionStorage.getItem(ADMIN_TOKEN_KEY) || "";
 let allStudentsCache = [];
@@ -9,6 +10,7 @@ let pendingPayoutsCache = [];
 let centralPortalConfig = {};
 let supportTicketsCache = [];
 let activeTicketId = "";
+let targetOrgCodeForChat = "";
 let autoRefreshTimer = null;
 
 function int(val) {
@@ -22,6 +24,48 @@ function escapeHtml(str) {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
+}
+
+function getLocalRefSettledMap() {
+  try {
+    const raw = localStorage.getItem(REF_SETTLED_STORAGE_KEY);
+    const parsed = raw ? JSON.parse(raw) : {};
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch (_) {
+    return {};
+  }
+}
+
+function setLocalRefSettledBase(orgCode, amount) {
+  const code = String(orgCode || "").trim().toUpperCase();
+  if (!code) return;
+  const map = getLocalRefSettledMap();
+  const prev = int(map[code]);
+  map[code] = Math.max(prev, int(amount));
+  try {
+    localStorage.setItem(REF_SETTLED_STORAGE_KEY, JSON.stringify(map));
+  } catch (_) {}
+}
+
+function getEffectiveSettledRefBase(org, rawRefComm) {
+  const code = String(org?.code || org?.orgCode || "").trim().toUpperCase();
+  const serverBase = int(org?.settledRefCommBase);
+  const localMap = getLocalRefSettledMap();
+  const localBase = code ? int(localMap[code]) : 0;
+
+  let effectiveBase = Math.max(serverBase, localBase);
+
+  const statusStr = String(org?.refPayoutStatus || org?.referralStatus || "").toLowerCase();
+  if (
+    effectiveBase === 0 &&
+    int(org?.referralPaidOut) > 0 &&
+    (statusStr === "paid" || statusStr === "settled" || org?.referralSettled === true)
+  ) {
+    effectiveBase = int(rawRefComm);
+    if (code) setLocalRefSettledBase(code, effectiveBase);
+  }
+
+  return effectiveBase;
 }
 
 function getAdminHeaders(includeJson = true) {
@@ -74,6 +118,100 @@ function getOrganizerPayoutUpi(org) {
   const fromObj = String(org?.upiId || org?.payoutUpi || org?.upi || "").trim();
   const fromLocal = code ? String(localStorage.getItem(`nvmso_org_upi_${code}`) || "").trim() : "";
   return fromObj || fromLocal || "";
+}
+
+function computeOrganizerMetrics(org, onlineFeeConfig, offlineFeeConfig) {
+  const code = String(org.code || org.orgCode || "").trim().toUpperCase();
+  const isSettled = !!org.manualSettled;
+
+  const allSchoolStudents = allStudentsCache.filter(
+    s => String(s.orgCode || "").trim().toUpperCase() === code
+  );
+  const verifiedStudents = allSchoolStudents.filter(
+    s => s.paymentStatus === "Approved" || s.paymentVerified === true
+  );
+
+  const totalReg = verifiedStudents.length || 0;
+  const pendingReviewCount = allSchoolStudents.filter(
+    s => s.paymentStatus && String(s.paymentStatus).includes("Pending")
+  ).length;
+
+  const onlineRegs = verifiedStudents.filter(
+    s => String(s.paymentMode || "online").toLowerCase() === "online"
+  ).length;
+  const cashRegs = verifiedStudents.filter(
+    s =>
+      String(s.paymentMode || "").toLowerCase() === "offline" ||
+      String(s.paymentMode || "").toLowerCase() === "cash"
+  ).length;
+
+  const examMode = String(org.examMode || "online").toLowerCase();
+  const perStudentFee = examMode === "offline" ? offlineFeeConfig : onlineFeeConfig;
+
+  const rawOnlineGross = onlineRegs * onlineFeeConfig;
+  const rawCashGross = cashRegs * perStudentFee;
+  const rawDirectComm = int(totalReg * onlineFeeConfig * 0.15);
+
+  const settledCashBase = isSettled ? int(org.settledCashBase) : 0;
+  const settledDirectBase = isSettled ? int(org.settledDirectCommBase) : 0;
+
+  const cashGross = Math.max(0, rawCashGross - settledCashBase);
+  const directComm = Math.max(0, rawDirectComm - settledDirectBase);
+
+  const referredOrganizers = allOrganizersCache.filter(otherOrg => {
+    const otherCode = String(otherOrg.code || otherOrg.orgCode || "").trim().toUpperCase();
+    const otherRefCode = String(otherOrg.refCode || "").trim().toUpperCase();
+    return (
+      code &&
+      otherCode &&
+      otherCode !== code &&
+      otherRefCode.length > 0 &&
+      otherRefCode !== "NONE" &&
+      otherRefCode === code
+    );
+  });
+
+  let rawRefComm = 0;
+  referredOrganizers.forEach(refOrg => {
+    const refOrgCode = String(refOrg.code || refOrg.orgCode || "").trim().toUpperCase();
+    const refOrgVerifiedStudents = allStudentsCache.filter(
+      s =>
+        String(s.orgCode || "").trim().toUpperCase() === refOrgCode &&
+        (s.paymentStatus === "Approved" || s.paymentVerified === true)
+    );
+    rawRefComm += int(refOrgVerifiedStudents.length * onlineFeeConfig * 0.05);
+  });
+
+  const settledRefBase = getEffectiveSettledRefBase(org, rawRefComm);
+  const refComm = Math.max(0, rawRefComm - settledRefBase);
+  const refCommPaidTotal = Math.max(0, settledRefBase);
+
+  const netCashToPortal = Math.max(0, cashGross - directComm);
+  const netCashSettledToPortal = isSettled ? Math.max(0, rawCashGross - rawDirectComm) : 0;
+
+  // Net profit received by NVMSO = verified online collection + net cash settled to NVMSO - referral paid out
+  const nvmsNetProfit = Math.max(0, rawOnlineGross + netCashSettledToPortal - refCommPaidTotal);
+
+  return {
+    code,
+    isSettled,
+    totalReg,
+    pendingReviewCount,
+    onlineRegs,
+    cashRegs,
+    examMode,
+    rawOnlineGross,
+    rawCashGross,
+    cashGross,
+    directComm,
+    rawRefComm,
+    settledRefBase,
+    refComm,
+    refCommPaidTotal,
+    netCashToPortal,
+    netCashSettledToPortal,
+    nvmsNetProfit
+  };
 }
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -323,6 +461,7 @@ window.saveGlobalConfig = async () => {
         centralPortalConfig = { ...centralPortalConfig, ...payload };
         alert("✅ Command Dispatched: Portal phases, question count, and paper time limit updated!");
         renderMergedOrganizersTable();
+        renderNvmsCollectionLedger();
         loadSchoolStudentLedger();
       } else {
         alert("❌ Error: " + (data?.message || "Failed to update config"));
@@ -369,6 +508,7 @@ function fetchAllCentralData() {
       }
 
       renderMergedOrganizersTable();
+      renderNvmsCollectionLedger();
       populateSchoolDropdowns();
       loadSchoolRankings();
       loadSchoolStudentLedger();
@@ -391,68 +531,8 @@ function renderMergedOrganizersTable() {
   const offlineFeeConfig = Number(document.getElementById("cfg-offline-fee")?.value) || 120;
 
   allOrganizersCache.forEach(org => {
-    const code = String(org.code || org.orgCode || "").trim().toUpperCase();
-    const isSettled = !!org.manualSettled;
-
-    const allSchoolStudents = allStudentsCache.filter(
-      s => String(s.orgCode || "").trim().toUpperCase() === code
-    );
-    const verifiedStudents = allSchoolStudents.filter(
-      s => s.paymentStatus === "Approved" || s.paymentVerified === true
-    );
-
-    const totalReg = verifiedStudents.length || 0;
-    const pendingReviewCount = allSchoolStudents.filter(
-      s => s.paymentStatus && String(s.paymentStatus).includes("Pending")
-    ).length;
-
-    const onlineRegs = verifiedStudents.filter(
-      s => String(s.paymentMode || "online").toLowerCase() === "online"
-    ).length;
-    const cashRegs = verifiedStudents.filter(
-      s =>
-        String(s.paymentMode || "").toLowerCase() === "offline" ||
-        String(s.paymentMode || "").toLowerCase() === "cash"
-    ).length;
-
-    const examMode = String(org.examMode || "online").toLowerCase();
-
-    const rawCashGross = cashRegs * (examMode === "offline" ? offlineFeeConfig : onlineFeeConfig);
-    const rawDirectComm = int(totalReg * onlineFeeConfig * 0.15);
-
-    const settledCashBase = isSettled ? int(org.settledCashBase) : 0;
-    const settledDirectBase = isSettled ? int(org.settledDirectCommBase) : 0;
-    const settledRefBase = int(org.settledRefCommBase);
-
-    const cashGross = Math.max(0, rawCashGross - settledCashBase);
-    const directComm = Math.max(0, rawDirectComm - settledDirectBase);
-
-    const referredOrganizers = allOrganizersCache.filter(otherOrg => {
-      const otherCode = String(otherOrg.code || otherOrg.orgCode || "").trim().toUpperCase();
-      const otherRefCode = String(otherOrg.refCode || "").trim().toUpperCase();
-      return (
-        code &&
-        otherCode &&
-        otherCode !== code &&
-        otherRefCode.length > 0 &&
-        otherRefCode !== "NONE" &&
-        otherRefCode === code
-      );
-    });
-
-    let rawRefComm = 0;
-    referredOrganizers.forEach(refOrg => {
-      const refOrgCode = String(refOrg.code || refOrg.orgCode || "").trim().toUpperCase();
-      const refOrgVerifiedStudents = allStudentsCache.filter(
-        s =>
-          String(s.orgCode || "").trim().toUpperCase() === refOrgCode &&
-          (s.paymentStatus === "Approved" || s.paymentVerified === true)
-      );
-      rawRefComm += int(refOrgVerifiedStudents.length * onlineFeeConfig * 0.05);
-    });
-
-    const refComm = Math.max(0, rawRefComm - settledRefBase);
-    const netCashToPortal = Math.max(0, cashGross - directComm);
+    const m = computeOrganizerMetrics(org, onlineFeeConfig, offlineFeeConfig);
+    const code = m.code;
 
     const sett = pendingSettlementsCache.find(
       s => String(s.orgCode || "").trim().toUpperCase() === code
@@ -462,7 +542,7 @@ function renderMergedOrganizersTable() {
     );
 
     let settCell =
-      netCashToPortal === 0 && (isSettled || cashGross === 0)
+      m.netCashToPortal === 0 && (m.isSettled || m.cashGross === 0)
         ? "<span style='color:#4ade80; font-weight:bold;'>✔️ Settled (₹0 Due)</span>"
         : "<span style='color:#f87171;'>Pending Settlement</span>";
 
@@ -477,46 +557,49 @@ function renderMergedOrganizersTable() {
       actionButtons.push(
         `<button type="button" onclick="approveOrganizerSettlement('${escapeHtml(code)}', '${escapeHtml(sett.id)}')" style="background:#10b981; color:#fff; border:none; padding:4px 8px; font-size:10px; border-radius:4px; font-weight:bold; cursor:pointer; margin-bottom:3px;">Verify UTR</button>`
       );
-    } else if (netCashToPortal > 0) {
+    } else if (m.netCashToPortal > 0) {
       actionButtons.push(
         `<button type="button" onclick="approveOrganizerSettlement('${escapeHtml(code)}', '')" style="background:#0284c7; color:#fff; border:none; padding:4px 8px; font-size:10px; border-radius:4px; font-weight:bold; cursor:pointer; margin-bottom:3px;">Mark Settled</button>`
       );
     }
 
-    if (payoutReq && refComm > 0) {
+    if (m.refComm > 0) {
       actionButtons.push(
-        `<button type="button" onclick="completeOrganizerPayout('${escapeHtml(payoutReq.id)}', '${escapeHtml(code)}')" style="background:#f59e0b; color:#020617; border:none; padding:4px 8px; font-size:10px; border-radius:4px; font-weight:bold; cursor:pointer;">Pay Referral</button>`
+        `<button type="button" onclick="completeOrganizerPayout('${escapeHtml(payoutReq?.id || "")}', '${escapeHtml(code)}', ${m.rawRefComm})" style="background:#f59e0b; color:#020617; border:none; padding:4px 8px; font-size:10px; border-radius:4px; font-weight:bold; cursor:pointer; margin-bottom:3px;">Pay Referral (₹${m.refComm})</button>`
       );
     }
 
-    const actionCell = actionButtons.length
-      ? actionButtons.join("<br>")
-      : netCashToPortal === 0 && refComm === 0
-      ? "<span style='color:#38bdf8; font-weight:bold;'>Completed</span>"
-      : "Awaiting";
+    actionButtons.push(
+      `<button type="button" onclick="openOrganizerChat('${escapeHtml(code)}')" style="background:#7e22ce; color:#fff; border:none; padding:4px 8px; font-size:10px; border-radius:4px; font-weight:bold; cursor:pointer;">💬 Chat</button>`
+    );
+
+    const actionCell = actionButtons.join("<br>");
 
     const pendingBadge =
-      pendingReviewCount > 0
-        ? `<br><span style="font-size:9px; color:#f59e0b; font-weight:bold;">(${pendingReviewCount} Pending)</span>`
+      m.pendingReviewCount > 0
+        ? `<br><span style="font-size:9px; color:#f59e0b; font-weight:bold;">(${m.pendingReviewCount} Pending)</span>`
         : "";
 
     const orgUpi = getOrganizerPayoutUpi(org);
     const orgLabel = org.schoolName || "Organizer";
 
-    let directCommHtml = `₹${directComm}`;
-    if (directComm > 0) {
+    let directCommHtml = `₹${m.directComm}`;
+    if (m.directComm > 0) {
       if (orgUpi) {
-        const directUpiLink = `upi://pay?pa=${encodeURIComponent(orgUpi)}&pn=${encodeURIComponent(orgLabel)}&am=${directComm}&cu=INR`;
+        const directUpiLink = `upi://pay?pa=${encodeURIComponent(orgUpi)}&pn=${encodeURIComponent(orgLabel)}&am=${m.directComm}&cu=INR`;
         directCommHtml += `<br><a href="${directUpiLink}" style="background:#10b981; color:#fff; padding:2px 7px; font-size:9px; border-radius:3px; text-decoration:none; display:inline-block; margin-top:3px; font-weight:bold;">Pay</a><br><span style="font-size:9px; color:#cbd5e1; word-break:break-all;">${escapeHtml(orgUpi)}</span>`;
       } else {
         directCommHtml += `<br><span style="font-size:9px; color:#f87171; font-weight:bold;">Pay</span><br><span style="font-size:9px; color:#f87171;">No UPI</span>`;
       }
     }
 
-    let refCommHtml = `₹${refComm}`;
-    if (refComm > 0) {
+    let refCommHtml = `₹${m.refComm}`;
+    if (m.refCommPaidTotal > 0) {
+      refCommHtml += `<br><span style="font-size:9px; color:#4ade80;">Paid: ₹${m.refCommPaidTotal}</span>`;
+    }
+    if (m.refComm > 0) {
       if (orgUpi) {
-        const refUpiLink = `upi://pay?pa=${encodeURIComponent(orgUpi)}&pn=${encodeURIComponent(orgLabel)}&am=${refComm}&cu=INR`;
+        const refUpiLink = `upi://pay?pa=${encodeURIComponent(orgUpi)}&pn=${encodeURIComponent(orgLabel)}&am=${m.refComm}&cu=INR`;
         refCommHtml += `<br><a href="${refUpiLink}" style="background:#f59e0b; color:#020617; padding:2px 7px; font-size:9px; border-radius:3px; text-decoration:none; display:inline-block; margin-top:3px; font-weight:bold;">Pay</a><br><span style="font-size:9px; color:#cbd5e1; word-break:break-all;">${escapeHtml(orgUpi)}</span>`;
       } else {
         refCommHtml += `<br><span style="font-size:9px; color:#f87171; font-weight:bold;">Pay</span><br><span style="font-size:9px; color:#f87171;">No UPI</span>`;
@@ -528,7 +611,7 @@ function renderMergedOrganizersTable() {
         <td style="padding:10px;">
           <code style="color:#38bdf8; font-weight:bold; font-size:13px;">${escapeHtml(code)}</code><br>
           <span style="font-size:12px; color:#cbd5e1; font-weight:600;">${escapeHtml(org.schoolName || "School")}</span><br>
-          <span style="background:#1e293b; padding:1px 6px; border-radius:4px; font-size:10px; font-weight:bold; color:${examMode === "offline" ? "#fbbf24" : "#38bdf8"}">${escapeHtml(examMode.toUpperCase())}</span>
+          <span style="background:#1e293b; padding:1px 6px; border-radius:4px; font-size:10px; font-weight:bold; color:${m.examMode === "offline" ? "#fbbf24" : "#38bdf8"}">${escapeHtml(m.examMode.toUpperCase())}</span>
         </td>
         <td style="padding:10px;">
           <strong>${escapeHtml(org.name || org.coordinatorName || "N/A")}</strong><br>
@@ -536,13 +619,13 @@ function renderMergedOrganizersTable() {
           <span style="font-size:10px; color:${orgUpi ? "#4ade80" : "#f87171"};">UPI: ${escapeHtml(orgUpi || "Not Set")}</span>
         </td>
         <td style="padding:10px; color:#4ade80; font-weight:bold; text-align:center;">
-          ${totalReg} ${pendingBadge}<br><span style="font-size:10px; color:#94a3b8;">(${onlineRegs} On / ${cashRegs} Cash)</span>
+          ${m.totalReg} ${pendingBadge}<br><span style="font-size:10px; color:#94a3b8;">(${m.onlineRegs} On / ${m.cashRegs} Cash)</span>
         </td>
         <td style="padding:10px; color:#facc15; font-weight:bold;">${directCommHtml}</td>
         <td style="padding:10px; color:#c084fc; font-weight:bold;">${refCommHtml}</td>
         <td style="padding:10px;">
-          <strong style="color:${netCashToPortal > 0 ? "#f87171" : "#4ade80"}; font-size:14px;">₹${netCashToPortal}</strong><br>
-          <span style="font-size:10px; color:#94a3b8;">Cash Held: ₹${cashGross}</span>
+          <strong style="color:${m.netCashToPortal > 0 ? "#f87171" : "#4ade80"}; font-size:14px;">₹${m.netCashToPortal}</strong><br>
+          <span style="font-size:10px; color:#94a3b8;">Cash Held: ₹${m.cashGross}</span>
         </td>
         <td style="padding:10px;">${settCell}</td>
         <td style="padding:10px;">${actionCell}</td>
@@ -550,6 +633,132 @@ function renderMergedOrganizersTable() {
     `;
   });
 }
+
+function renderNvmsCollectionLedger() {
+  const summaryEl = document.getElementById("nvms-profit-summary-cards");
+  const tbody = document.getElementById("nvms-collection-ledger-rows");
+  if (!summaryEl || !tbody) return;
+
+  const onlineFeeConfig = Number(document.getElementById("cfg-online-fee")?.value) || 100;
+  const offlineFeeConfig = Number(document.getElementById("cfg-offline-fee")?.value) || 120;
+
+  let totalOnlineReceived = 0;
+  let totalNetCashSettled = 0;
+  let totalReferralPaid = 0;
+  let totalNvmsProfit = 0;
+
+  const rowsHtml = [];
+
+  allOrganizersCache.forEach(org => {
+    const m = computeOrganizerMetrics(org, onlineFeeConfig, offlineFeeConfig);
+    totalOnlineReceived += m.rawOnlineGross;
+    totalNetCashSettled += m.netCashSettledToPortal;
+    totalReferralPaid += m.refCommPaidTotal;
+    totalNvmsProfit += m.nvmsNetProfit;
+
+    rowsHtml.push(`
+      <tr style="border-bottom:1px solid #1e293b;">
+        <td style="padding:10px;">
+          <code style="color:#38bdf8; font-weight:bold;">${escapeHtml(m.code)}</code>
+          <span style="color:#cbd5e1; margin-left:6px;">${escapeHtml(org.schoolName || "School")}</span>
+        </td>
+        <td style="padding:10px; color:#38bdf8; font-weight:bold;">₹${m.rawOnlineGross}</td>
+        <td style="padding:10px; color:#facc15; font-weight:bold;">₹${m.netCashSettledToPortal}</td>
+        <td style="padding:10px; color:#f87171; font-weight:bold;">-₹${m.refCommPaidTotal}</td>
+        <td style="padding:10px; color:#4ade80; font-weight:900; font-size:14px;">₹${m.nvmsNetProfit}</td>
+      </tr>
+    `);
+  });
+
+  const knownCodes = new Set(
+    allOrganizersCache.map(o => String(o.code || o.orgCode || "").trim().toUpperCase())
+  );
+  const unmappedOnlineStudents = allStudentsCache.filter(
+    s =>
+      (s.paymentStatus === "Approved" || s.paymentVerified === true) &&
+      String(s.paymentMode || "online").toLowerCase() === "online" &&
+      !knownCodes.has(String(s.orgCode || "").trim().toUpperCase())
+  );
+
+  if (unmappedOnlineStudents.length > 0) {
+    const extraOnline = unmappedOnlineStudents.length * onlineFeeConfig;
+    totalOnlineReceived += extraOnline;
+    totalNvmsProfit += extraOnline;
+    rowsHtml.push(`
+      <tr style="border-bottom:1px solid #1e293b;">
+        <td style="padding:10px;"><span style="color:#94a3b8;">Direct / Unassigned School</span></td>
+        <td style="padding:10px; color:#38bdf8; font-weight:bold;">₹${extraOnline}</td>
+        <td style="padding:10px; color:#94a3b8;">₹0</td>
+        <td style="padding:10px; color:#94a3b8;">₹0</td>
+        <td style="padding:10px; color:#4ade80; font-weight:900; font-size:14px;">₹${extraOnline}</td>
+      </tr>
+    `);
+  }
+
+  summaryEl.innerHTML = `
+    <div style="background:#020617; border:1px solid #1e293b; border-radius:8px; padding:12px;">
+      <div style="font-size:11px; color:#94a3b8;">Verified Online Received</div>
+      <div style="font-size:18px; font-weight:800; color:#38bdf8; margin-top:4px;">₹${totalOnlineReceived}</div>
+    </div>
+    <div style="background:#020617; border:1px solid #1e293b; border-radius:8px; padding:12px;">
+      <div style="font-size:11px; color:#94a3b8;">Net Cash Settled to NVMSO</div>
+      <div style="font-size:18px; font-weight:800; color:#facc15; margin-top:4px;">₹${totalNetCashSettled}</div>
+    </div>
+    <div style="background:#020617; border:1px solid #1e293b; border-radius:8px; padding:12px;">
+      <div style="font-size:11px; color:#94a3b8;">Referral Commissions Paid</div>
+      <div style="font-size:18px; font-weight:800; color:#f87171; margin-top:4px;">-₹${totalReferralPaid}</div>
+    </div>
+    <div style="background:#020617; border:1px solid #16a34a; border-radius:8px; padding:12px;">
+      <div style="font-size:11px; color:#86efac;">NVMSO Net Profit</div>
+      <div style="font-size:20px; font-weight:900; color:#4ade80; margin-top:4px;">₹${totalNvmsProfit}</div>
+    </div>
+  `;
+
+  tbody.innerHTML = rowsHtml.length
+    ? rowsHtml.join("")
+    : "<tr><td colspan='5' style='text-align:center; color:#64748b; padding:15px;'>No verified collection recorded yet.</td></tr>";
+}
+
+window.openOrganizerChat = function (orgCode) {
+  const normalizedCode = String(orgCode || "").trim().toUpperCase();
+  targetOrgCodeForChat = normalizedCode;
+
+  const selectEl = document.getElementById("admin-chat-ticket-select");
+  const bannerEl = document.getElementById("admin-chat-target-banner");
+  const msgBox = document.getElementById("admin-chat-messages");
+  const inputEl = document.getElementById("admin-chat-reply-input");
+
+  const matchedTicket = supportTicketsCache.find(t => {
+    const tOrg = String(t.orgCode || "").trim().toUpperCase();
+    const tId = String(t.ticketId || t.id || "").trim().toUpperCase();
+    return tOrg === normalizedCode || tId.includes(normalizedCode);
+  });
+
+  if (matchedTicket && selectEl) {
+    const tid = String(matchedTicket.ticketId || matchedTicket.id || "").trim();
+    selectEl.value = tid;
+    activeTicketId = tid;
+    fetchAdminTicketMessages(tid);
+  } else {
+    activeTicketId = "";
+    if (selectEl) selectEl.value = "";
+    if (msgBox) {
+      msgBox.innerHTML = `<p style="color:#cbd5e1; font-size:12px; text-align:center;">No existing ticket for <strong>${escapeHtml(normalizedCode)}</strong> yet. Type a message below to reply.</p>`;
+    }
+  }
+
+  if (bannerEl) {
+    bannerEl.innerHTML = `Active Chat Target: <strong>${escapeHtml(normalizedCode)}</strong>`;
+  }
+
+  const chatSection = document.getElementById("support-chat-section");
+  if (chatSection) {
+    chatSection.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+  if (inputEl) {
+    setTimeout(() => inputEl.focus(), 250);
+  }
+};
 
 window.fetchAdminSupportTickets = function () {
   if (!adminToken) return;
@@ -587,7 +796,7 @@ window.fetchAdminSupportTickets = function () {
         selectEl.value = prevSelected;
         activeTicketId = prevSelected;
         fetchAdminTicketMessages(prevSelected);
-      } else if (supportTicketsCache.length > 0 && !activeTicketId) {
+      } else if (!targetOrgCodeForChat && supportTicketsCache.length > 0 && !activeTicketId) {
         const firstId = String(supportTicketsCache[0].ticketId || supportTicketsCache[0].id || "").trim();
         if (firstId) {
           selectEl.value = firstId;
@@ -601,8 +810,19 @@ window.fetchAdminSupportTickets = function () {
 
 window.onAdminTicketChange = function () {
   const selectEl = document.getElementById("admin-chat-ticket-select");
+  const bannerEl = document.getElementById("admin-chat-target-banner");
   activeTicketId = (selectEl?.value || "").trim();
+
   if (activeTicketId) {
+    const found = supportTicketsCache.find(
+      t => String(t.ticketId || t.id || "").trim() === activeTicketId
+    );
+    if (found?.orgCode) {
+      targetOrgCodeForChat = String(found.orgCode).trim().toUpperCase();
+    }
+    if (bannerEl) {
+      bannerEl.innerHTML = `Active Chat Target: <strong>${escapeHtml(targetOrgCodeForChat || activeTicketId)}</strong>`;
+    }
     fetchAdminTicketMessages(activeTicketId);
   } else {
     const msgBox = document.getElementById("admin-chat-messages");
@@ -657,16 +877,21 @@ window.sendAdminChatReply = function () {
   const ticketId = (activeTicketId || selectEl?.value || "").trim();
   const replyText = (inputEl?.value || "").trim();
 
-  if (!ticketId) {
-    alert("⚠️ Please select a coordinator ticket first.");
+  if (!replyText) return;
+
+  if (!ticketId && !targetOrgCodeForChat) {
+    alert("⚠️ Please select a coordinator ticket or click 💬 Chat on an organizer row.");
     return;
   }
-  if (!replyText) return;
 
   fetch(`${SERVER_URL}/api/admin/reply_query`, {
     method: "POST",
     headers: getAdminHeaders(true),
-    body: JSON.stringify({ ticketId: ticketId, message: replyText })
+    body: JSON.stringify({
+      ticketId: ticketId || `ORG_${targetOrgCodeForChat}`,
+      orgCode: targetOrgCodeForChat || "",
+      message: replyText
+    })
   })
     .then(async res => {
       if (res.status === 401) {
@@ -679,7 +904,12 @@ window.sendAdminChatReply = function () {
       if (!data) return;
       if (data.status === "success") {
         if (inputEl) inputEl.value = "";
-        fetchAdminTicketMessages(ticketId);
+        if (data.ticketId) {
+          activeTicketId = String(data.ticketId).trim();
+        }
+        if (activeTicketId) {
+          fetchAdminTicketMessages(activeTicketId);
+        }
         fetchAdminSupportTickets();
       } else {
         alert("❌ Error: " + (data?.message || "Failed to send reply"));
@@ -1098,13 +1328,44 @@ window.approveOrganizerSettlement = function (orgCode, reqId) {
     .catch(() => alert("❌ Network error while verifying settlement."));
 };
 
-window.completeOrganizerPayout = function (payoutId, orgCode) {
-  if (!adminToken || !payoutId) return;
-  if (!confirm(`Mark referral commission payout as completed for ${orgCode || "organizer"}?`)) return;
+window.completeOrganizerPayout = function (payoutId, orgCode, currentRawRefComm) {
+  if (!adminToken) return;
+  const code = String(orgCode || "").trim().toUpperCase();
+  if (!confirm(`Mark referral commission payout as completed for ${code || "organizer"}? Current due will reset to ₹0 and only new referrals will be counted.`)) return;
+
+  const orgObj = allOrganizersCache.find(
+    o => String(o.code || o.orgCode || "").trim().toUpperCase() === code
+  );
+  const onlineFeeConfig = Number(document.getElementById("cfg-online-fee")?.value) || 100;
+  const offlineFeeConfig = Number(document.getElementById("cfg-offline-fee")?.value) || 120;
+  const computedRawRef =
+    currentRawRefComm !== undefined
+      ? int(currentRawRefComm)
+      : orgObj
+      ? computeOrganizerMetrics(orgObj, onlineFeeConfig, offlineFeeConfig).rawRefComm
+      : 0;
+
+  setLocalRefSettledBase(code, computedRawRef);
+  if (orgObj) {
+    orgObj.settledRefCommBase = Math.max(int(orgObj.settledRefCommBase), computedRawRef);
+    orgObj.referralPaidOut = computedRawRef;
+  }
+  pendingPayoutsCache = pendingPayoutsCache.filter(
+    p =>
+      String(p.orgCode || "").trim().toUpperCase() !== code &&
+      (!payoutId || String(p.id) !== String(payoutId))
+  );
+  renderMergedOrganizersTable();
+  renderNvmsCollectionLedger();
+
   fetch(`${SERVER_URL}/api/admin/complete_payout`, {
     method: "POST",
     headers: getAdminHeaders(true),
-    body: JSON.stringify({ payoutId: payoutId, orgCode: orgCode || "" })
+    body: JSON.stringify({
+      payoutId: payoutId || "",
+      orgCode: code,
+      settledRefCommBase: computedRawRef
+    })
   })
     .then(async res => {
       if (res.status === 401) {
@@ -1116,7 +1377,7 @@ window.completeOrganizerPayout = function (payoutId, orgCode) {
     .then(d => {
       if (!d) return;
       if (d && d.status === "success") {
-        alert("✅ Referral payout marked completed!");
+        alert("✅ Referral payout marked completed! Due reset to ₹0.");
         fetchAllCentralData();
       } else {
         alert("❌ Error: " + (d?.message || "Failed to complete payout"));
