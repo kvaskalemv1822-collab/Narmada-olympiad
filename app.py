@@ -1333,6 +1333,8 @@ def organizer_update_profile():
         return jsonify({
             "status": "success",
             "message": "Updated",
+            "upiId": sanitized.get("upiId", ""),
+            "payoutUpi": sanitized.get("payoutUpi", ""),
             "data": sanitized,
         }), 200
     except Exception as e:
@@ -1479,12 +1481,13 @@ def organizer_request_payout():
         if not org_code:
             return jsonify({"status": "unauthorized", "message": "🔒 Valid coordinator session required!"}), 401
 
-        upi_id = str(data.get("upiId") or data.get("payoutUpi") or "").strip()
+        upi_id = str(data.get("upiId") or data.get("payoutUpi") or data.get("upi") or "").strip()
         amount = float(data.get("amount") or 0)
         if "@" not in upi_id or amount <= 0:
             return jsonify({"status": "error", "message": "Valid UPI ID and amount required"}), 400
 
-        db.collection("organizers").document(org_code).set({
+        org_ref = db.collection("organizers").document(org_code)
+        org_ref.set({
             "upiId": upi_id,
             "payoutUpi": upi_id,
         }, merge=True)
@@ -1492,11 +1495,20 @@ def organizer_request_payout():
         db.collection("payouts").document().set({
             "orgCode": org_code,
             "upiId": upi_id,
+            "payoutUpi": upi_id,
             "amount": amount,
             "status": "pending",
             "timestamp": firestore.SERVER_TIMESTAMP,
         })
-        return jsonify({"status": "success", "message": "Requested"}), 200
+
+        updated_org = _sanitize_org_profile(org_code, org_ref.get().to_dict() or {})
+        return jsonify({
+            "status": "success",
+            "message": "Requested",
+            "upiId": upi_id,
+            "payoutUpi": upi_id,
+            "data": updated_org,
+        }), 200
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
