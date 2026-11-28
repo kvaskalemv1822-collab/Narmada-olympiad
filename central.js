@@ -84,10 +84,20 @@ function getAdminHeaders(includeJson = true) {
 }
 
 function getStudentExamMode(student) {
-  const orgCodeUpper = String(student?.orgCode || "").trim().toUpperCase();
+  const orgCodeUpper = String(student?.orgCode || student?.schoolCode || "").trim().toUpperCase();
   const orgObj =
     allOrganizersCache.find(o => String(o.code || o.orgCode || "").trim().toUpperCase() === orgCodeUpper) || {};
-  return String(orgObj.examMode || student?.examMode || "online").trim().toLowerCase();
+  const mode = String(orgObj.examMode || student?.examMode || "online").trim().toLowerCase();
+  return mode === "offline" ? "offline" : "online";
+}
+
+function isDirectNvmsOnlineStudent(student) {
+  const mode = String(student?.paymentMode || "online").trim().toLowerCase();
+  const utr = String(student?.utrNumber || "").trim().toUpperCase();
+  if (mode === "offline" || mode === "cash" || utr === "CASH_MODE") {
+    return false;
+  }
+  return mode === "online" || (utr.length > 0 && utr !== "NOT_PROVIDED");
 }
 
 function getConfiguredTotalQuestions(student) {
@@ -825,7 +835,7 @@ window.fetchAdminSupportTickets = function () {
     .catch(() => {});
 };
 
-window.onAdminTicketSelectChange = function () {
+window.onAdminTicketChange = function () {
   const selectEl = document.getElementById("admin-chat-ticket-select");
   const tid = selectEl ? String(selectEl.value || "").trim() : "";
   activeTicketId = tid;
@@ -838,7 +848,7 @@ window.onAdminTicketSelectChange = function () {
       ? `Active Chat Target: <strong>${escapeHtml(targetOrgCodeForChat)}</strong>`
       : tid
       ? `Active Ticket: <strong>${escapeHtml(tid)}</strong>`
-      : "No chat target selected";
+      : "Active Chat Target: <strong>All Tickets</strong>";
   }
 
   if (tid) {
@@ -892,7 +902,10 @@ window.sendAdminChatReply = function () {
   const selectEl = document.getElementById("admin-chat-ticket-select");
   const inputEl = document.getElementById("admin-chat-reply-input");
   const msg = inputEl ? inputEl.value.trim() : "";
-  const tid = activeTicketId || (selectEl ? String(selectEl.value || "").trim() : "") || (targetOrgCodeForChat ? `TICKET_${targetOrgCodeForChat}` : "");
+  const tid =
+    activeTicketId ||
+    (selectEl ? String(selectEl.value || "").trim() : "") ||
+    (targetOrgCodeForChat ? `TICKET_${targetOrgCodeForChat}` : "");
 
   if (!tid || !msg) {
     alert("⚠️ Select a ticket/organizer and type a message first.");
@@ -994,6 +1007,12 @@ window.completeOrganizerPayout = function (payoutId, orgCode, rawRefComm) {
 
 window.approveStudentPayment = function (studentId) {
   if (!adminToken || !studentId) return;
+  const student = allStudentsCache.find(s => String(s.studentId || s.id || "").trim() === studentId);
+  if (student && !isDirectNvmsOnlineStudent(student)) {
+    alert("ℹ️ Cash/Offline student payments are approved by the School Organizer.");
+    return;
+  }
+
   fetch(`${SERVER_URL}/api/admin/approve_payment`, {
     method: "POST",
     headers: getAdminHeaders(true),
@@ -1009,7 +1028,7 @@ window.approveStudentPayment = function (studentId) {
     .then(data => {
       if (!data) return;
       if (data.status === "success") {
-        alert("✅ Student payment approved!");
+        alert("✅ NVMSO online payment approved!");
         fetchAllCentralData();
       } else {
         alert("❌ " + (data.message || "Approval failed."));
@@ -1018,50 +1037,23 @@ window.approveStudentPayment = function (studentId) {
     .catch(() => alert("❌ Network error while approving payment."));
 };
 
-window.rejectStudentPayment = function (studentId) {
-  if (!adminToken || !studentId) return;
-  const reason = prompt("Reason for rejecting payment:", "Invalid / Unmatched UTR") || "Invalid UTR";
-  fetch(`${SERVER_URL}/api/admin/reject_payment`, {
-    method: "POST",
-    headers: getAdminHeaders(true),
-    body: JSON.stringify({ studentId, reason })
-  })
-    .then(async res => {
-      if (res.status === 401) {
-        window.logoutAdminSession();
-        return null;
-      }
-      return res.json();
-    })
-    .then(data => {
-      if (!data) return;
-      if (data.status === "success") {
-        alert("⚠️ Payment rejected.");
-        fetchAllCentralData();
-      } else {
-        alert("❌ " + (data.message || "Rejection failed."));
-      }
-    })
-    .catch(() => alert("❌ Network error while rejecting payment."));
-};
-
 window.openManualScoreModal = function (studentId, studentName, studentClass) {
   const modal = document.getElementById("manual-score-modal");
   const student = allStudentsCache.find(s => String(s.studentId || s.id || "").trim() === studentId) || {};
   const maxQ = getConfiguredTotalQuestions(student);
 
-  if (document.getElementById("manual-score-student-id")) {
-    document.getElementById("manual-score-student-id").value = studentId;
+  if (document.getElementById("modal-student-id")) {
+    document.getElementById("modal-student-id").value = studentId;
   }
-  if (document.getElementById("manual-score-student-info")) {
-    document.getElementById("manual-score-student-info").textContent =
-      `${studentName || "Student"} (Class ${studentClass || "-"}) • Max Marks: ${maxQ}`;
+  if (document.getElementById("modal-student-info")) {
+    document.getElementById("modal-student-info").textContent =
+      `${studentName || "Student"} (Class ${studentClass || "-"}) • Offline Manual Entry • Max Marks: ${maxQ}`;
   }
-  if (document.getElementById("manual-score-input")) {
-    document.getElementById("manual-score-input").value = student.score ?? "";
+  if (document.getElementById("modal-score")) {
+    document.getElementById("modal-score").value = student.score ?? "";
   }
-  if (document.getElementById("manual-total-marks-input")) {
-    document.getElementById("manual-total-marks-input").value = maxQ;
+  if (document.getElementById("modal-total")) {
+    document.getElementById("modal-total").value = maxQ;
   }
   if (modal) modal.classList.remove("hidden");
 };
@@ -1073,9 +1065,9 @@ window.closeManualScoreModal = function () {
 
 window.saveManualScore = function () {
   if (!adminToken) return;
-  const studentId = String(document.getElementById("manual-score-student-id")?.value || "").trim();
-  const score = Number(document.getElementById("manual-score-input")?.value);
-  const totalMarks = Number(document.getElementById("manual-total-marks-input")?.value || 30);
+  const studentId = String(document.getElementById("modal-student-id")?.value || "").trim();
+  const score = Number(document.getElementById("modal-score")?.value);
+  const totalMarks = Number(document.getElementById("modal-total")?.value || 30);
 
   if (!studentId || Number.isNaN(score) || score < 0 || totalMarks <= 0 || score > totalMarks) {
     alert("⚠️ Enter a valid score within total marks.");
@@ -1085,7 +1077,7 @@ window.saveManualScore = function () {
   fetch(`${SERVER_URL}/api/admin/manual_score_entry`, {
     method: "POST",
     headers: getAdminHeaders(true),
-    body: JSON.stringify({ studentId, score, totalMarks })
+    body: JSON.stringify({ studentId, score, totalMarks, scoreMode: "manual" })
   })
     .then(async res => {
       if (res.status === 401) {
@@ -1098,7 +1090,7 @@ window.saveManualScore = function () {
       if (!data) return;
       if (data.status === "success") {
         window.closeManualScoreModal();
-        alert("✅ Score saved!");
+        alert("✅ Manual score saved!");
         fetchAllCentralData();
       } else {
         alert("❌ " + (data.message || "Failed to save score."));
@@ -1121,7 +1113,8 @@ window.autoScoreStudent = function (studentId) {
       studentId,
       score: scoreToSave,
       totalMarks: tot,
-      autoScored: true
+      autoScored: true,
+      scoreMode: "auto"
     })
   })
     .then(async res => {
@@ -1134,7 +1127,7 @@ window.autoScoreStudent = function (studentId) {
     .then(data => {
       if (!data) return;
       if (data.status === "success") {
-        alert("✅ Auto score synced!");
+        alert("✅ Auto score synced for online exam!");
         fetchAllCentralData();
       } else {
         alert("❌ " + (data.message || "Failed to auto score."));
@@ -1187,7 +1180,7 @@ function populateSchoolDropdowns() {
 
   const sortedCodes = [...schoolMap.keys()].sort();
   const optionsHtml =
-    `<option value="ALL">All Schools (${sortedCodes.length})</option>` +
+    `<option value="ALL">🏫 All Schools Combined (${sortedCodes.length})</option>` +
     sortedCodes
       .map(code => `<option value="${escapeHtml(code)}">${escapeHtml(code)} - ${escapeHtml(schoolMap.get(code))}</option>`)
       .join("");
@@ -1254,7 +1247,7 @@ function renderSplitClassColumn(title, classesArr, studentsForSchool) {
 }
 
 window.loadSchoolRankings = function () {
-  const container = document.getElementById("school-rankings-container");
+  const container = document.getElementById("school-rankings-grid") || document.getElementById("school-rankings-container");
   if (!container) return;
 
   const selectedCode = String(document.getElementById("ranking-school-select")?.value || "ALL")
@@ -1268,11 +1261,11 @@ window.loadSchoolRankings = function () {
           s => String(s.orgCode || s.schoolCode || "").trim().toUpperCase() === selectedCode
         );
 
-  const leftCol = renderSplitClassColumn("Junior Wing (Class 1 to 6)", [1, 2, 3, 4, 5, 6], filteredStudents);
-  const rightCol = renderSplitClassColumn("Senior Wing (Class 7 to 12)", [7, 8, 9, 10, 11, 12], filteredStudents);
+  const leftCol = renderSplitClassColumn("Classes 1 to 6", [1, 2, 3, 4, 5, 6], filteredStudents);
+  const rightCol = renderSplitClassColumn("Classes 7 to 12", [7, 8, 9, 10, 11, 12], filteredStudents);
 
   container.innerHTML = `
-    <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(300px, 1fr)); gap:14px;">
+    <div style="grid-column:1 / -1; display:grid; grid-template-columns:repeat(auto-fit, minmax(300px, 1fr)); gap:14px;">
       ${leftCol}
       ${rightCol}
     </div>
@@ -1302,6 +1295,9 @@ window.loadSchoolStudentLedger = function () {
     .map(s => {
       const stId = String(s.studentId || s.id || "").trim();
       const isApproved = s.paymentStatus === "Approved" || s.paymentVerified === true;
+      const isDirectOnline = isDirectNvmsOnlineStudent(s);
+      const examMode = getStudentExamMode(s);
+
       const utrHtml = s.utrNumber
         ? `<br><code style="color:#facc15; font-size:11px;">UTR: ${escapeHtml(s.utrNumber)}</code>`
         : "";
@@ -1319,20 +1315,24 @@ window.loadSchoolStudentLedger = function () {
         marksHtml = `<strong style="color:#4ade80;">${sc}/${tot}</strong> <span style="color:#38bdf8; font-size:11px;">(${escapeHtml(pct)}%)</span>`;
       }
 
-      const approveBtn = !isApproved
-        ? `<button type="button" onclick="approveStudentPayment('${escapeJsSingle(stId)}')" style="background:#10b981; color:#fff; border:none; padding:4px 8px; font-size:11px; border-radius:4px; cursor:pointer; margin:2px;">Approve</button>`
-        : "";
+      const approveBtn =
+        !isApproved && isDirectOnline
+          ? `<button type="button" onclick="approveStudentPayment('${escapeJsSingle(stId)}')" style="background:#10b981; color:#fff; border:none; padding:4px 8px; font-size:11px; border-radius:4px; cursor:pointer; margin:2px;">Approve</button>`
+          : "";
 
-      const scoreBtn = `<button type="button" onclick="openManualScoreModal('${escapeJsSingle(stId)}', '${escapeJsSingle(s.studentName || "")}', '${escapeJsSingle(s.studentClass || "")}')" style="background:#0284c7; color:#fff; border:none; padding:4px 8px; font-size:11px; border-radius:4px; cursor:pointer; margin:2px;">Manual Score</button>`;
-
-      const autoScoreBtn = `<button type="button" onclick="autoScoreStudent('${escapeJsSingle(stId)}')" style="background:#7c3aed; color:#fff; border:none; padding:4px 8px; font-size:11px; border-radius:4px; cursor:pointer; margin:2px;">Auto Score</button>`;
+      const scoreActionBtn =
+        examMode === "offline"
+          ? `<button type="button" onclick="openManualScoreModal('${escapeJsSingle(stId)}', '${escapeJsSingle(s.studentName || "")}', '${escapeJsSingle(s.studentClass || "")}')" style="background:#0284c7; color:#fff; border:none; padding:4px 8px; font-size:11px; border-radius:4px; cursor:pointer; margin:2px;">Manual Score</button>`
+          : `<button type="button" onclick="autoScoreStudent('${escapeJsSingle(stId)}')" style="background:#7c3aed; color:#fff; border:none; padding:4px 8px; font-size:11px; border-radius:4px; cursor:pointer; margin:2px;">Auto Score</button>`;
 
       const reExamBtn = `<button type="button" onclick="triggerStudentReexam('${escapeJsSingle(stId)}')" style="background:#d97706; color:#fff; border:none; padding:4px 8px; font-size:11px; border-radius:4px; cursor:pointer; margin:2px;">Re-Exam</button>`;
+
+      const modeTag = `<span style="font-size:10px; color:${examMode === "offline" ? "#fbbf24" : "#38bdf8"}; font-weight:700;">${examMode.toUpperCase()}</span>`;
 
       return `
         <tr style="border-bottom:1px solid #1e293b;">
           <td style="padding:10px;">
-            <strong>${escapeHtml(s.studentName || "Student")}${getSubjectBadge(s)}</strong><br>
+            <strong>${escapeHtml(s.studentName || "Student")}${getSubjectBadge(s)}</strong> ${modeTag}<br>
             <span style="font-size:11px; color:#94a3b8;">${escapeHtml(s.orgCode || "")} • Roll: ${escapeHtml(s.rollNumber || "")}</span>
           </td>
           <td style="padding:10px;">Class ${escapeHtml(s.studentClass || "-")}</td>
@@ -1340,7 +1340,7 @@ window.loadSchoolStudentLedger = function () {
             <span style="color:${isApproved ? "#4ade80" : "#f59e0b"}; font-weight:bold;">${escapeHtml(s.paymentStatus || "Pending")}</span>${utrHtml}
           </td>
           <td style="padding:10px;">${marksHtml}</td>
-          <td style="padding:10px;">${approveBtn}${scoreBtn}${autoScoreBtn}${reExamBtn}</td>
+          <td style="padding:10px;">${approveBtn}${scoreActionBtn}${reExamBtn}</td>
         </tr>
       `;
     })
