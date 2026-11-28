@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>NVMSO - Central Command Panel 2026</title>
-  <link rel="stylesheet" href="central.css?v=28">
+  <link rel="stylesheet" href="central.css?v=29">
   <style>
     .nvms-logo-title span:nth-child(1) { color: #38bdf8; }
     .nvms-logo-title span:nth-child(2) { color: #4ade80; }
@@ -194,9 +194,10 @@
     </div>
   </div>
 
-  <!-- 3. SCHOOL-WISE RANKING (DUAL-COLUMN SPLIT GRID) -->
+  <!-- 3. SCHOOL-WISE RANKING (DUAL-COLUMN SPLIT GRID: CLASS 1 TO 6 & CLASS 7 TO 12) -->
   <div class="card-box" style="border: 1px solid #facc15;">
-    <h3 style="color:#facc15; text-align:left; margin-bottom:12px;">🏆 School-Wise Dual-Column Split Rankings</h3>
+    <h3 style="color:#facc15; text-align:left; margin-bottom:6px;">🏆 School-Wise Dual-Column Split Rankings (Class 1–12)</h3>
+    <p style="font-size:12px; color:#94a3b8; margin:0 0 12px 0;">Split view: <strong>Class 1 to 6</strong> (Left) and <strong>Class 7 to 12</strong> (Right).</p>
     <div style="margin-bottom:15px;">
       <select id="ranking-school-select" onchange="loadSchoolRankings()" style="min-width: 250px; background:#020617; color:#fff; border:1px solid #475569; padding:8px; border-radius:6px;">
         <option value="ALL">🏫 All Schools Combined</option>
@@ -255,6 +256,6 @@
   </div>
 </div>
 
-<script src="central.js?v=28"></script>
+<script src="central.js?v=29"></script>
 </body>
 </html>
