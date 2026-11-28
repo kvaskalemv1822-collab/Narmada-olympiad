@@ -37,22 +37,39 @@ function getOrgCodeUpper(orgObj = currentOrg) {
 
 function getSavedUpi(codeKey) {
   const k = String(codeKey || getOrgCodeUpper()).trim().toUpperCase();
-  const fromInput = (document.getElementById("org-upi-input")?.value || "").trim();
-  const fromObj = (currentOrg?.upiId || currentOrg?.payoutUpi || "").trim();
-  const fromLocal = k ? (localStorage.getItem(`nvmso_org_upi_${k}`) || "").trim() : "";
-  return fromInput || fromObj || fromLocal || "";
+  const fromPayoutInput = (document.getElementById("payout-upi-input")?.value || "").trim();
+  const fromProfileInput = (document.getElementById("org-upi-input")?.value || "").trim();
+  const fromObj = String(currentOrg?.upiId || currentOrg?.payoutUpi || "").trim();
+  const fromLocal = k ? String(localStorage.getItem(`nvmso_org_upi_${k}`) || "").trim() : "";
+  return fromPayoutInput || fromProfileInput || fromObj || fromLocal || "";
 }
 
-function syncUpiInputs(upiVal) {
+function persistUpiEverywhere(upiVal, codeKey = getOrgCodeUpper()) {
+  const clean = String(upiVal || "").trim();
+  const k = String(codeKey || "").trim().toUpperCase();
+  if (!clean) return;
+
+  if (k) {
+    localStorage.setItem(`nvmso_org_upi_${k}`, clean);
+  }
+  if (!currentOrg) {
+    currentOrg = { code: k, orgCode: k };
+  }
+  currentOrg.upiId = clean;
+  currentOrg.payoutUpi = clean;
+}
+
+function syncUpiInputs(upiVal, forceOverwrite = false) {
   const clean = String(upiVal || "").trim();
   const profileInput = document.getElementById("org-upi-input");
   const payoutInput = document.getElementById("payout-upi-input");
   const statusEl = document.getElementById("org-upi-status-text");
+  const activeNoteEl = document.getElementById("payout-active-upi-note");
 
-  if (profileInput && document.activeElement !== profileInput) {
+  if (profileInput && (forceOverwrite || document.activeElement !== profileInput)) {
     profileInput.value = clean;
   }
-  if (payoutInput && document.activeElement !== payoutInput) {
+  if (payoutInput && (forceOverwrite || document.activeElement !== payoutInput)) {
     payoutInput.value = clean;
   }
   if (statusEl) {
@@ -60,6 +77,10 @@ function syncUpiInputs(upiVal) {
       ? `Saved Payout UPI: ${clean}`
       : "No UPI saved yet. Enter & save your UPI ID to request payouts.";
     statusEl.style.color = clean ? "#4ade80" : "#94a3b8";
+  }
+  if (activeNoteEl) {
+    activeNoteEl.textContent = clean ? `Active Saved UPI: ${clean}` : "Active Saved UPI: Not set";
+    activeNoteEl.style.color = clean ? "#4ade80" : "#94a3b8";
   }
 }
 
@@ -159,10 +180,9 @@ function mergeServerOrgProfile(serverOrg, fallbackCode) {
     currentOrg?.examMode || localMode || "online"
   );
 
-  const resolvedUpi =
-    String(serverOrg?.upiId || serverOrg?.payoutUpi || "").trim() ||
-    String(currentOrg?.upiId || currentOrg?.payoutUpi || "").trim() ||
-    localUpi;
+  const serverUpi = String(serverOrg?.upiId || serverOrg?.payoutUpi || "").trim();
+  const currentUpi = String(currentOrg?.upiId || currentOrg?.payoutUpi || "").trim();
+  const resolvedUpi = serverUpi || currentUpi || localUpi;
 
   if (codeKey && resolvedUpi) {
     localStorage.setItem(`nvmso_org_upi_${codeKey}`, resolvedUpi);
@@ -284,6 +304,37 @@ function fetchGlobalConfigAndNotice() {
     })
     .catch(() => {});
 }
+
+window.switchOrgTab = function (tabName) {
+  const loginBox = document.getElementById("org-login-box");
+  const forgotBox = document.getElementById("org-forgot-box");
+  const regBox = document.getElementById("org-reg-box");
+
+  loginBox?.classList.add("hidden");
+  forgotBox?.classList.add("hidden");
+  regBox?.classList.add("hidden");
+
+  if (tabName === "forgot") {
+    forgotBox?.classList.remove("hidden");
+  } else if (tabName === "reg") {
+    regBox?.classList.remove("hidden");
+  } else {
+    loginBox?.classList.remove("hidden");
+  }
+};
+
+window.logoutOrganizerSession = function () {
+  if (autoRefreshTimer) {
+    clearInterval(autoRefreshTimer);
+    autoRefreshTimer = null;
+  }
+  orgToken = "";
+  currentOrg = null;
+  sessionStorage.removeItem(ORG_TOKEN_KEY);
+  localStorage.removeItem("nvmso_org_code");
+  localStorage.removeItem("nvmso_org_pass");
+  location.reload();
+};
 
 window.verifyOrgLogin = async () => {
   const code = document.getElementById("org-code-input")?.value.trim().toUpperCase() || "";
@@ -424,11 +475,15 @@ function loadDashboardView() {
   if (permChk) permChk.checked = !!currentOrg.principalApproved;
   if (modeSelect) modeSelect.value = activeMode;
 
-  const activeUpi = getSavedUpi(orgCodeKey);
-  currentOrg.upiId = activeUpi;
-  currentOrg.payoutUpi = activeUpi;
-  syncUpiInputs(activeUpi);
+  const activeUpi = String(
+    currentOrg?.upiId ||
+    currentOrg?.payoutUpi ||
+    (orgCodeKey ? localStorage.getItem(`nvmso_org_upi_${orgCodeKey}`) : "") ||
+    ""
+  ).trim();
 
+  persistUpiEverywhere(activeUpi, orgCodeKey);
+  syncUpiInputs(activeUpi, true);
   applyPortalFeeLabels();
 
   if (!autoRefreshTimer) {
@@ -487,9 +542,7 @@ window.updateExamMode = function (val) {
         }
         if (modeSelect) modeSelect.value = savedMode;
         if (upiIdVal) {
-          currentOrg.upiId = upiIdVal;
-          currentOrg.payoutUpi = upiIdVal;
-          localStorage.setItem(`nvmso_org_upi_${orgCodeKey}`, upiIdVal);
+          persistUpiEverywhere(upiIdVal, orgCodeKey);
         }
         applyPortalFeeLabels();
         fetchRegisteredStudentsList();
@@ -519,7 +572,7 @@ window.saveOrganizerUpi = function () {
 
   const orgCodeKey = getOrgCodeUpper();
   const upiInput = document.getElementById("org-upi-input");
-  const upiIdVal = (upiInput?.value || getSavedUpi(orgCodeKey) || "").trim();
+  const upiIdVal = (upiInput?.value || "").trim();
 
   if (!upiIdVal || !upiIdVal.includes("@")) {
     alert("⚠️ Please enter a valid UPI ID (e.g. coordinator@upi).");
@@ -532,14 +585,9 @@ window.saveOrganizerUpi = function () {
     currentOrg.examMode
   );
 
-  if (orgCodeKey) {
-    localStorage.setItem(`nvmso_org_upi_${orgCodeKey}`, upiIdVal);
-    localStorage.setItem(`nvmso_org_mode_${orgCodeKey}`, cleanMode);
-  }
-  currentOrg.upiId = upiIdVal;
-  currentOrg.payoutUpi = upiIdVal;
+  persistUpiEverywhere(upiIdVal, orgCodeKey);
   currentOrg.examMode = cleanMode;
-  syncUpiInputs(upiIdVal);
+  syncUpiInputs(upiIdVal, true);
 
   fetch(`${SERVER_URL}/api/organizer/update_profile`, {
     method: "POST",
@@ -562,7 +610,10 @@ window.saveOrganizerUpi = function () {
     .then(data => {
       if (!data) return;
       if (data && data.status === "success") {
-        alert(`✅ UPI ID (${upiIdVal}) saved! Now you can submit payout requests.`);
+        const confirmedUpi = String(data.data?.upiId || data.data?.payoutUpi || upiIdVal).trim();
+        persistUpiEverywhere(confirmedUpi, orgCodeKey);
+        syncUpiInputs(confirmedUpi, true);
+        alert(`✅ UPI ID (${confirmedUpi}) saved! Now you can submit payout requests.`);
       } else {
         alert("⚠️ UPI save response: " + (data?.message || "Failed to save UPI"));
       }
@@ -752,7 +803,7 @@ function fetchRegisteredStudentsList() {
         if (modeSelect && document.activeElement !== modeSelect) {
           modeSelect.value = normalizeMode(currentOrg.examMode);
         }
-        syncUpiInputs(getSavedUpi(orgCodeKey));
+        syncUpiInputs(getSavedUpi(orgCodeKey), false);
         applyPortalFeeLabels();
       }
 
@@ -831,6 +882,21 @@ function renderDynamicFinancialAction(netPayable, refComm, isSettled, adminUpi) 
   const actionContainer = document.getElementById("dynamic-financial-action-container");
   if (!actionContainer) return;
 
+  const activePayoutInput = document.getElementById("payout-upi-input");
+  const activeAmountInput = document.getElementById("payout-amount-input");
+  const userIsTypingPayoutUpi =
+    activePayoutInput && document.activeElement === activePayoutInput;
+  const userIsTypingPayoutAmt =
+    activeAmountInput && document.activeElement === activeAmountInput;
+
+  const preservedPayoutUpi = activePayoutInput
+    ? activePayoutInput.value.trim()
+    : String(currentOrg?.upiId || currentOrg?.payoutUpi || "").trim();
+
+  const preservedPayoutAmt = activeAmountInput
+    ? activeAmountInput.value
+    : String(refComm || "");
+
   const upiPayLink = `upi://pay?pa=${encodeURIComponent(adminUpi)}&pn=${encodeURIComponent("NVMSO Central Admin")}&am=${netPayable}&cu=INR`;
 
   if (netPayable > 0) {
@@ -852,141 +918,88 @@ function renderDynamicFinancialAction(netPayable, refComm, isSettled, adminUpi) 
         <button type="button" onclick="submitSettlementProof(${netPayable})" class="btn-primary" style="background: #0284c7; width: auto; cursor:pointer;">Submit UTR</button>
       </div>
     `;
-  } else if (refComm > 0) {
-    const existingPayoutVal = (document.getElementById("payout-upi-input")?.value || "").trim();
-    const resolvedPayoutUpi = existingPayoutVal || getSavedUpi(getOrgCodeUpper());
-    actionContainer.innerHTML = `
-      <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
-        <div>
-          <p style="font-size: 13px; color: #4ade80; font-weight: bold; margin: 0;">Referral Commission Settlement:</p>
-          <h2 style="color: #4ade80; margin: 5px 0 0 0;">₹${refComm}</h2>
-        </div>
-      </div>
-      <div style="border-top: 1px dashed #334155; padding-top: 10px; margin-top: 10px; display: flex; gap: 10px; flex-wrap: wrap;">
-        <input type="text" id="payout-upi-input" value="${escapeHtml(resolvedPayoutUpi)}" placeholder="Enter UPI ID for Referral Settlement (e.g. user@paytm)" style="flex: 1; min-width: 200px;">
-        <input type="number" id="payout-amount-input" value="${refComm}" style="width: 110px;">
-        <button type="button" onclick="requestCommissionPayout(${refComm})" class="btn-primary" style="background: #f59e0b; width: auto; cursor:pointer;">📤 Request Referral Settlement</button>
-      </div>
-    `;
-  } else if (isSettled) {
-    actionContainer.innerHTML = `<p style="text-align: center; color: #4ade80; font-size: 13px; font-weight: bold; margin: 0;">✅ Account Settled & Verified by Central Admin! (Balance: ₹0)</p>`;
-  } else {
-    actionContainer.innerHTML = `<p style="text-align: center; color: #4ade80; font-size: 13px; font-weight: bold; margin: 0;">✅ All accounts fully settled! (Balance: ₹0)</p>`;
+    return;
   }
+
+  const savedUpi = String(
+    currentOrg?.upiId ||
+    currentOrg?.payoutUpi ||
+    (getOrgCodeUpper() ? localStorage.getItem(`nvmso_org_upi_${getOrgCodeUpper()}`) : "") ||
+    ""
+  ).trim();
+
+  const displayUpiValue = userIsTypingPayoutUpi
+    ? preservedPayoutUpi
+    : preservedPayoutUpi || savedUpi;
+
+  const displayAmtValue = userIsTypingPayoutAmt
+    ? preservedPayoutAmt
+    : preservedPayoutAmt || String(refComm || "");
+
+  actionContainer.innerHTML = `
+    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+      <div>
+        <p style="font-size: 13px; color: #4ade80; font-weight: bold; margin: 0;">Referral Commission Settlement:</p>
+        <h2 style="color: #4ade80; margin: 5px 0 0 0;">₹${refComm}</h2>
+      </div>
+      <span style="font-size: 12px; color: ${isSettled ? "#4ade80" : "#cbd5e1"};">
+        ${isSettled ? "Settlement Completed" : "Enter a new or saved UPI ID below to request payout"}
+      </span>
+    </div>
+    <div style="border-top: 1px dashed #334155; padding-top: 12px; margin-top: 12px; display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px;">
+      <div style="flex: 1; min-width: 240px;">
+        <label for="payout-upi-input" style="display:block; font-size:12px; color:#c084fc; margin-bottom:4px;">Referral Payout UPI ID (New UPI allowed):</label>
+        <input type="text" id="payout-upi-input" value="${escapeHtml(displayUpiValue)}" placeholder="Enter new UPI ID (e.g. coordinator@okaxis)">
+      </div>
+      <div style="width: 160px;">
+        <label for="payout-amount-input" style="display:block; font-size:12px; color:#facc15; margin-bottom:4px;">Amount (₹):</label>
+        <input type="number" id="payout-amount-input" min="1" step="1" value="${escapeHtml(displayAmtValue)}" placeholder="Amount">
+      </div>
+      <button type="button" id="btn-request-ref-payout" onclick="submitOrganizerPayoutRequest()" class="btn-primary" style="background: #c084fc; color: #020617; width: auto; padding: 10px 16px; cursor: pointer;">💸 Request Referral Payout</button>
+    </div>
+    <small id="payout-active-upi-note" style="display:block; margin-top:6px; font-size:11px; color:${savedUpi ? "#4ade80" : "#94a3b8"};">
+      ${savedUpi ? `Active Saved UPI: ${escapeHtml(savedUpi)}` : "Active Saved UPI: Not set"}
+    </small>
+  `;
 }
 
-window.approveStudentCashEntry = function (studentId) {
+window.submitOrganizerPayoutRequest = function () {
+  if (!currentOrg) return;
   if (!orgToken) {
     alert("🔒 Valid coordinator session required! Please login again.");
     return;
   }
-  if (!confirm("Approve cash payment?")) return;
-  const orgCodeKey = getOrgCodeUpper();
-  fetch(`${SERVER_URL}/api/organizer/approve_cash`, {
-    method: "POST",
-    headers: getOrgHeaders(true),
-    body: JSON.stringify({ studentId: studentId, orgCode: orgCodeKey })
-  })
-    .then(async res => {
-      if (res.status === 401) {
-        handleUnauthorizedSession();
-        return null;
-      }
-      return res.json();
-    })
-    .then(data => {
-      if (!data) return;
-      if (data && data.status === "success") {
-        fetchRegisteredStudentsList();
-      } else {
-        alert("❌ Error: " + (data?.message || "Failed to approve cash entry"));
-      }
-    })
-    .catch(() => alert("❌ Network error while approving cash."));
-};
 
-window.submitSettlementProof = function (defaultAmount) {
-  if (!orgToken) {
-    alert("🔒 Valid coordinator session required! Please login again.");
-    return;
-  }
-  const utrInput = document.getElementById("settlement-utr-input");
-  const utr = (utrInput?.value || "").trim().toUpperCase();
-  const amountVal = Number(document.getElementById("settlement-amount-input")?.value) || Number(defaultAmount) || 0;
-
-  if (!utr || utr.length < 6) {
-    alert("⚠️ Enter valid UTR number (at least 6 characters).");
-    utrInput?.focus();
-    return;
-  }
-  if (amountVal <= 0) {
-    alert("⚠️ Enter valid settlement amount.");
-    return;
-  }
-
-  const orgCodeKey = getOrgCodeUpper();
-  fetch(`${SERVER_URL}/api/organizer/submit_settlement`, {
-    method: "POST",
-    headers: getOrgHeaders(true),
-    body: JSON.stringify({ orgCode: orgCodeKey, utrNumber: utr, amount: amountVal })
-  })
-    .then(async res => {
-      if (res.status === 401) {
-        handleUnauthorizedSession();
-        return null;
-      }
-      return res.json();
-    })
-    .then(data => {
-      if (!data) return;
-      if (data && data.status === "success") {
-        if (utrInput) utrInput.value = "";
-        alert("✅ Settlement UTR submitted for admin verification!");
-        fetchRegisteredStudentsList();
-      } else {
-        alert("❌ Error: " + (data?.message || "Failed to submit settlement"));
-      }
-    })
-    .catch(() => alert("❌ Network error while submitting settlement."));
-};
-
-window.requestCommissionPayout = function (maxAmount) {
-  if (!orgToken) {
-    alert("🔒 Valid coordinator session required! Please login again.");
-    return;
-  }
   const orgCodeKey = getOrgCodeUpper();
   const payoutInput = document.getElementById("payout-upi-input");
-  const upiId = (payoutInput?.value || getSavedUpi(orgCodeKey) || "").trim();
-  const amountVal = Number(document.getElementById("payout-amount-input")?.value) || Number(maxAmount) || 0;
+  const amtInput = document.getElementById("payout-amount-input");
+  const fallbackRef = Number(
+    (document.getElementById("fin-ref-comm")?.textContent || "0").replace(/[^\d.]/g, "")
+  ) || 0;
 
-  if (!upiId || !upiId.includes("@")) {
-    alert("⚠️ Pehle apna valid UPI ID (e.g. name@upi) daal kar Save UPI karein ya Payout box mein bharein.");
-    const profileInput = document.getElementById("org-upi-input");
-    if (profileInput) {
-      profileInput.value = upiId;
-      profileInput.focus();
-    } else {
-      payoutInput?.focus();
-    }
+  const enteredUpi = (payoutInput ? payoutInput.value : "").trim();
+  const amount = amtInput && amtInput.value !== "" ? Number(amtInput.value) : fallbackRef;
+
+  if (!enteredUpi || !enteredUpi.includes("@")) {
+    alert("⚠️ Please enter a valid UPI ID containing '@' (e.g. name@okaxis or name@ybl).");
+    payoutInput?.focus();
     return;
   }
-  if (amountVal <= 0) {
-    alert("⚠️ Enter valid payout amount.");
+  if (!amount || amount <= 0) {
+    alert("⚠️ Referral payout amount must be greater than ₹0.");
+    amtInput?.focus();
     return;
   }
-
-  localStorage.setItem(`nvmso_org_upi_${orgCodeKey}`, upiId);
-  if (currentOrg) {
-    currentOrg.upiId = upiId;
-    currentOrg.payoutUpi = upiId;
-  }
-  syncUpiInputs(upiId);
 
   fetch(`${SERVER_URL}/api/organizer/request_payout`, {
     method: "POST",
     headers: getOrgHeaders(true),
-    body: JSON.stringify({ orgCode: orgCodeKey, upiId: upiId, payoutUpi: upiId, amount: amountVal })
+    body: JSON.stringify({
+      orgCode: orgCodeKey,
+      upiId: enteredUpi,
+      payoutUpi: enteredUpi,
+      amount: amount
+    })
   })
     .then(async res => {
       if (res.status === 401) {
@@ -997,37 +1010,125 @@ window.requestCommissionPayout = function (maxAmount) {
     })
     .then(data => {
       if (!data) return;
-      if (data && data.status === "success") {
-        alert(`✅ Referral settlement request (₹${amountVal}) sent to Central Admin on UPI: ${upiId}`);
+      if (data.status === "success") {
+        const finalUpi = String(
+          data.data?.upiId || data.data?.payoutUpi || data.upiId || enteredUpi
+        ).trim();
+        persistUpiEverywhere(finalUpi, orgCodeKey);
+        syncUpiInputs(finalUpi, true);
+        alert(`✅ Referral payout request (₹${amount}) sent with UPI ID: ${finalUpi}`);
         fetchRegisteredStudentsList();
       } else {
-        alert("❌ Error: " + (data?.message || "Failed to request payout"));
+        alert("❌ " + (data.message || "Could not submit referral payout request."));
       }
     })
-    .catch(() => alert("❌ Network error while requesting payout."));
+    .catch(() => {
+      alert("❌ Network error while submitting referral payout request.");
+    });
 };
 
-window.openOrganizerChatFromHeader = function () {
-  const chatArea = document.getElementById("organizer-chat-collapsible-area");
-  const section = document.getElementById("organizer-support-chat-section");
-  if (chatArea && chatArea.classList.contains("hidden")) {
-    chatArea.classList.remove("hidden");
-    fetchOrganizerChatMessages();
+window.submitSettlementProof = function (netPayable) {
+  if (!currentOrg || !orgToken) return;
+  const orgCodeKey = getOrgCodeUpper();
+  const utrInput = document.getElementById("settlement-utr-input");
+  const amtInput = document.getElementById("settlement-amount-input");
+  const utrNo = (utrInput?.value || "").trim();
+  const amount = Number(amtInput?.value || netPayable || 0);
+
+  if (!utrNo) {
+    alert("⚠️ Please enter UTR number.");
+    utrInput?.focus();
+    return;
   }
-  section?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  if (!amount || amount <= 0) {
+    alert("⚠️ Please enter a valid settlement amount.");
+    amtInput?.focus();
+    return;
+  }
+
+  fetch(`${SERVER_URL}/api/organizer/submit_settlement`, {
+    method: "POST",
+    headers: getOrgHeaders(true),
+    body: JSON.stringify({
+      orgCode: orgCodeKey,
+      utrNumber: utrNo,
+      amount: amount
+    })
+  })
+    .then(async res => {
+      if (res.status === 401) {
+        handleUnauthorizedSession();
+        return null;
+      }
+      return res.json();
+    })
+    .then(data => {
+      if (!data) return;
+      if (data.status === "success") {
+        alert("✅ Settlement proof submitted!");
+        fetchRegisteredStudentsList();
+      } else {
+        alert("❌ " + (data.message || "Failed to submit settlement proof."));
+      }
+    })
+    .catch(() => alert("❌ Network error while submitting settlement proof."));
+};
+
+window.approveStudentCashEntry = function (studentId) {
+  if (!studentId || !orgToken) return;
+  const orgCodeKey = getOrgCodeUpper();
+
+  fetch(`${SERVER_URL}/api/organizer/approve_cash`, {
+    method: "POST",
+    headers: getOrgHeaders(true),
+    body: JSON.stringify({
+      orgCode: orgCodeKey,
+      studentId: studentId
+    })
+  })
+    .then(async res => {
+      if (res.status === 401) {
+        handleUnauthorizedSession();
+        return null;
+      }
+      return res.json();
+    })
+    .then(data => {
+      if (!data) return;
+      if (data.status === "success") {
+        fetchRegisteredStudentsList();
+      } else {
+        alert("❌ " + (data.message || "Could not approve cash entry."));
+      }
+    })
+    .catch(() => alert("❌ Network error while approving cash entry."));
 };
 
 window.toggleOrganizerChatBox = function () {
-  const chatArea = document.getElementById("organizer-chat-collapsible-area");
-  if (!chatArea) return;
-  chatArea.classList.toggle("hidden");
-  if (!chatArea.classList.contains("hidden")) fetchOrganizerChatMessages();
+  const area = document.getElementById("organizer-chat-collapsible-area");
+  const icon = document.getElementById("chat-toggle-icon");
+  if (!area) return;
+  const isHidden = area.classList.contains("hidden");
+  area.classList.toggle("hidden", !isHidden);
+  if (icon) icon.textContent = isHidden ? "▲ Close Chat" : "▼ Open Chat";
+  if (isHidden) fetchOrganizerChatMessages();
+};
+
+window.openOrganizerChatFromHeader = function () {
+  const area = document.getElementById("organizer-chat-collapsible-area");
+  const icon = document.getElementById("chat-toggle-icon");
+  area?.classList.remove("hidden");
+  if (icon) icon.textContent = "▲ Close Chat";
+  document.getElementById("organizer-support-chat-section")?.scrollIntoView({ behavior: "smooth" });
+  fetchOrganizerChatMessages();
 };
 
 function fetchOrganizerChatMessages() {
-  if (!currentOrg || !orgToken) return;
+  const box = document.getElementById("organizer-chat-box");
+  if (!box || !currentOrg || !orgToken) return;
   const orgCodeKey = getOrgCodeUpper();
-  fetch(`${SERVER_URL}/api/organizer/query_messages?orgCode=${encodeURIComponent(orgCodeKey)}`, {
+
+  fetch(`${SERVER_URL}/api/organizer/chat/messages?orgCode=${encodeURIComponent(orgCodeKey)}`, {
     method: "GET",
     headers: getOrgHeaders(false)
   })
@@ -1039,66 +1140,75 @@ function fetchOrganizerChatMessages() {
       return res.json();
     })
     .then(data => {
-      if (!data) return;
-      const chatBox = document.getElementById("organizer-chat-box");
-      if (chatBox && Array.isArray(data.messages)) {
-        chatBox.innerHTML = data.messages
-          .map(
-            m =>
-              `<div style="text-align:${m.isAdmin ? "left" : "right"}; margin-bottom:5px;"><span style="background:${m.isAdmin ? "#0369a1" : "#1e293b"}; padding:5px 8px; border-radius:5px; color:#fff; font-size:11px; display:inline-block;">${escapeHtml(m.text)}</span></div>`
-          )
-          .join("");
-        chatBox.scrollTop = chatBox.scrollHeight;
+      if (!data || data.status !== "success") return;
+      const msgs = Array.isArray(data.messages) ? data.messages : [];
+      if (!msgs.length) {
+        box.innerHTML = `<p style="color:#64748b; font-size:11px; text-align:center;">No messages yet.</p>`;
+        return;
       }
+      box.innerHTML = msgs
+        .map(m => {
+          const sender = escapeHtml(m.sender || "Admin");
+          const text = escapeHtml(m.message || m.text || "");
+          const imgHtml = m.imageUrl
+            ? `<div style="margin-top:6px;"><img src="${escapeHtml(m.imageUrl)}" alt="Attachment" style="max-width:180px; border-radius:6px;"></div>`
+            : "";
+          return `<div style="margin-bottom:8px; padding:8px; background:#020617; border-radius:6px; border:1px solid #1e293b;"><strong style="color:#38bdf8; font-size:12px;">${sender}:</strong> <span style="font-size:13px; color:#e2e8f0;">${text}</span>${imgHtml}</div>`;
+        })
+        .join("");
+      box.scrollTop = box.scrollHeight;
     })
     .catch(() => {});
 }
 
 window.sendOrganizerQuery = function () {
-  if (!orgToken) {
-    alert("🔒 Valid coordinator session required! Please login again.");
+  if (!currentOrg || !orgToken) return;
+  const orgCodeKey = getOrgCodeUpper();
+  const inputEl = document.getElementById("organizer-chat-input");
+  const fileEl = document.getElementById("organizer-chat-file");
+  const messageText = (inputEl?.value || "").trim();
+  const fileObj = fileEl?.files?.[0] || null;
+
+  if (!messageText && !fileObj) {
+    alert("⚠️ Please type a message or choose an image.");
     return;
   }
-  const input = document.getElementById("organizer-chat-input");
-  if (!input || !input.value.trim()) return;
-  const orgCodeKey = getOrgCodeUpper();
-  fetch(`${SERVER_URL}/api/organizer/send_query`, {
-    method: "POST",
-    headers: getOrgHeaders(true),
-    body: JSON.stringify({
-      orgCode: orgCodeKey,
-      senderName: `School (${orgCodeKey})`,
-      message: input.value.trim()
-    })
-  })
-    .then(async res => {
-      if (res.status === 401) {
-        handleUnauthorizedSession();
-        return null;
-      }
-      return res.json();
-    })
-    .then(() => {
-      input.value = "";
-      fetchOrganizerChatMessages();
-    })
-    .catch(() => {});
-};
 
-window.switchOrgTab = tab => {
-  document.getElementById("org-login-box")?.classList.toggle("hidden", tab !== "login");
-  document.getElementById("org-reg-box")?.classList.toggle("hidden", tab !== "reg");
-  document.getElementById("org-forgot-box")?.classList.toggle("hidden", tab !== "forgot");
-};
+  const sendPayload = imageBase64 => {
+    fetch(`${SERVER_URL}/api/organizer/chat/send`, {
+      method: "POST",
+      headers: getOrgHeaders(true),
+      body: JSON.stringify({
+        orgCode: orgCodeKey,
+        message: messageText,
+        imageBase64: imageBase64 || undefined
+      })
+    })
+      .then(async res => {
+        if (res.status === 401) {
+          handleUnauthorizedSession();
+          return null;
+        }
+        return res.json();
+      })
+      .then(data => {
+        if (!data) return;
+        if (data.status === "success") {
+          if (inputEl) inputEl.value = "";
+          if (fileEl) fileEl.value = "";
+          fetchOrganizerChatMessages();
+        } else {
+          alert("❌ " + (data.message || "Failed to send message."));
+        }
+      })
+      .catch(() => alert("❌ Network error while sending message."));
+  };
 
-window.logoutOrganizerSession = () => {
-  if (autoRefreshTimer) {
-    clearInterval(autoRefreshTimer);
-    autoRefreshTimer = null;
+  if (fileObj) {
+    const reader = new FileReader();
+    reader.onload = () => sendPayload(reader.result);
+    reader.readAsDataURL(fileObj);
+  } else {
+    sendPayload("");
   }
-  orgToken = "";
-  sessionStorage.removeItem(ORG_TOKEN_KEY);
-  localStorage.removeItem("nvmso_org_code");
-  localStorage.removeItem("nvmso_org_pass");
-  location.reload();
 };
