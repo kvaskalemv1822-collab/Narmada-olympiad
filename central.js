@@ -13,6 +13,8 @@ let activeTicketId = "";
 let targetOrgCodeForChat = "";
 let isChatActivatedByClick = false;
 let autoRefreshTimer = null;
+let pendingReexamStudentId = "";
+let pendingReexamTimeout = null;
 
 function int(val) {
   return Math.floor(Number(val) || 0);
@@ -33,6 +35,22 @@ function escapeJsSingle(str) {
     .replace(/'/g, "\\'")
     .replace(/"/g, "&quot;")
     .replace(/\n/g, " ");
+}
+
+function isSafeMediaUrl(url) {
+  const raw = String(url || "").trim();
+  if (!raw) return "";
+  if (/^https?:\/\//i.test(raw)) return raw;
+  if (/^data:image\/(png|jpeg|jpg|gif|webp);base64,[a-zA-Z0-9+/=]+$/i.test(raw)) return raw;
+  return "";
+}
+
+function buildSafeUpiHref(upiId, payeeName, amount) {
+  const cleanUpi = String(upiId || "").trim();
+  const amt = Number(amount) || 0;
+  if (!cleanUpi || !cleanUpi.includes("@") || amt <= 0) return "";
+  const safeName = String(payeeName || "Organizer").replace(/[^\w\s.-]/g, "").trim() || "Organizer";
+  return `upi://pay?pa=${encodeURIComponent(cleanUpi)}&pn=${encodeURIComponent(safeName)}&am=${encodeURIComponent(String(amt))}&cu=INR`;
 }
 
 function getLocalRefSettledMap() {
@@ -80,7 +98,10 @@ function getEffectiveSettledRefBase(org, rawRefComm) {
 function getAdminHeaders(includeJson = true) {
   const headers = {};
   if (includeJson) headers["Content-Type"] = "application/json";
-  if (adminToken) headers["Authorization"] = `Bearer ${adminToken}`;
+  if (adminToken) {
+    headers["Authorization"] = `Bearer ${adminToken}`;
+    headers["X-Admin-Token"] = adminToken;
+  }
   return headers;
 }
 
@@ -304,6 +325,7 @@ window.verifyAdminPassword = async () => {
       adminToken = data.token;
       sessionStorage.setItem(ADMIN_TOKEN_KEY, adminToken);
       sessionStorage.setItem("nvmso_admin_logged", "true");
+      if (passInputEl) passInputEl.value = "";
       triggerGrandWelcome();
       initializeCentralPanelData();
     } else if (res.status === 401 || data?.status === "unauthorized") {
@@ -457,12 +479,14 @@ window.saveGlobalConfig = async () => {
   }
 
   const adminUpiEl = document.getElementById("cfg-admin-upi");
-  const totalQuestionsVal = Number(document.getElementById("cfg-total-questions")?.value) || 30;
-  const examDurationVal = Number(document.getElementById("cfg-exam-duration")?.value) || 30;
+  const onlineFeeVal = Math.max(0, Number(document.getElementById("cfg-online-fee")?.value ?? 100) || 0);
+  const offlineFeeVal = Math.max(0, Number(document.getElementById("cfg-offline-fee")?.value ?? 120) || 0);
+  const totalQuestionsVal = Math.min(300, Math.max(1, Number(document.getElementById("cfg-total-questions")?.value) || 30));
+  const examDurationVal = Math.min(360, Math.max(1, Number(document.getElementById("cfg-exam-duration")?.value) || 30));
 
   const payload = {
-    onlineFee: Number(document.getElementById("cfg-online-fee")?.value ?? 100),
-    offlineFee: Number(document.getElementById("cfg-offline-fee")?.value ?? 120),
+    onlineFee: onlineFeeVal,
+    offlineFee: offlineFeeVal,
     totalQuestions: totalQuestionsVal,
     questionCount: totalQuestionsVal,
     examDurationMinutes: examDurationVal,
@@ -471,7 +495,7 @@ window.saveGlobalConfig = async () => {
     isRegistrationOpen: !!document.getElementById("cfg-reg-active")?.checked,
     isExamActive: !!document.getElementById("cfg-exam-active")?.checked,
     isResultDeclared: !!document.getElementById("cfg-result-allowed")?.checked,
-    broadcastNotice: (document.getElementById("admin-broadcast-input")?.value || "").trim()
+    broadcastNotice: (document.getElementById("admin-broadcast-input")?.value || "").trim().slice(0, 500)
   };
 
   fetch(`${SERVER_URL}/api/admin/update_config`, {
@@ -617,9 +641,9 @@ function renderMergedOrganizersTable() {
 
     let directCommHtml = `₹${m.directComm}`;
     if (m.directComm > 0) {
-      if (orgUpi) {
-        const directUpiLink = `upi://pay?pa=${encodeURIComponent(orgUpi)}&pn=${encodeURIComponent(orgLabel)}&am=${m.directComm}&cu=INR`;
-        directCommHtml += `<br><a href="${directUpiLink}" style="background:#10b981; color:#fff; padding:2px 7px; font-size:9px; border-radius:3px; text-decoration:none; display:inline-block; margin-top:3px; font-weight:bold;">Pay</a><br><span style="font-size:9px; color:#cbd5e1; word-break:break-all;">${escapeHtml(orgUpi)}</span>`;
+      const directUpiLink = buildSafeUpiHref(orgUpi, orgLabel, m.directComm);
+      if (directUpiLink) {
+        directCommHtml += `<br><a href="${escapeHtml(directUpiLink)}" rel="noopener noreferrer" style="background:#10b981; color:#fff; padding:2px 7px; font-size:9px; border-radius:3px; text-decoration:none; display:inline-block; margin-top:3px; font-weight:bold;">Pay</a><br><span style="font-size:9px; color:#cbd5e1; word-break:break-all;">${escapeHtml(orgUpi)}</span>`;
       } else {
         directCommHtml += `<br><span style="font-size:9px; color:#f87171; font-weight:bold;">Pay</span><br><span style="font-size:9px; color:#f87171;">No UPI</span>`;
       }
@@ -630,9 +654,9 @@ function renderMergedOrganizersTable() {
       refCommHtml += `<br><span style="font-size:9px; color:#4ade80;">Paid: ₹${m.refCommPaidTotal}</span>`;
     }
     if (m.refComm > 0) {
-      if (orgUpi) {
-        const refUpiLink = `upi://pay?pa=${encodeURIComponent(orgUpi)}&pn=${encodeURIComponent(orgLabel)}&am=${m.refComm}&cu=INR`;
-        refCommHtml += `<br><a href="${refUpiLink}" style="background:#f59e0b; color:#020617; padding:2px 7px; font-size:9px; border-radius:3px; text-decoration:none; display:inline-block; margin-top:3px; font-weight:bold;">Pay</a><br><span style="font-size:9px; color:#cbd5e1; word-break:break-all;">${escapeHtml(orgUpi)}</span>`;
+      const refUpiLink = buildSafeUpiHref(orgUpi, orgLabel, m.refComm);
+      if (refUpiLink) {
+        refCommHtml += `<br><a href="${escapeHtml(refUpiLink)}" rel="noopener noreferrer" style="background:#f59e0b; color:#020617; padding:2px 7px; font-size:9px; border-radius:3px; text-decoration:none; display:inline-block; margin-top:3px; font-weight:bold;">Pay</a><br><span style="font-size:9px; color:#cbd5e1; word-break:break-all;">${escapeHtml(orgUpi)}</span>`;
       } else {
         refCommHtml += `<br><span style="font-size:9px; color:#f87171; font-weight:bold;">Pay</span><br><span style="font-size:9px; color:#f87171;">No UPI</span>`;
       }
@@ -908,11 +932,12 @@ function fetchAdminTicketMessages(ticketId) {
       msgBox.innerHTML = msgs
         .map(m => {
           const isAdmin = !!m.isAdmin;
+          const safeImg = isSafeMediaUrl(m.imageUrl);
           return `
             <div style="margin-bottom:8px; padding:8px 10px; border-radius:8px; background:${isAdmin ? "#1e3a8a" : "#0f172a"}; border:1px solid ${isAdmin ? "#3b82f6" : "#334155"};">
               <div style="font-size:10px; color:#94a3b8; margin-bottom:2px;">${isAdmin ? "Central Admin" : escapeHtml(m.senderName || "Coordinator")}</div>
               <div style="font-size:12px; color:#f8fafc;">${escapeHtml(m.text || "")}</div>
-              ${m.imageUrl ? `<img src="${escapeHtml(m.imageUrl)}" style="max-width:180px; border-radius:6px; margin-top:6px; display:block;">` : ""}
+              ${safeImg ? `<img src="${escapeHtml(safeImg)}" alt="Attachment" style="max-width:180px; border-radius:6px; margin-top:6px; display:block;">` : ""}
             </div>
           `;
         })
@@ -1164,7 +1189,22 @@ window.autoScoreStudent = function (studentId) {
 
 window.triggerStudentReexam = function (studentId) {
   if (!adminToken || !studentId) return;
-  if (!confirm("Reset this student's exam status so they can take Re-Exam?")) return;
+
+  if (pendingReexamStudentId !== studentId) {
+    pendingReexamStudentId = studentId;
+    if (pendingReexamTimeout) clearTimeout(pendingReexamTimeout);
+    pendingReexamTimeout = setTimeout(() => {
+      pendingReexamStudentId = "";
+    }, 6000);
+    alert("⚠️ Click Re-Exam once more within 6 seconds to reset this student's exam attempt.");
+    return;
+  }
+
+  pendingReexamStudentId = "";
+  if (pendingReexamTimeout) {
+    clearTimeout(pendingReexamTimeout);
+    pendingReexamTimeout = null;
+  }
 
   fetch(`${SERVER_URL}/api/admin/reexam`, {
     method: "POST",
