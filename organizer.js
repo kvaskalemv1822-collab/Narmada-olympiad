@@ -15,10 +15,37 @@ function escapeHtml(str) {
     .replace(/'/g, "&#39;");
 }
 
+function escapeJsSingle(str) {
+  return String(str ?? "")
+    .replace(/\\/g, "\\\\")
+    .replace(/'/g, "\\'")
+    .replace(/"/g, "&quot;")
+    .replace(/\n/g, " ");
+}
+
+function isSafeMediaUrl(url) {
+  const raw = String(url || "").trim();
+  if (!raw) return "";
+  if (/^https?:\/\//i.test(raw)) return raw;
+  if (/^data:image\/(png|jpeg|jpg|gif|webp);base64,[a-zA-Z0-9+/=]+$/i.test(raw)) return raw;
+  return "";
+}
+
+function buildSafeUpiHref(upiId, payeeName, amount) {
+  const cleanUpi = String(upiId || "").trim();
+  const amt = Number(amount) || 0;
+  if (!cleanUpi || !cleanUpi.includes("@") || amt <= 0) return "";
+  const safeName = String(payeeName || "NVMSO Central Admin").replace(/[^\w\s.-]/g, "").trim() || "NVMSO Central Admin";
+  return `upi://pay?pa=${encodeURIComponent(cleanUpi)}&pn=${encodeURIComponent(safeName)}&am=${encodeURIComponent(String(amt))}&cu=INR`;
+}
+
 function getOrgHeaders(includeJson = true) {
   const headers = {};
   if (includeJson) headers["Content-Type"] = "application/json";
-  if (orgToken) headers["Authorization"] = `Bearer ${orgToken}`;
+  if (orgToken) {
+    headers["Authorization"] = `Bearer ${orgToken}`;
+    headers["X-Org-Token"] = orgToken;
+  }
   return headers;
 }
 
@@ -208,6 +235,7 @@ function handleUnauthorizedSession() {
     autoRefreshTimer = null;
   }
   orgToken = "";
+  currentOrg = null;
   sessionStorage.removeItem(ORG_TOKEN_KEY);
   localStorage.removeItem("nvmso_org_code");
   localStorage.removeItem("nvmso_org_pass");
@@ -217,35 +245,20 @@ function handleUnauthorizedSession() {
 
 document.addEventListener("DOMContentLoaded", () => {
   removeTermsNearLogout();
+  localStorage.removeItem("nvmso_org_pass");
   fetchGlobalConfigAndNotice();
 
   const savedOrgCode = (localStorage.getItem("nvmso_org_code") || "").trim().toUpperCase();
-  const savedOrgPass = (localStorage.getItem("nvmso_org_pass") || "").trim();
+  if (savedOrgCode) {
+    const codeInput = document.getElementById("org-code-input");
+    if (codeInput) codeInput.value = savedOrgCode;
+  }
 
-  if (savedOrgCode && savedOrgPass) {
-    fetch(`${SERVER_URL}/api/organizer/login`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        orgCode: savedOrgCode,
-        password: savedOrgPass
-      })
-    })
-      .then(res => res.json())
-      .then(response => {
-        if (response && response.status === "success") {
-          const d = response.data || {};
-          if (d.orgToken) {
-            orgToken = d.orgToken;
-            sessionStorage.setItem(ORG_TOKEN_KEY, orgToken);
-          }
-          currentOrg = mergeServerOrgProfile(d, savedOrgCode);
-          loadDashboardView();
-          fetchRegisteredStudentsList();
-          fetchOrganizerChatMessages();
-        }
-      })
-      .catch(() => {});
+  if (savedOrgCode && orgToken) {
+    currentOrg = mergeServerOrgProfile({}, savedOrgCode);
+    loadDashboardView();
+    fetchRegisteredStudentsList();
+    fetchOrganizerChatMessages();
   }
 });
 
@@ -338,7 +351,8 @@ window.logoutOrganizerSession = function () {
 
 window.verifyOrgLogin = async () => {
   const code = document.getElementById("org-code-input")?.value.trim().toUpperCase() || "";
-  const password = document.getElementById("org-pass-input")?.value.trim() || "";
+  const passInputEl = document.getElementById("org-pass-input");
+  const password = passInputEl?.value.trim() || "";
   if (!code || !password) {
     alert("⚠️ Please enter credentials.");
     return;
@@ -360,12 +374,13 @@ window.verifyOrgLogin = async () => {
       }
       currentOrg = mergeServerOrgProfile(d, code);
       localStorage.setItem("nvmso_org_code", code);
-      localStorage.setItem("nvmso_org_pass", password);
+      localStorage.removeItem("nvmso_org_pass");
+      if (passInputEl) passInputEl.value = "";
       loadDashboardView();
       fetchRegisteredStudentsList();
       fetchOrganizerChatMessages();
     } else {
-      alert("❌ Access Denied! Check Organizer Code or Password.");
+      alert("❌ " + (response?.message || "Access Denied! Check Organizer Code or Password."));
     }
   } catch (err) {
     alert("❌ Server connection error. Please try again.");
@@ -853,11 +868,11 @@ function fetchRegisteredStudentsList() {
           marksDisplay = `<strong style="color:#4ade80;">${scoreVal}/${totalVal}</strong> <br><span style="color:#38bdf8; font-size:11px;">${escapeHtml(pctVal)}%</span>`;
         }
 
-        const stId = escapeHtml(s.studentId || s.id || "");
+        const rawStId = String(s.studentId || s.id || "").trim();
         const rowMode = normalizeMode(s.examMode, orgMode);
         let actionCell = `<span style="color:#4ade80; font-weight:bold;">Approved</span>`;
         if (!isApproved && String(s.paymentMode || "").toLowerCase() === "offline") {
-          actionCell = `<button type="button" onclick="approveStudentCashEntry('${stId}')" style="background:#10b981; color:#fff; padding:5px 10px; font-size:11px; border-radius:4px; border:none; cursor:pointer;">💸 Approve Cash</button>`;
+          actionCell = `<button type="button" onclick="approveStudentCashEntry('${escapeJsSingle(rawStId)}')" style="background:#10b981; color:#fff; padding:5px 10px; font-size:11px; border-radius:4px; border:none; cursor:pointer;">💸 Approve Cash</button>`;
         } else if (!isApproved) {
           actionCell = `<span style='color:#f59e0b; font-size:11px;'>Awaiting UTR</span>`;
         }
@@ -897,7 +912,7 @@ function renderDynamicFinancialAction(netPayable, refComm, isSettled, adminUpi) 
     ? activeAmountInput.value
     : String(refComm || "");
 
-  const upiPayLink = `upi://pay?pa=${encodeURIComponent(adminUpi)}&pn=${encodeURIComponent("NVMSO Central Admin")}&am=${netPayable}&cu=INR`;
+  const upiPayLink = buildSafeUpiHref(adminUpi, "NVMSO Central Admin", netPayable);
 
   if (netPayable > 0) {
     const existingUtrVal = (document.getElementById("settlement-utr-input")?.value || "").trim();
@@ -909,7 +924,11 @@ function renderDynamicFinancialAction(netPayable, refComm, isSettled, adminUpi) 
           <h2 style="color: #f87171; margin: 5px 0 0 0;">₹${netPayable}</h2>
         </div>
         <div>
-          <a href="${upiPayLink}" class="btn-primary" style="background: #10b981; padding: 8px 14px; font-size: 12px; text-decoration: none; display: inline-block; border-radius: 6px; font-weight: bold;">📲 Pay ₹${netPayable} to NVMS</a>
+          ${
+            upiPayLink
+              ? `<a href="${escapeHtml(upiPayLink)}" rel="noopener noreferrer" class="btn-primary" style="background: #10b981; padding: 8px 14px; font-size: 12px; text-decoration: none; display: inline-block; border-radius: 6px; font-weight: bold;">📲 Pay ₹${netPayable} to NVMS</a>`
+              : `<span style="font-size:12px; color:#facc15;">Admin UPI: ${escapeHtml(adminUpi)}</span>`
+          }
         </div>
       </div>
       <div style="margin-top: 12px; border-top: 1px dashed #334155; padding-top: 10px; display: flex; gap: 10px; flex-wrap: wrap;">
@@ -1035,8 +1054,8 @@ window.submitSettlementProof = function (netPayable) {
   const utrNo = (utrInput?.value || "").trim();
   const amount = Number(amtInput?.value || netPayable || 0);
 
-  if (!utrNo) {
-    alert("⚠️ Please enter UTR number.");
+  if (!utrNo || utrNo.length < 6) {
+    alert("⚠️ Please enter a valid UTR number (minimum 6 characters).");
     utrInput?.focus();
     return;
   }
@@ -1128,9 +1147,10 @@ function fetchOrganizerChatMessages() {
   if (!box || !currentOrg || !orgToken) return;
   const orgCodeKey = getOrgCodeUpper();
 
-  fetch(`${SERVER_URL}/api/organizer/chat/messages?orgCode=${encodeURIComponent(orgCodeKey)}`, {
-    method: "GET",
-    headers: getOrgHeaders(false)
+  fetch(`${SERVER_URL}/api/organizer/query_messages`, {
+    method: "POST",
+    headers: getOrgHeaders(true),
+    body: JSON.stringify({ orgCode: orgCodeKey })
   })
     .then(async res => {
       if (res.status === 401) {
@@ -1148,10 +1168,11 @@ function fetchOrganizerChatMessages() {
       }
       box.innerHTML = msgs
         .map(m => {
-          const sender = escapeHtml(m.sender || "Admin");
-          const text = escapeHtml(m.message || m.text || "");
-          const imgHtml = m.imageUrl
-            ? `<div style="margin-top:6px;"><img src="${escapeHtml(m.imageUrl)}" alt="Attachment" style="max-width:180px; border-radius:6px;"></div>`
+          const sender = m.isAdmin ? "Central Admin" : escapeHtml(m.senderName || m.sender || "Coordinator");
+          const text = escapeHtml(m.text || m.message || "");
+          const safeImg = isSafeMediaUrl(m.imageUrl);
+          const imgHtml = safeImg
+            ? `<div style="margin-top:6px;"><img src="${escapeHtml(safeImg)}" alt="Attachment" style="max-width:180px; border-radius:6px;"></div>`
             : "";
           return `<div style="margin-bottom:8px; padding:8px; background:#020617; border-radius:6px; border:1px solid #1e293b;"><strong style="color:#38bdf8; font-size:12px;">${sender}:</strong> <span style="font-size:13px; color:#e2e8f0;">${text}</span>${imgHtml}</div>`;
         })
@@ -1174,14 +1195,26 @@ window.sendOrganizerQuery = function () {
     return;
   }
 
-  const sendPayload = imageBase64 => {
-    fetch(`${SERVER_URL}/api/organizer/chat/send`, {
+  if (fileObj) {
+    if (!/^image\/(png|jpeg|jpg|gif|webp)$/i.test(fileObj.type)) {
+      alert("⚠️ Only PNG, JPG, GIF, or WEBP images are allowed.");
+      return;
+    }
+    if (fileObj.size > 2 * 1024 * 1024) {
+      alert("⚠️ Image must be smaller than 2 MB.");
+      return;
+    }
+  }
+
+  const sendPayload = imageDataUrl => {
+    fetch(`${SERVER_URL}/api/organizer/send_query`, {
       method: "POST",
       headers: getOrgHeaders(true),
       body: JSON.stringify({
         orgCode: orgCodeKey,
+        senderName: `${currentOrg?.schoolName || "Coordinator"} (${orgCodeKey})`,
         message: messageText,
-        imageBase64: imageBase64 || undefined
+        imageUrl: imageDataUrl || ""
       })
     })
       .then(async res => {
@@ -1206,7 +1239,7 @@ window.sendOrganizerQuery = function () {
 
   if (fileObj) {
     const reader = new FileReader();
-    reader.onload = () => sendPayload(reader.result);
+    reader.onload = () => sendPayload(String(reader.result || ""));
     reader.readAsDataURL(fileObj);
   } else {
     sendPayload("");
