@@ -163,7 +163,7 @@ def _require_organizer(requested_org_code: str = ""):
 
 def _require_student(requested_student_id: str = ""):
     token = _extract_bearer_token() or request.headers.get("X-Student-Token", "").strip()
-    if not token and isinstance(request.json, dict):
+    if not token and request.method == "POST" and isinstance(request.json, dict):
         token = str(request.json.get("sessionToken") or "").strip()
     payload = _verify_signed_token(token)
     if not payload or payload.get("role") != "student":
@@ -681,15 +681,45 @@ def student_login():
 def student_get_questions():
     try:
         _ensure_db()
-        questions_ref = db.collection("questions").stream()
+        student_class = str(request.args.get("studentClass") or request.args.get("class") or "").strip()
+        stream = str(request.args.get("stream") or "").strip()
+        subject = str(request.args.get("subject") or "").strip()
+
+        student_id = _require_student()
+        student_data = {}
+        if student_id:
+            st_doc = db.collection("students").document(student_id).get()
+            if st_doc.exists:
+                student_data = st_doc.to_dict() or {}
+
+        effective_class = student_class or student_data.get("studentClass") or student_data.get("class") or ""
+        effective_stream = stream or student_data.get("stream") or ""
+        effective_subject = subject or student_data.get("subject") or ""
+
         questions = []
-        for doc in questions_ref:
-            q_data = doc.to_dict()
-            q_data.pop("correctOption", None)
-            q_data.pop("negativeMarking", None)
+        for doc in db.collection("questions").stream():
+            q_data = doc.to_dict() or {}
             q_data["id"] = doc.id
             questions.append(q_data)
-        return jsonify({"status": "success", "questions": questions}), 200
+
+        if effective_class:
+            questions = _filter_questions_for_student(
+                questions,
+                {
+                    "studentClass": effective_class,
+                    "stream": effective_stream,
+                    "subject": effective_subject,
+                },
+            )
+
+        safe_questions = []
+        for q_data in questions:
+            clean_q = dict(q_data)
+            clean_q.pop("correctOption", None)
+            clean_q.pop("negativeMarking", None)
+            safe_questions.append(clean_q)
+
+        return jsonify({"status": "success", "questions": safe_questions}), 200
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
