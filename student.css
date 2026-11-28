@@ -148,6 +148,14 @@ textarea:focus {
   text-align: center;
 }
 
+#official-scorecard-sheet {
+  background: #ffffff;
+  color: #0f172a;
+  border: 2px solid #0f172a;
+  border-radius: 8px;
+  padding: 18px;
+}
+
 /* ==========================================================================
    🏆 CERTIFICATE CONTAINER & IMAGE STYLING (BULLETPROOF NO-CUT FIX)
    ========================================================================== */
@@ -231,67 +239,59 @@ textarea:focus {
 }
 
 /* ==========================================================================
-   🖨️ PERFECT PRINT CONFIG (HTML IMG TAG PRINT FIX)
+   🖨️ PERFECT PRINT CONFIG (SCORECARD & CERTIFICATE PRINT SUPPORT)
    ========================================================================== */
 @media print {
   @page {
-    size: A4 landscape;
-    margin: 0;
+    size: A4 portrait;
+    margin: 12mm;
   }
 
   html,
   body {
     width: 100% !important;
-    height: 100% !important;
     margin: 0 !important;
     padding: 0 !important;
-    background-color: #000000 !important;
-    overflow: hidden !important;
+    background-color: #ffffff !important;
+    color: #0f172a !important;
   }
 
   body * {
     visibility: hidden !important;
   }
 
-  #student-scorecard-box,
-  #student-scorecard-box * {
+  #official-scorecard-sheet,
+  #official-scorecard-sheet *,
+  .certificate-wrapper,
+  .certificate-wrapper * {
     visibility: visible !important;
   }
 
-  #student-scorecard-box {
-    position: fixed !important;
-    top: 0 !important;
-    left: 0 !important;
-    width: 100vw !important;
-    height: 100vh !important;
-    margin: 0 !important;
-    padding: 0 !important;
-    background: #000000 !important;
-    display: flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    z-index: 999999 !important;
+  #official-scorecard-sheet {
+    position: relative !important;
+    width: 100% !important;
+    margin: 0 auto !important;
+    border: 2px solid #0f172a !important;
+    box-shadow: none !important;
   }
 
   .certificate-wrapper {
     position: relative !important;
-    width: 100vw !important;
+    width: 100% !important;
     height: auto !important;
-    margin: 0 auto !important;
-    border-radius: 0 !important;
+    margin: 16px auto 0 auto !important;
     box-shadow: none !important;
   }
 
   .cert-img {
-    width: 100vw !important;
+    width: 100% !important;
     height: auto !important;
-    max-height: 100vh !important;
     object-fit: contain !important;
   }
 
   .no-print,
   .cert-download-btn,
-  #student-scorecard-box > div:first-child {
+  .btn-submit {
     display: none !important;
   }
 }
@@ -302,6 +302,12 @@ textarea:focus {
   }
   .container {
     padding: 15px;
+  }
+  .score-card {
+    padding: 15px;
+  }
+  #official-scorecard-sheet {
+    padding: 12px;
   }
   h1 {
     font-size: 20px;
