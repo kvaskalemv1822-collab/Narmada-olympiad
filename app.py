@@ -622,7 +622,7 @@ def secure_registration():
         if payment_mode not in ("online", "offline"):
             payment_mode = "online"
 
-        utr_number = str(data.get("utrNumber", "")).strip().upper() or "NOT_PROVIDED"
+        utr_number = "".join(ch for ch in str(data.get("utrNumber", "")).strip().upper() if ch.isalnum()) or "NOT_PROVIDED"
         mother_name = str(data.get("motherName", "")).strip()
         father_name = str(data.get("fatherName", "")).strip()
         stream = str(data.get("stream", "")).strip()
@@ -648,16 +648,9 @@ def secure_registration():
 
         student_id = f"{org_code}_{roll_num}"
         student_ref = db.collection("students").document(student_id)
-        if student_ref.get().exists:
-            return jsonify({"status": "error", "message": "🚫 Roll Number already registered under this school!"}), 409
-
-        if payment_mode == "online":
-            existing_utr = list(db.collection("students").where("utrNumber", "==", utr_number).limit(1).stream())
-            if existing_utr:
-                return jsonify({"status": "error", "message": "🚫 Duplicate UTR Number detected! Each UTR can be used only once."}), 409
+        utr_lock_ref = db.collection("utr_locks").document(utr_number) if payment_mode == "online" else None
 
         initial_status = "Pending Payment Verification" if payment_mode == "online" else "Pending Organizer Cash Approval"
-
         student_payload = {
             "studentId": student_id,
             "orgCode": org_code,
@@ -680,9 +673,32 @@ def secure_registration():
             "timestamp": firestore.SERVER_TIMESTAMP,
         }
 
-        student_ref.set(student_payload)
+        transaction = db.transaction()
+
+        @firestore.transactional
+        def _register_tx(tx):
+            if student_ref.get(transaction=tx).exists:
+                return "DUPLICATE_ROLL"
+            if utr_lock_ref is not None:
+                if utr_lock_ref.get(transaction=tx).exists:
+                    return "DUPLICATE_UTR"
+                tx.set(utr_lock_ref, {
+                    "utrNumber": utr_number,
+                    "studentId": student_id,
+                    "orgCode": org_code,
+                    "createdAt": firestore.SERVER_TIMESTAMP,
+                })
+            tx.set(student_ref, student_payload)
+            return "OK"
+
+        tx_status = _register_tx(transaction)
+        if tx_status == "DUPLICATE_ROLL":
+            return jsonify({"status": "error", "message": "🚫 Roll Number already registered under this school!"}), 409
+        if tx_status == "DUPLICATE_UTR":
+            return jsonify({"status": "error", "message": "🚫 Duplicate UTR Number detected! Each UTR can be used only once."}), 409
+
         db.collection("organizers").document(org_code).set({"manualSettled": False}, merge=True)
-        backup_data_to_sheets("STUDENT_REGISTRATION", student_payload)
+        backup_data_to_sheets("STUDENT_REGISTRATION", {**student_payload, "timestamp": None})
 
         return jsonify({"status": "success", "message": "Registration successful!", "studentId": student_id}), 200
     except Exception as e:
@@ -708,7 +724,8 @@ def student_login():
             return jsonify({"status": "error", "message": "Missing login credentials"}), 400
 
         student_id = f"{org_code}_{roll_number}"
-        student_doc = db.collection("students").document(student_id).get()
+        student_ref = db.collection("students").document(student_id)
+        student_doc = student_ref.get()
         if not student_doc.exists:
             return jsonify({"status": "error", "message": "Student record not found. Check School Code & Roll No."}), 404
 
@@ -729,6 +746,9 @@ def student_login():
 
         if not hmac.compare_digest(input_password, expected_password):
             return jsonify({"status": "error", "message": "Invalid password! Format is Mother's first 2 capital letters + Roll No."}), 401
+
+        if not s_data.get("examStartedAt"):
+            student_ref.set({"examStartedAt": int(time.time())}, merge=True)
 
         org_doc = db.collection("organizers").document(org_code).get()
         if org_doc.exists:
@@ -825,7 +845,7 @@ def student_submit_exam():
         if not doc.exists:
             return jsonify({"status": "error", "message": "Student not found"}), 404
 
-        s_data = doc.to_dict()
+        s_data = doc.to_dict() or {}
         if s_data.get("examCompleted", False):
             return jsonify({"status": "error", "message": "Exam already submitted earlier!"}), 409
 
@@ -839,6 +859,9 @@ def student_submit_exam():
             return jsonify({"status": "error", "message": "Exam is not active!"}), 403
 
         configured_q_limit = max(1, min(300, int(g_cfg.get("totalQuestions") or g_cfg.get("questionCount") or 30)))
+        exam_duration_sec = max(60, int(g_cfg.get("examDurationMinutes") or g_cfg.get("paperTimeLimit") or 30) * 60)
+        started_at = s_data.get("examStartedAt")
+        elapsed_exceeded = bool(started_at and (int(time.time()) - int(started_at)) > (exam_duration_sec + 180))
 
         all_q_docs = list(db.collection("questions").stream())
         questions_map = {q.id: q.to_dict() for q in all_q_docs}
@@ -883,16 +906,36 @@ def student_submit_exam():
 
         subject_breakdown = _compute_subject_breakdown(selected_q_list, sanitized_answers)
 
-        student_ref.update({
+        update_payload = {
             "examCompleted": True,
             "score": final_score,
             "totalMarks": total_marks,
             "totalQuestions": total_marks,
             "percentage": percentage,
             "subjectBreakdown": subject_breakdown,
-            "autoSubmitted": auto_submitted,
+            "autoSubmitted": bool(auto_submitted or elapsed_exceeded),
             "submittedAnswers": sanitized_answers,
-        })
+            "submittedAt": firestore.SERVER_TIMESTAMP,
+        }
+
+        transaction = db.transaction()
+
+        @firestore.transactional
+        def _submit_tx(tx):
+            snap = student_ref.get(transaction=tx)
+            if not snap.exists:
+                return "NOT_FOUND"
+            cur = snap.to_dict() or {}
+            if cur.get("examCompleted", False):
+                return "ALREADY_SUBMITTED"
+            tx.update(student_ref, update_payload)
+            return "OK"
+
+        tx_res = _submit_tx(transaction)
+        if tx_res == "NOT_FOUND":
+            return jsonify({"status": "error", "message": "Student not found"}), 404
+        if tx_res == "ALREADY_SUBMITTED":
+            return jsonify({"status": "error", "message": "Exam already submitted earlier!"}), 409
 
         return jsonify({
             "status": "success",
@@ -907,14 +950,17 @@ def student_submit_exam():
 
 @app.route("/api/student/result", methods=["POST"])
 def student_get_result():
+    ip = _get_client_ip()
+    if _rate_limited(f"std_res:{ip}", max_requests=30, window_seconds=300):
+        return jsonify({"status": "rate_limited", "message": "⏳ Too many requests. Try again later."}), 429
     try:
         _ensure_db()
         data = _json_body()
         org_code = str(data.get("orgCode", "")).strip().upper()
         roll_number = str(data.get("rollNumber", "")).strip()
 
-        if not org_code or not roll_number:
-            return jsonify({"status": "error", "message": "Missing school code or roll number"}), 400
+        if not org_code or not roll_number or not roll_number.isdigit():
+            return jsonify({"status": "error", "message": "Missing or invalid school code / roll number"}), 400
 
         config_doc = db.collection("settings").document("portal_config").get()
         g_cfg = config_doc.to_dict() if config_doc.exists else {}
@@ -926,7 +972,7 @@ def student_get_result():
         if not student_doc.exists:
             return jsonify({"status": "error", "message": "Student record not found."}), 404
 
-        s_data = student_doc.to_dict()
+        s_data = student_doc.to_dict() or {}
         submitted_answers = s_data.get("submittedAnswers") or {}
         s_data.pop("submittedAnswers", None)
 
@@ -1012,6 +1058,7 @@ def admin_approve_online_payment():
             "paymentVerified": True,
             "paymentStatus": "Approved",
             "rejectionReason": "",
+            "paymentApprovedAt": firestore.SERVER_TIMESTAMP,
         })
         return jsonify({"status": "success", "message": "Payment approved"}), 200
     except Exception as e:
@@ -1078,6 +1125,7 @@ def admin_trigger_reexam():
             return jsonify({"status": "error", "message": "Missing ID"}), 400
         db.collection("students").document(student_id).update({
             "examCompleted": False,
+            "examStartedAt": firestore.DELETE_FIELD,
             "score": 0,
             "percentage": 0,
             "subjectBreakdown": [],
@@ -1126,7 +1174,10 @@ def admin_approve_settlement():
             }, merge=True)
 
         if req_id:
-            db.collection("settlements").document(req_id).update({"status": "approved"})
+            db.collection("settlements").document(req_id).update({
+                "status": "approved",
+                "approvedAt": firestore.SERVER_TIMESTAMP,
+            })
 
         return jsonify({"status": "success", "message": "Settlement approved"}), 200
     except Exception as e:
@@ -1147,7 +1198,10 @@ def admin_complete_payout():
         if payout_id:
             payout_ref = db.collection("payouts").document(payout_id)
             payout_doc = payout_ref.get()
-            payout_ref.update({"status": "completed"})
+            payout_ref.update({
+                "status": "completed",
+                "completedAt": firestore.SERVER_TIMESTAMP,
+            })
             if payout_doc.exists and not org_code:
                 p_data = payout_doc.to_dict()
                 org_code = str(p_data.get("orgCode") or "").strip().upper()
@@ -1206,8 +1260,6 @@ def organizer_login():
             selected_mode = str(data.get("examMode")).strip().lower()
             if selected_mode in ("online", "offline"):
                 login_update["examMode"] = selected_mode
-        if "principalApproved" in data and data.get("principalApproved") is not None:
-            login_update["principalApproved"] = bool(data.get("principalApproved"))
         if login_update:
             org_ref.set(login_update, merge=True)
             org_doc = org_ref.get()
@@ -1333,9 +1385,6 @@ def organizer_update_profile():
                 exam_mode = "online"
             update_fields["examMode"] = exam_mode
 
-        if "principalApproved" in data and data.get("principalApproved") is not None:
-            update_fields["principalApproved"] = bool(data.get("principalApproved"))
-
         upi_raw = data.get("upiId") if "upiId" in data else (
             data.get("payoutUpi") if "payoutUpi" in data else data.get("upi")
         )
@@ -1455,7 +1504,11 @@ def organizer_approve_cash():
         if str(st_data.get("paymentMode") or "").strip().lower() not in ("offline", "cash"):
             return jsonify({"status": "error", "message": "Only offline/cash registrations can be approved by coordinator"}), 400
 
-        db.collection("students").document(student_id).update({"paymentVerified": True, "paymentStatus": "Approved"})
+        db.collection("students").document(student_id).update({
+            "paymentVerified": True,
+            "paymentStatus": "Approved",
+            "cashApprovedAt": firestore.SERVER_TIMESTAMP,
+        })
         db.collection("organizers").document(org_code).set({"manualSettled": False}, merge=True)
         return jsonify({"status": "success", "message": "Cash approved"}), 200
     except Exception as e:
@@ -1472,22 +1525,36 @@ def organizer_submit_settlement():
         if not org_code:
             return jsonify({"status": "unauthorized", "message": "🔒 Valid coordinator session required!"}), 401
 
-        utr = str(data.get("utrNumber") or "").strip().upper()
+        utr = "".join(ch for ch in str(data.get("utrNumber") or "").strip().upper() if ch.isalnum())
         amount = float(data.get("amount") or 0)
         if not utr or len(utr) < 6 or amount <= 0:
             return jsonify({"status": "error", "message": "Valid UTR number and amount required"}), 400
 
-        existing_utr = list(db.collection("settlements").where("utrNumber", "==", utr).limit(1).stream())
-        if existing_utr:
+        utr_lock_ref = db.collection("settlement_utr_locks").document(utr)
+        settlement_ref = db.collection("settlements").document()
+        transaction = db.transaction()
+
+        @firestore.transactional
+        def _settle_tx(tx):
+            if utr_lock_ref.get(transaction=tx).exists:
+                return False
+            tx.set(utr_lock_ref, {
+                "utrNumber": utr,
+                "orgCode": org_code,
+                "createdAt": firestore.SERVER_TIMESTAMP,
+            })
+            tx.set(settlement_ref, {
+                "orgCode": org_code,
+                "utrNumber": utr,
+                "amount": amount,
+                "status": "pending",
+                "timestamp": firestore.SERVER_TIMESTAMP,
+            })
+            return True
+
+        if not _settle_tx(transaction):
             return jsonify({"status": "error", "message": "Duplicate UTR number already submitted!"}), 409
 
-        db.collection("settlements").document().set({
-            "orgCode": org_code,
-            "utrNumber": utr,
-            "amount": amount,
-            "status": "pending",
-            "timestamp": firestore.SERVER_TIMESTAMP,
-        })
         return jsonify({"status": "success", "message": "Submitted"}), 200
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
@@ -1682,6 +1749,8 @@ def organizer_get_query_messages():
 
 @app.route("/api/questions", methods=["GET"])
 def get_all_questions():
+    if not (_require_admin() or _require_organizer()):
+        return jsonify({"status": "unauthorized", "message": "🔒 Admin or organizer session required!"}), 401
     try:
         _ensure_db()
         questions = []
