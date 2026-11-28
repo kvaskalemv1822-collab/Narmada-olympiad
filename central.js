@@ -818,32 +818,27 @@ window.fetchAdminSupportTickets = function () {
         selectEl.value = prevSelected;
         activeTicketId = prevSelected;
         fetchAdminTicketMessages(prevSelected);
-      } else if (!targetOrgCodeForChat && supportTicketsCache.length > 0 && !activeTicketId) {
-        const firstId = String(supportTicketsCache[0].ticketId || supportTicketsCache[0].id || "").trim();
-        if (firstId) {
-          selectEl.value = firstId;
-          activeTicketId = firstId;
-          fetchAdminTicketMessages(firstId);
-        }
+      } else {
+        msgBox.innerHTML = `<p style="color:#64748b; font-size:12px; text-align:center;">Select a ticket above or click 💬 Chat on an organizer to load conversation.</p>`;
       }
     })
     .catch(() => {});
 };
 
-window.onAdminTicketChange = function () {
+window.onAdminTicketSelectChange = function () {
   const selectEl = document.getElementById("admin-chat-ticket-select");
-  const bannerEl = document.getElementById("admin-chat-target-banner");
-  const tid = String(selectEl?.value || "").trim();
+  const tid = selectEl ? String(selectEl.value || "").trim() : "";
   activeTicketId = tid;
+  const matched = supportTicketsCache.find(t => String(t.ticketId || t.id || "").trim() === tid);
+  targetOrgCodeForChat = matched?.orgCode ? String(matched.orgCode).trim().toUpperCase() : "";
 
-  const found = supportTicketsCache.find(
-    t => String(t.ticketId || t.id || "").trim() === tid
-  );
-  if (found && found.orgCode) {
-    targetOrgCodeForChat = String(found.orgCode).trim().toUpperCase();
-  }
+  const bannerEl = document.getElementById("admin-chat-target-banner");
   if (bannerEl) {
-    bannerEl.innerHTML = `Active Chat Target: <strong>${escapeHtml(targetOrgCodeForChat || tid || "All Tickets")}</strong>`;
+    bannerEl.innerHTML = targetOrgCodeForChat
+      ? `Active Chat Target: <strong>${escapeHtml(targetOrgCodeForChat)}</strong>`
+      : tid
+      ? `Active Ticket: <strong>${escapeHtml(tid)}</strong>`
+      : "No chat target selected";
   }
 
   if (tid) {
@@ -852,8 +847,9 @@ window.onAdminTicketChange = function () {
 };
 
 function fetchAdminTicketMessages(ticketId) {
+  if (!adminToken || !ticketId) return;
   const msgBox = document.getElementById("admin-chat-messages");
-  if (!msgBox || !ticketId || !adminToken) return;
+  if (!msgBox) return;
 
   fetch(`${SERVER_URL}/api/admin/query_messages?ticketId=${encodeURIComponent(ticketId)}`, {
     method: "GET",
@@ -870,17 +866,20 @@ function fetchAdminTicketMessages(ticketId) {
       if (!data || data.status !== "success") return;
       const msgs = Array.isArray(data.messages) ? data.messages : [];
       if (!msgs.length) {
-        msgBox.innerHTML = `<p style="color:#64748b; font-size:12px; text-align:center;">No messages in this ticket yet.</p>`;
+        msgBox.innerHTML = `<p style="color:#64748b; font-size:12px; text-align:center;">No messages in this thread yet.</p>`;
         return;
       }
+
       msgBox.innerHTML = msgs
         .map(m => {
-          const sender = m.isAdmin ? "Admin" : (m.senderName || "Coordinator");
-          const text = escapeHtml(m.text || m.message || "");
-          const imgHtml = m.imageUrl
-            ? `<div style="margin-top:6px;"><img src="${escapeHtml(m.imageUrl)}" alt="Attachment" style="max-width:180px; border-radius:6px;"></div>`
-            : "";
-          return `<div style="margin-bottom:8px; padding:8px; background:#0f172a; border-radius:6px; border:1px solid #1e293b;"><strong style="color:${m.isAdmin ? "#c084fc" : "#38bdf8"}; font-size:12px;">${escapeHtml(sender)}:</strong> <span style="font-size:13px; color:#e2e8f0;">${text}</span>${imgHtml}</div>`;
+          const isAdmin = !!m.isAdmin;
+          return `
+            <div style="margin-bottom:8px; padding:8px 10px; border-radius:8px; background:${isAdmin ? "#1e3a8a" : "#0f172a"}; border:1px solid ${isAdmin ? "#3b82f6" : "#334155"};">
+              <div style="font-size:10px; color:#94a3b8; margin-bottom:2px;">${isAdmin ? "Central Admin" : escapeHtml(m.senderName || "Coordinator")}</div>
+              <div style="font-size:12px; color:#f8fafc;">${escapeHtml(m.text || "")}</div>
+              ${m.imageUrl ? `<img src="${escapeHtml(m.imageUrl)}" style="max-width:180px; border-radius:6px; margin-top:6px; display:block;">` : ""}
+            </div>
+          `;
         })
         .join("");
       msgBox.scrollTop = msgBox.scrollHeight;
@@ -890,17 +889,13 @@ function fetchAdminTicketMessages(ticketId) {
 
 window.sendAdminChatReply = function () {
   if (!adminToken) return;
-  const inputEl = document.getElementById("admin-chat-reply-input");
   const selectEl = document.getElementById("admin-chat-ticket-select");
-  const msg = (inputEl?.value || "").trim();
-  const tid = activeTicketId || String(selectEl?.value || "").trim() || (targetOrgCodeForChat ? `TICKET_${targetOrgCodeForChat}` : "");
+  const inputEl = document.getElementById("admin-chat-reply-input");
+  const msg = inputEl ? inputEl.value.trim() : "";
+  const tid = activeTicketId || (selectEl ? String(selectEl.value || "").trim() : "") || (targetOrgCodeForChat ? `TICKET_${targetOrgCodeForChat}` : "");
 
-  if (!msg) {
-    alert("⚠️ Please enter a reply message.");
-    return;
-  }
-  if (!tid) {
-    alert("⚠️ Please select a ticket or organizer first.");
+  if (!tid || !msg) {
+    alert("⚠️ Select a ticket/organizer and type a message first.");
     return;
   }
 
@@ -909,7 +904,7 @@ window.sendAdminChatReply = function () {
     headers: getAdminHeaders(true),
     body: JSON.stringify({
       ticketId: tid,
-      orgCode: targetOrgCodeForChat || undefined,
+      orgCode: targetOrgCodeForChat,
       message: msg
     })
   })
@@ -925,8 +920,8 @@ window.sendAdminChatReply = function () {
       if (data.status === "success") {
         if (inputEl) inputEl.value = "";
         activeTicketId = data.ticketId || tid;
-        fetchAdminSupportTickets();
         fetchAdminTicketMessages(activeTicketId);
+        fetchAdminSupportTickets();
       } else {
         alert("❌ " + (data.message || "Failed to send reply."));
       }
@@ -936,13 +931,13 @@ window.sendAdminChatReply = function () {
 
 window.approveOrganizerSettlement = function (orgCode, requestId) {
   if (!adminToken) return;
+  const code = String(orgCode || "").trim().toUpperCase();
+  if (!code) return;
+
   fetch(`${SERVER_URL}/api/admin/approve_settlement`, {
     method: "POST",
     headers: getAdminHeaders(true),
-    body: JSON.stringify({
-      orgCode: orgCode,
-      requestId: requestId || ""
-    })
+    body: JSON.stringify({ orgCode: code, requestId: requestId || "" })
   })
     .then(async res => {
       if (res.status === 401) {
@@ -957,7 +952,7 @@ window.approveOrganizerSettlement = function (orgCode, requestId) {
         alert("✅ Settlement approved!");
         fetchAllCentralData();
       } else {
-        alert("❌ " + (data.message || "Failed to approve settlement."));
+        alert("❌ " + (data.message || "Settlement failed."));
       }
     })
     .catch(() => alert("❌ Network error while approving settlement."));
@@ -966,9 +961,7 @@ window.approveOrganizerSettlement = function (orgCode, requestId) {
 window.completeOrganizerPayout = function (payoutId, orgCode, rawRefComm) {
   if (!adminToken) return;
   const code = String(orgCode || "").trim().toUpperCase();
-  if (code && rawRefComm !== undefined) {
-    setLocalRefSettledBase(code, rawRefComm);
-  }
+  if (!code) return;
 
   fetch(`${SERVER_URL}/api/admin/complete_payout`, {
     method: "POST",
@@ -989,159 +982,300 @@ window.completeOrganizerPayout = function (payoutId, orgCode, rawRefComm) {
     .then(data => {
       if (!data) return;
       if (data.status === "success") {
-        alert("✅ Referral payout marked as completed!");
+        setLocalRefSettledBase(code, int(rawRefComm));
+        alert("✅ Referral payout marked completed!");
         fetchAllCentralData();
       } else {
-        alert("❌ " + (data.message || "Failed to complete payout."));
+        alert("❌ " + (data.message || "Payout completion failed."));
       }
     })
     .catch(() => alert("❌ Network error while completing payout."));
 };
 
+window.approveStudentPayment = function (studentId) {
+  if (!adminToken || !studentId) return;
+  fetch(`${SERVER_URL}/api/admin/approve_payment`, {
+    method: "POST",
+    headers: getAdminHeaders(true),
+    body: JSON.stringify({ studentId })
+  })
+    .then(async res => {
+      if (res.status === 401) {
+        window.logoutAdminSession();
+        return null;
+      }
+      return res.json();
+    })
+    .then(data => {
+      if (!data) return;
+      if (data.status === "success") {
+        alert("✅ Student payment approved!");
+        fetchAllCentralData();
+      } else {
+        alert("❌ " + (data.message || "Approval failed."));
+      }
+    })
+    .catch(() => alert("❌ Network error while approving payment."));
+};
+
+window.rejectStudentPayment = function (studentId) {
+  if (!adminToken || !studentId) return;
+  const reason = prompt("Reason for rejecting payment:", "Invalid / Unmatched UTR") || "Invalid UTR";
+  fetch(`${SERVER_URL}/api/admin/reject_payment`, {
+    method: "POST",
+    headers: getAdminHeaders(true),
+    body: JSON.stringify({ studentId, reason })
+  })
+    .then(async res => {
+      if (res.status === 401) {
+        window.logoutAdminSession();
+        return null;
+      }
+      return res.json();
+    })
+    .then(data => {
+      if (!data) return;
+      if (data.status === "success") {
+        alert("⚠️ Payment rejected.");
+        fetchAllCentralData();
+      } else {
+        alert("❌ " + (data.message || "Rejection failed."));
+      }
+    })
+    .catch(() => alert("❌ Network error while rejecting payment."));
+};
+
+window.openManualScoreModal = function (studentId, studentName, studentClass) {
+  const modal = document.getElementById("manual-score-modal");
+  const student = allStudentsCache.find(s => String(s.studentId || s.id || "").trim() === studentId) || {};
+  const maxQ = getConfiguredTotalQuestions(student);
+
+  if (document.getElementById("manual-score-student-id")) {
+    document.getElementById("manual-score-student-id").value = studentId;
+  }
+  if (document.getElementById("manual-score-student-info")) {
+    document.getElementById("manual-score-student-info").textContent =
+      `${studentName || "Student"} (Class ${studentClass || "-"}) • Max Marks: ${maxQ}`;
+  }
+  if (document.getElementById("manual-score-input")) {
+    document.getElementById("manual-score-input").value = student.score ?? "";
+  }
+  if (document.getElementById("manual-total-marks-input")) {
+    document.getElementById("manual-total-marks-input").value = maxQ;
+  }
+  if (modal) modal.classList.remove("hidden");
+};
+
+window.closeManualScoreModal = function () {
+  const modal = document.getElementById("manual-score-modal");
+  if (modal) modal.classList.add("hidden");
+};
+
+window.saveManualScore = function () {
+  if (!adminToken) return;
+  const studentId = String(document.getElementById("manual-score-student-id")?.value || "").trim();
+  const score = Number(document.getElementById("manual-score-input")?.value);
+  const totalMarks = Number(document.getElementById("manual-total-marks-input")?.value || 30);
+
+  if (!studentId || Number.isNaN(score) || score < 0 || totalMarks <= 0 || score > totalMarks) {
+    alert("⚠️ Enter a valid score within total marks.");
+    return;
+  }
+
+  fetch(`${SERVER_URL}/api/admin/manual_score_entry`, {
+    method: "POST",
+    headers: getAdminHeaders(true),
+    body: JSON.stringify({ studentId, score, totalMarks })
+  })
+    .then(async res => {
+      if (res.status === 401) {
+        window.logoutAdminSession();
+        return null;
+      }
+      return res.json();
+    })
+    .then(data => {
+      if (!data) return;
+      if (data.status === "success") {
+        window.closeManualScoreModal();
+        alert("✅ Score saved!");
+        fetchAllCentralData();
+      } else {
+        alert("❌ " + (data.message || "Failed to save score."));
+      }
+    })
+    .catch(() => alert("❌ Network error while saving score."));
+};
+
+window.autoScoreStudent = function (studentId) {
+  if (!adminToken || !studentId) return;
+  const student = allStudentsCache.find(s => String(s.studentId || s.id || "").trim() === studentId);
+  const tot = getConfiguredTotalQuestions(student || {});
+  const currentScore = parseFloat(student?.score);
+  const scoreToSave = Number.isFinite(currentScore) ? Math.min(tot, Math.max(0, currentScore)) : 0;
+
+  fetch(`${SERVER_URL}/api/admin/manual_score_entry`, {
+    method: "POST",
+    headers: getAdminHeaders(true),
+    body: JSON.stringify({
+      studentId,
+      score: scoreToSave,
+      totalMarks: tot,
+      autoScored: true
+    })
+  })
+    .then(async res => {
+      if (res.status === 401) {
+        window.logoutAdminSession();
+        return null;
+      }
+      return res.json();
+    })
+    .then(data => {
+      if (!data) return;
+      if (data.status === "success") {
+        alert("✅ Auto score synced!");
+        fetchAllCentralData();
+      } else {
+        alert("❌ " + (data.message || "Failed to auto score."));
+      }
+    })
+    .catch(() => alert("❌ Network error during auto score."));
+};
+
+window.triggerStudentReexam = function (studentId) {
+  if (!adminToken || !studentId) return;
+  if (!confirm("Reset this student's exam status so they can take Re-Exam?")) return;
+
+  fetch(`${SERVER_URL}/api/admin/reexam`, {
+    method: "POST",
+    headers: getAdminHeaders(true),
+    body: JSON.stringify({ studentId })
+  })
+    .then(async res => {
+      if (res.status === 401) {
+        window.logoutAdminSession();
+        return null;
+      }
+      return res.json();
+    })
+    .then(data => {
+      if (!data) return;
+      if (data.status === "success") {
+        alert("✅ Re-Exam enabled for student!");
+        fetchAllCentralData();
+      } else {
+        alert("❌ " + (data.message || "Failed to trigger Re-Exam."));
+      }
+    })
+    .catch(() => alert("❌ Network error while triggering Re-Exam."));
+};
+
 function populateSchoolDropdowns() {
-  const rankSel = document.getElementById("ranking-school-select");
-  const ledgerSel = document.getElementById("ledger-school-select");
+  const rankSelect = document.getElementById("ranking-school-select");
+  const ledgerSelect = document.getElementById("ledger-school-select");
 
-  const prevRankVal = rankSel ? rankSel.value : "ALL";
-  const prevLedgerVal = ledgerSel ? ledgerSel.value : "ALL";
-
-  const schoolOptions = allOrganizersCache.map(org => {
-    const code = String(org.code || org.orgCode || "").trim().toUpperCase();
-    const label = `${code} — ${org.schoolName || "School"}`;
-    return { code, label };
+  const schoolMap = new Map();
+  allOrganizersCache.forEach(o => {
+    const code = String(o.code || o.orgCode || "").trim().toUpperCase();
+    if (code) schoolMap.set(code, o.schoolName || code);
+  });
+  allStudentsCache.forEach(s => {
+    const code = String(s.orgCode || s.schoolCode || "").trim().toUpperCase();
+    if (code && !schoolMap.has(code)) schoolMap.set(code, code);
   });
 
-  if (rankSel) {
-    let html = `<option value="ALL">🏫 All Schools Combined</option>`;
-    schoolOptions.forEach(o => {
-      html += `<option value="${escapeHtml(o.code)}">${escapeHtml(o.label)}</option>`;
-    });
-    rankSel.innerHTML = html;
-    if ([...rankSel.options].some(opt => opt.value === prevRankVal)) {
-      rankSel.value = prevRankVal;
-    }
-  }
+  const sortedCodes = [...schoolMap.keys()].sort();
+  const optionsHtml =
+    `<option value="ALL">All Schools (${sortedCodes.length})</option>` +
+    sortedCodes
+      .map(code => `<option value="${escapeHtml(code)}">${escapeHtml(code)} - ${escapeHtml(schoolMap.get(code))}</option>`)
+      .join("");
 
-  if (ledgerSel) {
-    let html = `<option value="ALL">📋 All Schools Ledger</option>`;
-    schoolOptions.forEach(o => {
-      html += `<option value="${escapeHtml(o.code)}">${escapeHtml(o.label)}</option>`;
-    });
-    ledgerSel.innerHTML = html;
-    if ([...ledgerSel.options].some(opt => opt.value === prevLedgerVal)) {
-      ledgerSel.value = prevLedgerVal;
-    }
-  }
+  [rankSelect, ledgerSelect].forEach(sel => {
+    if (!sel) return;
+    const prev = sel.value || "ALL";
+    sel.innerHTML = optionsHtml;
+    sel.value = [...sel.options].some(o => o.value === prev) ? prev : "ALL";
+  });
 }
 
-function getStudentClassNum(student) {
-  const raw = String(
-    student?.studentClass ??
-    student?.class ??
-    student?.className ??
-    student?.grade ??
-    ""
-  ).trim();
-  const digits = raw.replace(/\D+/g, "");
+function parseClassNumber(val) {
+  const digits = String(val ?? "").replace(/\D/g, "");
   return digits ? parseInt(digits, 10) : 0;
 }
 
-function getStudentScoreNum(student) {
-  const val = parseFloat(student?.score);
-  return Number.isFinite(val) ? val : 0;
-}
+function renderSplitClassColumn(title, classesArr, studentsForSchool) {
+  const cardsHtml = classesArr
+    .map(clsNum => {
+      const clsStudents = studentsForSchool
+        .filter(s => parseClassNumber(s.studentClass || s.class) === clsNum)
+        .sort((a, b) => {
+          const scoreA = parseFloat(a.score) || 0;
+          const scoreB = parseFloat(b.score) || 0;
+          if (scoreB !== scoreA) return scoreB - scoreA;
+          return String(a.studentName || "").localeCompare(String(b.studentName || ""));
+        });
 
-function renderRankingSplitColumn(title, rows, accentColor) {
-  if (!rows.length) {
-    return `
-      <div style="background:#020617; border:1px solid #334155; border-radius:8px; padding:14px;">
-        <h4 style="color:${accentColor}; margin:0 0 10px 0; font-size:14px;">${title}</h4>
-        <p style="color:#94a3b8; font-size:12px; margin:0;">No completed exam records in this class range.</p>
-      </div>
-    `;
-  }
-
-  const bodyRows = rows
-    .map((s, idx) => {
-      const clsNum = getStudentClassNum(s);
-      const maxMarks = getConfiguredTotalQuestions(s);
-      const scoreVal = getStudentScoreNum(s);
-      const orgTag = String(s.orgCode || s.schoolCode || "").trim().toUpperCase();
+      const itemsHtml = clsStudents.length
+        ? clsStudents
+            .map((st, idx) => {
+              const sc = parseFloat(st.score) || 0;
+              const tot = getConfiguredTotalQuestions(st);
+              return `
+                <div style="display:flex; justify-content:space-between; align-items:center; padding:6px 8px; border-bottom:1px solid #1e293b; font-size:12px;">
+                  <span><strong>#${idx + 1}</strong> ${escapeHtml(st.studentName || "Student")}${getSubjectBadge(st)} <span style="color:#94a3b8;">(${escapeHtml(st.orgCode || "")})</span></span>
+                  <strong style="color:#4ade80;">${sc}/${tot}</strong>
+                </div>
+              `;
+            })
+            .join("")
+        : `<div style="padding:8px; font-size:11px; color:#64748b;">No student records for Class ${clsNum}.</div>`;
 
       return `
-        <tr style="border-bottom:1px solid #1e293b;">
-          <td style="padding:8px; color:#facc15; font-weight:700;">#${idx + 1}</td>
-          <td style="padding:8px;">
-            <strong>${escapeHtml(s.studentName || "Student")}${getSubjectBadge(s)}</strong>
-            ${orgTag ? `<br><span style="font-size:11px; color:#94a3b8;">${escapeHtml(orgTag)}</span>` : ""}
-          </td>
-          <td style="padding:8px; color:#38bdf8;">Class ${clsNum || escapeHtml(s.studentClass || "-")}</td>
-          <td style="padding:8px; text-align:right; color:#4ade80; font-weight:700;">${scoreVal}/${maxMarks}</td>
-        </tr>
+        <div style="background:#020617; border:1px solid #1e293b; border-radius:8px; margin-bottom:10px; overflow:hidden;">
+          <div style="background:#0f172a; padding:7px 10px; font-weight:700; font-size:12px; color:#38bdf8; border-bottom:1px solid #1e293b;">
+            Class ${clsNum} (${clsStudents.length})
+          </div>
+          <div>${itemsHtml}</div>
+        </div>
       `;
     })
     .join("");
 
   return `
-    <div style="background:#020617; border:1px solid #334155; border-radius:8px; padding:14px;">
-      <h4 style="color:${accentColor}; margin:0 0 10px 0; font-size:14px;">${title}</h4>
-      <div style="overflow-x:auto;">
-        <table style="width:100%; border-collapse:collapse; font-size:13px; color:#f8fafc;">
-          <thead>
-            <tr style="background:#1e293b; color:#cbd5e1;">
-              <th style="padding:8px; text-align:left;">Rank</th>
-              <th style="padding:8px; text-align:left;">Student</th>
-              <th style="padding:8px; text-align:left;">Class</th>
-              <th style="padding:8px; text-align:right;">Score</th>
-            </tr>
-          </thead>
-          <tbody>${bodyRows}</tbody>
-        </table>
+    <div style="background:#0b1220; border:1px solid #1e293b; border-radius:10px; padding:12px;">
+      <div style="font-weight:800; font-size:13px; color:#f8fafc; margin-bottom:10px; padding-bottom:6px; border-bottom:1px solid #1e293b;">
+        ${escapeHtml(title)}
       </div>
+      ${cardsHtml}
     </div>
   `;
 }
 
 window.loadSchoolRankings = function () {
-  const gridEl = document.getElementById("school-rankings-grid");
-  const selectEl = document.getElementById("ranking-school-select");
-  if (!gridEl) return;
+  const container = document.getElementById("school-rankings-container");
+  if (!container) return;
 
-  const selectedCode = String(selectEl?.value || "ALL").trim().toUpperCase();
-  const filteredBySchool =
+  const selectedCode = String(document.getElementById("ranking-school-select")?.value || "ALL")
+    .trim()
+    .toUpperCase();
+
+  const filteredStudents =
     selectedCode === "ALL"
       ? allStudentsCache
       : allStudentsCache.filter(
           s => String(s.orgCode || s.schoolCode || "").trim().toUpperCase() === selectedCode
         );
 
-  const completed = filteredBySchool.filter(
-    s => s && (s.examCompleted === true || (s.score !== undefined && s.score !== null && s.score !== ""))
-  );
+  const leftCol = renderSplitClassColumn("Junior Wing (Class 1 to 6)", [1, 2, 3, 4, 5, 6], filteredStudents);
+  const rightCol = renderSplitClassColumn("Senior Wing (Class 7 to 12)", [7, 8, 9, 10, 11, 12], filteredStudents);
 
-  const class1to6 = completed
-    .filter(s => {
-      const c = getStudentClassNum(s);
-      return c >= 1 && c <= 6;
-    })
-    .sort((a, b) => getStudentScoreNum(b) - getStudentScoreNum(a));
-
-  const class7to12 = completed
-    .filter(s => {
-      const c = getStudentClassNum(s);
-      return c >= 7 && c <= 12;
-    })
-    .sort((a, b) => getStudentScoreNum(b) - getStudentScoreNum(a));
-
-  const scopeTitle =
-    selectedCode === "ALL"
-      ? "All Schools Combined (Class 1 to 12)"
-      : `School ${selectedCode} (Class 1 to 12)`;
-
-  gridEl.innerHTML = `
-    <div style="grid-column: 1 / -1; font-size: 13px; font-weight: 700; color: #facc15;">${escapeHtml(scopeTitle)}</div>
-    ${renderRankingSplitColumn("Class 1 to 6 Rankings", class1to6, "#38bdf8")}
-    ${renderRankingSplitColumn("Class 7 to 12 Rankings", class7to12, "#4ade80")}
+  container.innerHTML = `
+    <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(300px, 1fr)); gap:14px;">
+      ${leftCol}
+      ${rightCol}
+    </div>
   `;
 };
 
@@ -1186,10 +1320,14 @@ window.loadSchoolStudentLedger = function () {
       }
 
       const approveBtn = !isApproved
-        ? `<button type="button" onclick="approveStudentPayment('${escapeJsSingle(stId)}')" style="background:#10b981; color:#fff; border:none; padding:4px 8px; font-size:11px; border-radius:4px; cursor:pointer; margin-right:4px;">Approve</button>`
+        ? `<button type="button" onclick="approveStudentPayment('${escapeJsSingle(stId)}')" style="background:#10b981; color:#fff; border:none; padding:4px 8px; font-size:11px; border-radius:4px; cursor:pointer; margin:2px;">Approve</button>`
         : "";
 
-      const scoreBtn = `<button type="button" onclick="openManualScoreModal('${escapeJsSingle(stId)}', '${escapeJsSingle(s.studentName || "")}', '${escapeJsSingle(s.studentClass || "")}')" style="background:#0284c7; color:#fff; border:none; padding:4px 8px; font-size:11px; border-radius:4px; cursor:pointer;">Score</button>`;
+      const scoreBtn = `<button type="button" onclick="openManualScoreModal('${escapeJsSingle(stId)}', '${escapeJsSingle(s.studentName || "")}', '${escapeJsSingle(s.studentClass || "")}')" style="background:#0284c7; color:#fff; border:none; padding:4px 8px; font-size:11px; border-radius:4px; cursor:pointer; margin:2px;">Manual Score</button>`;
+
+      const autoScoreBtn = `<button type="button" onclick="autoScoreStudent('${escapeJsSingle(stId)}')" style="background:#7c3aed; color:#fff; border:none; padding:4px 8px; font-size:11px; border-radius:4px; cursor:pointer; margin:2px;">Auto Score</button>`;
+
+      const reExamBtn = `<button type="button" onclick="triggerStudentReexam('${escapeJsSingle(stId)}')" style="background:#d97706; color:#fff; border:none; padding:4px 8px; font-size:11px; border-radius:4px; cursor:pointer; margin:2px;">Re-Exam</button>`;
 
       return `
         <tr style="border-bottom:1px solid #1e293b;">
@@ -1202,88 +1340,9 @@ window.loadSchoolStudentLedger = function () {
             <span style="color:${isApproved ? "#4ade80" : "#f59e0b"}; font-weight:bold;">${escapeHtml(s.paymentStatus || "Pending")}</span>${utrHtml}
           </td>
           <td style="padding:10px;">${marksHtml}</td>
-          <td style="padding:10px;">${approveBtn}${scoreBtn}</td>
+          <td style="padding:10px;">${approveBtn}${scoreBtn}${autoScoreBtn}${reExamBtn}</td>
         </tr>
       `;
     })
     .join("");
-};
-
-window.approveStudentPayment = function (studentId) {
-  if (!adminToken || !studentId) return;
-  fetch(`${SERVER_URL}/api/admin/approve_payment`, {
-    method: "POST",
-    headers: getAdminHeaders(true),
-    body: JSON.stringify({ studentId })
-  })
-    .then(async res => {
-      if (res.status === 401) {
-        window.logoutAdminSession();
-        return null;
-      }
-      return res.json();
-    })
-    .then(data => {
-      if (!data) return;
-      if (data.status === "success") {
-        fetchAllCentralData();
-      } else {
-        alert("❌ " + (data.message || "Failed to approve payment."));
-      }
-    })
-    .catch(() => alert("❌ Network error while approving payment."));
-};
-
-window.openManualScoreModal = function (studentId, studentName, studentClass) {
-  const modal = document.getElementById("manual-score-modal");
-  const infoEl = document.getElementById("modal-student-info");
-  const idInput = document.getElementById("modal-student-id");
-  const totalInput = document.getElementById("modal-total");
-  const scoreInput = document.getElementById("modal-score");
-
-  if (idInput) idInput.value = studentId;
-  if (infoEl) infoEl.textContent = `${studentName} — Class ${studentClass}`;
-  if (totalInput) totalInput.value = Number(document.getElementById("cfg-total-questions")?.value) || 30;
-  if (scoreInput) scoreInput.value = "";
-  if (modal) modal.classList.remove("hidden");
-};
-
-window.closeManualScoreModal = function () {
-  document.getElementById("manual-score-modal")?.classList.add("hidden");
-};
-
-window.saveManualScore = function () {
-  if (!adminToken) return;
-  const studentId = String(document.getElementById("modal-student-id")?.value || "").trim();
-  const score = parseFloat(document.getElementById("modal-score")?.value);
-  const totalMarks = parseFloat(document.getElementById("modal-total")?.value) || 30;
-
-  if (!studentId || Number.isNaN(score) || score < 0 || score > totalMarks) {
-    alert("⚠️ Please enter a valid score within total marks.");
-    return;
-  }
-
-  fetch(`${SERVER_URL}/api/admin/manual_score_entry`, {
-    method: "POST",
-    headers: getAdminHeaders(true),
-    body: JSON.stringify({ studentId, score, totalMarks })
-  })
-    .then(async res => {
-      if (res.status === 401) {
-        window.logoutAdminSession();
-        return null;
-      }
-      return res.json();
-    })
-    .then(data => {
-      if (!data) return;
-      if (data.status === "success") {
-        closeManualScoreModal();
-        alert("✅ Manual score saved!");
-        fetchAllCentralData();
-      } else {
-        alert("❌ " + (data.message || "Failed to save manual score."));
-      }
-    })
-    .catch(() => alert("❌ Network error while saving manual score."));
 };
