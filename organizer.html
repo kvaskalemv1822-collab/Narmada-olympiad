@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=1280, initial-scale=1.0, maximum-scale=2.0, user-scalable=yes">
   <title>NVMSO - School Coordinator Panel</title>
-  <link rel="stylesheet" href="organizer.css?v=43">
+  <link rel="stylesheet" href="organizer.css?v=44">
   <style>
     .nvms-logo-title span:nth-child(1) { color: #38bdf8; }
     .nvms-logo-title span:nth-child(2) { color: #4ade80; }
@@ -213,7 +213,20 @@
       </div>
 
       <!-- DYNAMIC FINANCIAL ACTION CONTAINER (UTR SETTLEMENT OR UPI PAYOUT REQUEST) -->
-      <div id="dynamic-financial-action-container" style="margin-top: 18px; background: #020617; padding: 16px; border-radius: 8px; border: 1px solid #334155;"></div>
+      <div id="dynamic-financial-action-container" style="margin-top: 18px; background: #020617; padding: 16px; border-radius: 8px; border: 1px solid #334155;">
+        <div style="display:flex; flex-wrap:wrap; align-items:flex-end; gap:12px;">
+          <div style="flex:1; min-width:240px;">
+            <label for="payout-upi-input" style="color:#c084fc;">Referral Commission Payout UPI ID (Edit for New UPI):</label>
+            <input type="text" id="payout-upi-input" placeholder="Enter new or registered UPI ID (e.g. name@okaxis)">
+            <small id="payout-active-upi-note" style="display:block; margin-top:4px; font-size:11px; color:#94a3b8;">Active Saved UPI: Not set</small>
+          </div>
+          <div style="width:180px;">
+            <label for="payout-amount-input" style="color:#facc15;">Payout Amount (₹):</label>
+            <input type="number" id="payout-amount-input" min="1" step="1" placeholder="Amount">
+          </div>
+          <button type="button" id="btn-request-ref-payout" onclick="submitOrganizerPayoutRequest()" class="btn-primary" style="background:#c084fc; color:#020617; width:auto; padding:12px 18px; cursor:pointer;">💸 Request Referral Payout</button>
+        </div>
+      </div>
     </div>
 
     <!-- REGISTERED STUDENTS ROSTER -->
@@ -265,6 +278,6 @@
   </div>
 </div>
 
-<script src="organizer.js?v=43"></script>
+<script src="organizer.js?v=44"></script>
 </body>
 </html>
