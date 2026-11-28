@@ -7,6 +7,7 @@ let currentExamQuestions = [];
 let studentSessionData = null;
 let examTimerInterval = null;
 let isAutoSubmittingExam = false;
+let isSubmittingExam = false;
 
 const SENIOR_MATHS_SUBJECTS = ["Mathematics", "Physics", "Chemistry", "Reasoning"];
 const SENIOR_BIO_SUBJECTS = ["Zoology", "Botany", "Chemistry", "General Science"];
@@ -28,6 +29,17 @@ function normalizeSubjectLabel(sub) {
   if (low === "gk" || low === "general knowledge") return "General Knowledge";
   if (low === "chemistry (maths)" || low === "chemistry (bio)") return "Chemistry";
   return s;
+}
+
+function buildSafeUpiUri(upiId, payeeName, amount) {
+  const cleanUpi = String(upiId || "").trim();
+  const amt = Number(amount);
+  if (!cleanUpi || !cleanUpi.includes("@") || !Number.isFinite(amt) || amt <= 0) {
+    return "";
+  }
+  const safePayee =
+    String(payeeName || "NVMSO").replace(/[^\w\s.-]/g, "").trim() || "NVMSO";
+  return `upi://pay?pa=${encodeURIComponent(cleanUpi)}&pn=${encodeURIComponent(safePayee)}&am=${encodeURIComponent(String(amt))}&cu=INR`;
 }
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -230,7 +242,7 @@ function fetchPortalConfig() {
     .then(data => {
       if (data && data.status === "success") {
         portalConfigData = data.config || {};
-        activeUpiString = portalConfigData.adminUpiId || "narmada@upi";
+        activeUpiString = String(portalConfigData.adminUpiId || "narmada@upi").trim();
         updateExamMetaDisplays();
 
         const isRegOpen = !!portalConfigData.isRegistrationOpen;
@@ -320,10 +332,10 @@ function renderDynamicUPIQR() {
   if (!isOrganizerVerified) return;
   const fee =
     verifiedOrgExamMode === "offline"
-      ? portalConfigData.offlineFee || 120
-      : portalConfigData.onlineFee || 100;
-  const upiUrl = `upi://pay?pa=${encodeURIComponent(activeUpiString)}&pn=NVMSO&am=${fee}&cu=INR`;
-  if (typeof QRCode !== "undefined") {
+      ? Number(portalConfigData.offlineFee) || 120
+      : Number(portalConfigData.onlineFee) || 100;
+  const upiUrl = buildSafeUpiUri(activeUpiString, "NVMSO", fee);
+  if (upiUrl && typeof QRCode !== "undefined") {
     new QRCode(qrBox, { text: upiUrl, width: 160, height: 160 });
   }
 }
@@ -335,9 +347,14 @@ window.openDirectUpiApp = function () {
   }
   const fee =
     verifiedOrgExamMode === "offline"
-      ? portalConfigData.offlineFee || 120
-      : portalConfigData.onlineFee || 100;
-  window.location.href = `upi://pay?pa=${encodeURIComponent(activeUpiString)}&pn=NVMSO&am=${fee}&cu=INR`;
+      ? Number(portalConfigData.offlineFee) || 120
+      : Number(portalConfigData.onlineFee) || 100;
+  const upiUrl = buildSafeUpiUri(activeUpiString, "NVMSO", fee);
+  if (!upiUrl) {
+    alert("⚠️ UPI payment configuration is unavailable right now.");
+    return;
+  }
+  window.location.href = upiUrl;
 };
 
 window.showReviewDetailsModal = function () {
@@ -521,6 +538,7 @@ window.proceedToActualExamPaper = function () {
   }
 
   isAutoSubmittingExam = false;
+  isSubmittingExam = false;
   document.getElementById("exam-instructions-modal")?.classList.add("hidden");
   document.getElementById("active-exam-container")?.classList.remove("hidden");
 
@@ -605,7 +623,7 @@ function startExamTimer(durationSeconds) {
     renderCountdown(timer);
     if (timer <= 0) {
       clearInterval(examTimerInterval);
-      if (!isAutoSubmittingExam) {
+      if (!isAutoSubmittingExam && !isSubmittingExam) {
         isAutoSubmittingExam = true;
         alert("⏰ Time limit khatam ho gayi hai! Aapka paper automatically submit kiya ja raha hai.");
         window.submitExamAnswers(true);
@@ -615,11 +633,16 @@ function startExamTimer(durationSeconds) {
 }
 
 window.submitExamAnswers = function (isAutoSubmit = false) {
+  if (isSubmittingExam) return;
   if (!isAutoSubmit && !isAutoSubmittingExam) {
     if (!confirm("Are you sure you want to submit your exam answers?")) return;
   }
-  if (examTimerInterval) clearInterval(examTimerInterval);
+  if (examTimerInterval) {
+    clearInterval(examTimerInterval);
+    examTimerInterval = null;
+  }
 
+  isSubmittingExam = true;
   const submitBtn = document.getElementById("btn-submit-exam");
   if (submitBtn) {
     submitBtn.disabled = true;
@@ -654,6 +677,8 @@ window.submitExamAnswers = function (isAutoSubmit = false) {
         alert(isAutoSubmit ? "⏰ Time over! Exam auto-submitted successfully." : "✅ Exam Submitted Successfully!");
         location.reload();
       } else {
+        isSubmittingExam = false;
+        isAutoSubmittingExam = false;
         alert("❌ Error: " + (data?.message || "Failed to submit exam"));
         if (submitBtn) {
           submitBtn.disabled = false;
@@ -662,6 +687,9 @@ window.submitExamAnswers = function (isAutoSubmit = false) {
       }
     })
     .catch(() => {
+      isSubmittingExam = false;
+      isAutoSubmittingExam = false;
+      alert("❌ Network error while submitting exam.");
       if (submitBtn) {
         submitBtn.disabled = false;
         submitBtn.textContent = "📤 Submit Final Exam Answers";
@@ -817,7 +845,7 @@ window.printStudentScorecard = function () {
         table { width: 100%; border-collapse: collapse; }
       </style>
     </head>
-    <body>${sheet.outerHTML}</body>
+    <body>${escapeHtml(sheet.innerHTML) ? sheet.outerHTML : ""}</body>
     </html>
   `);
   win.document.close();
@@ -832,6 +860,7 @@ window.fetchStudentResult = function () {
   const orgCode = (document.getElementById("res-org-code")?.value || "").trim().toUpperCase();
   const roll = (document.getElementById("res-roll")?.value || "").trim();
   const scorecardBox = document.getElementById("student-scorecard-box");
+  const officialSheet = document.getElementById("official-scorecard-sheet");
   if (!orgCode || !roll) {
     alert("Enter School Code and Roll No.");
     return;
@@ -847,13 +876,16 @@ window.fetchStudentResult = function () {
       if (!scorecardBox) return;
       scorecardBox.style.display = "block";
       if (data && data.status === "success" && data.result) {
+        if (officialSheet) officialSheet.classList.remove("hidden");
         renderSubjectWiseScorecard(data.result);
       } else {
+        if (officialSheet) officialSheet.classList.add("hidden");
         scorecardBox.innerHTML = `<p style="color: #d9534f; text-align: center; padding: 20px;">❌ ${escapeHtml(data?.message || "Result not found")}</p>`;
       }
     })
     .catch(() => {
       if (scorecardBox) {
+        if (officialSheet) officialSheet.classList.add("hidden");
         scorecardBox.style.display = "block";
         scorecardBox.innerHTML = `<p style="color: #d9534f; text-align: center; padding: 20px;">❌ Network error while fetching result.</p>`;
       }
