@@ -8,6 +8,9 @@ let studentSessionData = null;
 let examTimerInterval = null;
 let isAutoSubmittingExam = false;
 
+const SENIOR_MATHS_SUBJECTS = ["Mathematics", "Physics", "Chemistry", "Reasoning"];
+const SENIOR_BIO_SUBJECTS = ["Zoology", "Botany", "Chemistry", "General Science"];
+
 function escapeHtml(str) {
   return String(str ?? "")
     .replace(/&/g, "&amp;")
@@ -17,8 +20,22 @@ function escapeHtml(str) {
     .replace(/'/g, "&#39;");
 }
 
+function normalizeSubjectLabel(sub) {
+  const s = String(sub || "").trim();
+  const low = s.toLowerCase();
+  if (!s) return "General";
+  if (low === "math" || low === "maths") return "Mathematics";
+  if (low === "gk" || low === "general knowledge") return "General Knowledge";
+  if (low === "chemistry (maths)" || low === "chemistry (bio)") return "Chemistry";
+  return s;
+}
+
 document.addEventListener("DOMContentLoaded", () => {
   fetchPortalConfig();
+  if (typeof window.handleStreamChange === "function") {
+    window.handleStreamChange(document.getElementById("std-stream")?.value || "Maths");
+  }
+
   ["std-roll", "login-roll", "res-roll"].forEach(id => {
     const el = document.getElementById(id);
     if (el) {
@@ -72,100 +89,131 @@ function updateExamMetaDisplays(actualQuestionCount) {
   if (examQEl) examQEl.textContent = `📝 Questions: ${qCount}`;
 }
 
+function extractClassNumber(val) {
+  const digits = String(val ?? "").replace(/\D/g, "");
+  return digits ? parseInt(digits, 10) : 0;
+}
+
 function resolveQuestionBucket(q) {
   const rawGroup = String(
-    q.classGroup || q.classCategory || q.targetClass || q.group || ""
+    q.classGroup || q.classRange || q.targetClass || q.classCategory || q.group || ""
   )
     .trim()
     .toLowerCase();
-  const rawSub = String(
-    q.subject || q.stream || q.examSubject || ""
-  )
-    .trim()
-    .toLowerCase();
+  const rawSub = String(q.subject || "").trim().toLowerCase();
+  const rawStream = String(q.stream || "").trim().toLowerCase();
 
-  if (
-    (rawGroup.includes("3") && rawGroup.includes("5")) ||
-    rawGroup === "3-5" ||
-    rawGroup === "3rd to 5th"
-  ) {
-    return "3-5";
+  const clsNum = extractClassNumber(rawGroup || q.studentClass || q.class || "");
+  if (clsNum >= 1 && clsNum <= 10) {
+    return `class-${clsNum}`;
   }
-  if (
-    (rawGroup.includes("6") && rawGroup.includes("8")) ||
-    rawGroup === "6-8" ||
-    rawGroup === "6th to 8th"
-  ) {
-    return "6-8";
-  }
-  if (
-    (rawGroup.includes("9") && rawGroup.includes("10")) ||
-    rawGroup === "9-10" ||
-    rawGroup === "9th to 10th"
-  ) {
-    return "9-10";
-  }
-  if (rawGroup.includes("11") || rawGroup.includes("12")) {
-    if (rawGroup.includes("math") || rawSub.includes("math") || rawSub === "m") {
-      return "11-12-maths";
-    }
-    if (rawGroup.includes("sci") || rawSub.includes("sci") || rawSub === "s") {
-      return "11-12-science";
-    }
-  }
-
-  const clsNum = parseInt(q.studentClass || q.class || rawGroup, 10);
-  if (clsNum >= 3 && clsNum <= 5) return "3-5";
-  if (clsNum >= 6 && clsNum <= 8) return "6-8";
-  if (clsNum >= 9 && clsNum <= 10) return "9-10";
   if (clsNum >= 11 && clsNum <= 12) {
-    if (rawSub.includes("math") || rawSub === "m") return "11-12-maths";
-    if (rawSub.includes("sci") || rawSub === "s") return "11-12-science";
+    if (
+      rawStream.includes("bio") ||
+      rawStream.includes("zoology") ||
+      rawStream.includes("botany") ||
+      rawSub.includes("(bio)") ||
+      ["zoology", "botany", "general science"].includes(rawSub)
+    ) {
+      return `class-${clsNum}-biology`;
+    }
+    if (
+      rawStream.includes("math") ||
+      rawStream.includes("sci") ||
+      rawSub.includes("(maths)") ||
+      ["mathematics", "physics", "reasoning"].includes(rawSub)
+    ) {
+      return `class-${clsNum}-maths`;
+    }
+    return `class-${clsNum}`;
+  }
+
+  if (rawGroup.includes("3") && rawGroup.includes("5")) return "3-5";
+  if (rawGroup.includes("6") && rawGroup.includes("8")) return "6-8";
+  if (rawGroup.includes("9") && rawGroup.includes("10")) return "9-10";
+  if (rawGroup.includes("11") || rawGroup.includes("12")) {
+    if (rawStream.includes("bio") || rawSub.includes("zoology") || rawSub.includes("botany")) {
+      return "11-12-biology";
+    }
+    return "11-12-maths";
   }
 
   return "";
 }
 
 function filterQuestionsForStudent(questions, student) {
-  const clsNum = parseInt(student?.studentClass || student?.class || "", 10);
-  const streamRaw = String(
-    student?.stream ||
-    student?.subject ||
-    student?.selectedStream ||
-    student?.selectedSubject ||
-    ""
-  )
-    .trim()
-    .toLowerCase();
+  const clsNum = extractClassNumber(student?.studentClass || student?.class || "");
+  if (!clsNum) return [];
+
+  const streamRaw = String(student?.stream || "").trim().toLowerCase();
+  const subRaw = normalizeSubjectLabel(student?.subject || student?.selectedSubject || "").toLowerCase();
 
   let studentBucket = "";
-  if (clsNum >= 3 && clsNum <= 5) {
-    studentBucket = "3-5";
-  } else if (clsNum >= 6 && clsNum <= 8) {
-    studentBucket = "6-8";
-  } else if (clsNum >= 9 && clsNum <= 10) {
-    studentBucket = "9-10";
+  if (clsNum >= 1 && clsNum <= 10) {
+    studentBucket = `class-${clsNum}`;
   } else if (clsNum >= 11 && clsNum <= 12) {
-    if (streamRaw.includes("math") || streamRaw === "m") {
-      studentBucket = "11-12-maths";
-    } else if (streamRaw.includes("sci") || streamRaw === "s") {
-      studentBucket = "11-12-science";
+    if (
+      streamRaw.includes("bio") ||
+      streamRaw.includes("zoology") ||
+      streamRaw.includes("botany") ||
+      ["zoology", "botany", "general science"].includes(subRaw)
+    ) {
+      studentBucket = `class-${clsNum}-biology`;
+    } else {
+      studentBucket = `class-${clsNum}-maths`;
     }
   }
 
-  if (!studentBucket) return [];
+  const specificSubjectFilter =
+    subRaw && !["general", "maths", "mathematics", "biology", "science"].includes(subRaw)
+      ? subRaw
+      : "";
 
   return (questions || []).filter(q => {
     const qBucket = resolveQuestionBucket(q);
-    const qSub = String(q.subject || q.stream || "").trim().toLowerCase();
+    const qClsNum = extractClassNumber(
+      q.classGroup || q.classRange || q.targetClass || q.studentClass || q.class || ""
+    );
+    const qSubNorm = normalizeSubjectLabel(q.subject || "").toLowerCase();
 
-    if (studentBucket === "11-12-maths") {
-      return qBucket === "11-12-maths" && (!qSub || qSub.includes("math") || qSub === "m");
+    if (clsNum >= 1 && clsNum <= 10) {
+      const sameClass = qBucket === `class-${clsNum}` || qClsNum === clsNum;
+      if (!sameClass) return false;
+      if (specificSubjectFilter && qSubNorm !== specificSubjectFilter) return false;
+      return true;
     }
-    if (studentBucket === "11-12-science") {
-      return qBucket === "11-12-science" && (!qSub || qSub.includes("sci") || qSub === "s");
+
+    if (clsNum >= 11 && clsNum <= 12) {
+      if (studentBucket.endsWith("-maths")) {
+        const validBucket =
+          qBucket === `class-${clsNum}-maths` ||
+          qBucket === `class-${clsNum}` ||
+          qBucket === "11-12-maths";
+        const allowedSub =
+          !qSubNorm ||
+          qSubNorm === "general" ||
+          SENIOR_MATHS_SUBJECTS.map(x => x.toLowerCase()).includes(qSubNorm);
+        if (!validBucket || !allowedSub) return false;
+        if (specificSubjectFilter && qSubNorm !== specificSubjectFilter) return false;
+        return true;
+      }
+
+      if (studentBucket.endsWith("-biology")) {
+        const validBucket =
+          qBucket === `class-${clsNum}-biology` ||
+          qBucket === `class-${clsNum}` ||
+          qBucket === "11-12-biology";
+        const allowedSub =
+          !qSubNorm ||
+          qSubNorm === "general" ||
+          SENIOR_BIO_SUBJECTS.map(x => x.toLowerCase()).includes(qSubNorm);
+        if (!validBucket || !allowedSub) return false;
+        if (specificSubjectFilter && qSubNorm !== specificSubjectFilter) return false;
+        return true;
+      }
     }
-    return qBucket === studentBucket;
+
+    return false;
   });
 }
 
@@ -310,13 +358,16 @@ window.showReviewDetailsModal = function () {
     ? schoolNameDisplayElem.textContent.replace("✅ School Authorized: ", "")
     : document.getElementById("org-code").value.toUpperCase();
   const selectedClassVal = document.getElementById("std-class").value;
-  const streamRow =
-    parseInt(selectedClassVal, 10) >= 11 && document.getElementById("std-stream")
-      ? `<div style="display: flex; gap: 12px; margin-bottom: 10px; border-bottom: 1px dashed #334155; padding-bottom: 8px; text-align: left;">
-          <span style="color: #94a3b8; width: 140px; flex-shrink: 0;">Stream / Subject :-</span>
-          <strong style="color: #c084fc;">${escapeHtml(document.getElementById("std-stream").value)}</strong>
-        </div>`
-      : "";
+  const isSenior = extractClassNumber(selectedClassVal) >= 11;
+  const streamVal = isSenior ? document.getElementById("std-stream")?.value || "" : "";
+  const subjectVal = isSenior ? document.getElementById("std-subject")?.value || "" : "";
+
+  const streamRow = isSenior
+    ? `<div style="display: flex; gap: 12px; margin-bottom: 10px; border-bottom: 1px dashed #334155; padding-bottom: 8px; text-align: left;">
+        <span style="color: #94a3b8; width: 140px; flex-shrink: 0;">Stream / Subject :-</span>
+        <strong style="color: #c084fc;">${escapeHtml(streamVal)}${subjectVal ? ` (${escapeHtml(subjectVal)})` : ""}</strong>
+      </div>`
+    : "";
 
   const reviewHtml = `
     <div style="display: flex; gap: 12px; margin-bottom: 10px; border-bottom: 1px dashed #334155; padding-bottom: 8px; text-align: left;">
@@ -341,7 +392,7 @@ window.showReviewDetailsModal = function () {
     </div>
     <div style="display: flex; gap: 12px; margin-bottom: 10px; border-bottom: 1px dashed #334155; padding-bottom: 8px; text-align: left;">
       <span style="color: #94a3b8; width: 140px; flex-shrink: 0;">Class :-</span> 
-      <strong style="color: #facc15;">${escapeHtml(selectedClassVal)}</strong>
+      <strong style="color: #facc15;">Class ${escapeHtml(selectedClassVal)}</strong>
     </div>
     ${streamRow}
     <div style="display: flex; gap: 12px; margin-bottom: 10px; border-bottom: 1px dashed #334155; padding-bottom: 8px; text-align: left;">
@@ -393,10 +444,9 @@ window.submitStudentRegistration = function () {
   }
 
   const classVal = document.getElementById("std-class")?.value || "";
-  const streamVal =
-    parseInt(classVal, 10) >= 11 && document.getElementById("std-stream")
-      ? document.getElementById("std-stream").value
-      : "";
+  const isSenior = extractClassNumber(classVal) >= 11;
+  const streamVal = isSenior ? document.getElementById("std-stream")?.value || "" : "";
+  const subjectVal = isSenior ? document.getElementById("std-subject")?.value || streamVal : "";
 
   const payload = {
     orgCode: (document.getElementById("org-code")?.value || "").trim().toUpperCase(),
@@ -406,7 +456,7 @@ window.submitStudentRegistration = function () {
     studentClass: classVal,
     rollNumber: (document.getElementById("std-roll")?.value || "").trim(),
     stream: streamVal,
-    subject: streamVal,
+    subject: subjectVal,
     contactNumber: (document.getElementById("std-contact")?.value || "").trim(),
     paymentMode: payMode,
     utrNumber: utrInput || "NOT_PROVIDED"
@@ -473,11 +523,12 @@ window.proceedToActualExamPaper = function () {
   isAutoSubmittingExam = false;
   document.getElementById("exam-instructions-modal")?.classList.add("hidden");
   document.getElementById("active-exam-container")?.classList.remove("hidden");
-  const streamTag = studentSessionData?.stream ? ` - ${studentSessionData.stream}` : "";
+
+  const clsText = studentSessionData?.studentClass ? `Class ${studentSessionData.studentClass}` : "";
+  const streamText = studentSessionData?.stream ? ` (${studentSessionData.stream})` : "";
   const infoEl = document.getElementById("exam-student-info");
   if (infoEl) {
-    infoEl.textContent =
-      `Student: ${studentSessionData?.studentName || ""} (Class ${studentSessionData?.studentClass || ""}${streamTag})`;
+    infoEl.textContent = `Student: ${studentSessionData?.studentName || ""} | ${clsText}${streamText}`;
   }
 
   loadExamQuestionsForClass();
@@ -486,8 +537,17 @@ window.proceedToActualExamPaper = function () {
 
 function loadExamQuestionsForClass() {
   const limitCount = getConfiguredQuestionLimit();
+  const params = new URLSearchParams();
+  if (studentSessionData?.studentClass) params.set("studentClass", studentSessionData.studentClass);
+  if (studentSessionData?.stream) params.set("stream", studentSessionData.stream);
+  if (studentSessionData?.subject) params.set("subject", studentSessionData.subject);
 
-  fetch(`${SERVER_URL}/api/student/questions`)
+  const sessionToken = studentSessionData?.sessionToken || "";
+  const url = `${SERVER_URL}/api/student/questions${params.toString() ? `?${params.toString()}` : ""}`;
+
+  fetch(url, {
+    headers: sessionToken ? { "X-Student-Token": sessionToken } : {}
+  })
     .then(res => res.json())
     .then(data => {
       const qContainer = document.getElementById("exam-questions-list");
@@ -505,9 +565,10 @@ function loadExamQuestionsForClass() {
 
         currentExamQuestions.forEach((q, idx) => {
           const qId = escapeHtml(q.id);
+          const subBadge = q.subject ? ` <span style="font-size:11px; color:#0284c7;">[${escapeHtml(q.subject)}]</span>` : "";
           qContainer.innerHTML += `
             <div style="background: #ffffff; border: 1px solid #ccc; padding: 15px; border-radius: 8px; margin-bottom: 12px; color: #333;">
-              <p style="color: #1e3c72; font-weight: bold; margin-bottom: 8px;">Q${idx + 1}. ${escapeHtml(q.questionText || q.question || "")}</p>
+              <p style="color: #1e3c72; font-weight: bold; margin-bottom: 8px;">Q${idx + 1}.${subBadge} ${escapeHtml(q.questionText || q.question || "")}</p>
               <div style="display: flex; flex-direction: column; gap: 6px;">
                 <label><input type="radio" name="q_${qId}" value="A"> A) ${escapeHtml(q.optionA)}</label>
                 <label><input type="radio" name="q_${qId}" value="B"> B) ${escapeHtml(q.optionB)}</label>
@@ -608,6 +669,165 @@ window.submitExamAnswers = function (isAutoSubmit = false) {
     });
 };
 
+function renderSubjectWiseScorecard(resData) {
+  const detailsEl = document.getElementById("scorecard-candidate-details");
+  const tbodyEl = document.getElementById("scorecard-subject-tbody");
+  const tfootEl = document.getElementById("scorecard-subject-tfoot");
+  const summaryEl = document.getElementById("scorecard-final-summary");
+
+  const maxMarks = Number(resData.totalMarks || resData.totalQuestions || getConfiguredQuestionLimit() || 30);
+  const scoreVal = Number(resData.score ?? 0);
+  const pctVal =
+    resData.percentage !== undefined && resData.percentage !== null
+      ? Number(resData.percentage)
+      : maxMarks > 0
+      ? Number(((scoreVal / maxMarks) * 100).toFixed(2))
+      : 0;
+
+  const streamLabel = resData.stream ? ` (${escapeHtml(resData.stream)})` : "";
+
+  if (detailsEl) {
+    detailsEl.innerHTML = `
+      <table style="width:100%; border-collapse:collapse; font-size:12px;">
+        <tr>
+          <td style="padding:5px 8px; border:1px solid #cbd5e1; background:#f8fafc; font-weight:700; width:22%;">Candidate Name</td>
+          <td style="padding:5px 8px; border:1px solid #cbd5e1; width:28%;">${escapeHtml(resData.studentName || "-")}</td>
+          <td style="padding:5px 8px; border:1px solid #cbd5e1; background:#f8fafc; font-weight:700; width:22%;">Roll Number</td>
+          <td style="padding:5px 8px; border:1px solid #cbd5e1; width:28%;">${escapeHtml(resData.rollNumber || "-")}</td>
+        </tr>
+        <tr>
+          <td style="padding:5px 8px; border:1px solid #cbd5e1; background:#f8fafc; font-weight:700;">Class &amp; Stream</td>
+          <td style="padding:5px 8px; border:1px solid #cbd5e1;">Class ${escapeHtml(resData.studentClass || "-")}${streamLabel}</td>
+          <td style="padding:5px 8px; border:1px solid #cbd5e1; background:#f8fafc; font-weight:700;">School Code</td>
+          <td style="padding:5px 8px; border:1px solid #cbd5e1;">${escapeHtml(resData.orgCode || "-")}</td>
+        </tr>
+        <tr>
+          <td style="padding:5px 8px; border:1px solid #cbd5e1; background:#f8fafc; font-weight:700;">School Name</td>
+          <td colspan="3" style="padding:5px 8px; border:1px solid #cbd5e1;">${escapeHtml(resData.schoolName || resData.orgCode || "-")}</td>
+        </tr>
+      </table>
+    `;
+  }
+
+  const breakdown = Array.isArray(resData.subjectBreakdown)
+    ? resData.subjectBreakdown
+    : resData.subjectBreakdown && typeof resData.subjectBreakdown === "object"
+    ? Object.entries(resData.subjectBreakdown).map(([subject, stats]) => ({ subject, ...(stats || {}) }))
+    : [];
+
+  let sumQs = 0;
+  let sumRight = 0;
+  let sumWrong = 0;
+  let sumObtained = 0;
+  let sumMax = 0;
+
+  if (tbodyEl) {
+    if (breakdown.length) {
+      tbodyEl.innerHTML = breakdown
+        .map(row => {
+          const subName = normalizeSubjectLabel(row.subject || row.name || "Subject");
+          const qCount = Number(row.totalQuestions ?? row.questions ?? 0);
+          const rightCount = Number(row.right ?? row.correct ?? 0);
+          const wrongCount = Number(row.wrong ?? row.incorrect ?? 0);
+          const obtained = Number(row.obtainedMarks ?? row.score ?? row.marks ?? 0);
+          const rowMax = Number(row.maxMarks ?? row.totalMarks ?? qCount ?? 0);
+
+          sumQs += qCount;
+          sumRight += rightCount;
+          sumWrong += wrongCount;
+          sumObtained += obtained;
+          sumMax += rowMax;
+
+          return `
+            <tr>
+              <td style="border:1px solid #cbd5e1; padding:7px 8px; text-align:left; font-weight:700;">${escapeHtml(subName)}</td>
+              <td style="border:1px solid #cbd5e1; padding:7px 8px;">${escapeHtml(qCount)}</td>
+              <td style="border:1px solid #cbd5e1; padding:7px 8px; color:#15803d; font-weight:700;">${escapeHtml(rightCount)}</td>
+              <td style="border:1px solid #cbd5e1; padding:7px 8px; color:#b91c1c; font-weight:700;">${escapeHtml(wrongCount)}</td>
+              <td style="border:1px solid #cbd5e1; padding:7px 8px; font-weight:700;">${escapeHtml(obtained)}</td>
+              <td style="border:1px solid #cbd5e1; padding:7px 8px;">${escapeHtml(rowMax)}</td>
+            </tr>
+          `;
+        })
+        .join("");
+    } else {
+      const subName = resData.subject ? normalizeSubjectLabel(resData.subject) : "Overall Examination";
+      sumQs = Number(resData.totalQuestions || maxMarks);
+      sumRight = Number(resData.correctCount ?? "-");
+      sumWrong = Number(resData.wrongCount ?? "-");
+      sumObtained = scoreVal;
+      sumMax = maxMarks;
+
+      tbodyEl.innerHTML = `
+        <tr>
+          <td style="border:1px solid #cbd5e1; padding:7px 8px; text-align:left; font-weight:700;">${escapeHtml(subName)}</td>
+          <td style="border:1px solid #cbd5e1; padding:7px 8px;">${escapeHtml(sumQs)}</td>
+          <td style="border:1px solid #cbd5e1; padding:7px 8px; color:#15803d; font-weight:700;">${escapeHtml(sumRight)}</td>
+          <td style="border:1px solid #cbd5e1; padding:7px 8px; color:#b91c1c; font-weight:700;">${escapeHtml(sumWrong)}</td>
+          <td style="border:1px solid #cbd5e1; padding:7px 8px; font-weight:700;">${escapeHtml(sumObtained)}</td>
+          <td style="border:1px solid #cbd5e1; padding:7px 8px;">${escapeHtml(sumMax)}</td>
+        </tr>
+      `;
+    }
+  }
+
+  if (tfootEl) {
+    const footObtained = breakdown.length ? sumObtained : scoreVal;
+    const footMax = breakdown.length && sumMax > 0 ? sumMax : maxMarks;
+    tfootEl.innerHTML = `
+      <tr style="background:#e2e8f0; font-weight:800; color:#0f172a;">
+        <td style="border:1px solid #0f172a; padding:8px; text-align:left;">GRAND TOTAL</td>
+        <td style="border:1px solid #0f172a; padding:8px;">${escapeHtml(sumQs || footMax)}</td>
+        <td style="border:1px solid #0f172a; padding:8px; color:#15803d;">${escapeHtml(breakdown.length ? sumRight : "-")}</td>
+        <td style="border:1px solid #0f172a; padding:8px; color:#b91c1c;">${escapeHtml(breakdown.length ? sumWrong : "-")}</td>
+        <td style="border:1px solid #0f172a; padding:8px;">${escapeHtml(footObtained)}</td>
+        <td style="border:1px solid #0f172a; padding:8px;">${escapeHtml(footMax)}</td>
+      </tr>
+    `;
+  }
+
+  if (summaryEl) {
+    summaryEl.innerHTML = `
+      <div style="font-size:13px;">
+        <strong>Total Marks Obtained:</strong>
+        <span style="font-size:15px; font-weight:800; color:#0f172a;">${escapeHtml(scoreVal)} / ${escapeHtml(maxMarks)}</span>
+      </div>
+      <div style="font-size:14px; background:#0f172a; color:#facc15; padding:6px 14px; border-radius:4px; font-weight:800;">
+        PERCENTAGE: ${escapeHtml(pctVal)}%
+      </div>
+    `;
+  }
+}
+
+window.printStudentScorecard = function () {
+  const sheet = document.getElementById("official-scorecard-sheet");
+  if (!sheet) return;
+  const win = window.open("", "_blank", "width=820,height=700");
+  if (!win) {
+    window.print();
+    return;
+  }
+  win.document.write(`
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <title>NVMSO 2026 Result Scorecard</title>
+      <style>
+        body { font-family: Arial, sans-serif; padding: 24px; color: #0f172a; }
+        table { width: 100%; border-collapse: collapse; }
+      </style>
+    </head>
+    <body>${sheet.outerHTML}</body>
+    </html>
+  `);
+  win.document.close();
+  win.focus();
+  setTimeout(() => {
+    win.print();
+    win.close();
+  }, 200);
+};
+
 window.fetchStudentResult = function () {
   const orgCode = (document.getElementById("res-org-code")?.value || "").trim().toUpperCase();
   const roll = (document.getElementById("res-roll")?.value || "").trim();
@@ -627,16 +847,7 @@ window.fetchStudentResult = function () {
       if (!scorecardBox) return;
       scorecardBox.style.display = "block";
       if (data && data.status === "success" && data.result) {
-        const resData = data.result;
-        const maxMarks = resData.totalMarks || resData.totalQuestions || getConfiguredQuestionLimit();
-        scorecardBox.innerHTML = `
-          <div style="background: rgba(15, 23, 42, 0.9); padding: 15px; border-radius: 8px; margin-bottom: 15px;">
-            <h4 style="color: #facc15; margin-bottom: 8px;">📊 Scorecard Summary</h4>
-            <p><strong>Name:</strong> ${escapeHtml(resData.studentName)}</p>
-            <p><strong>Class:</strong> ${escapeHtml(resData.studentClass)}</p>
-            <p><strong>Score:</strong> <span style="color: #10b981; font-weight: bold;">${escapeHtml(resData.score)} / ${escapeHtml(maxMarks)} (${escapeHtml(resData.percentage)}%)</span></p>
-          </div>
-        `;
+        renderSubjectWiseScorecard(data.result);
       } else {
         scorecardBox.innerHTML = `<p style="color: #d9534f; text-align: center; padding: 20px;">❌ ${escapeHtml(data?.message || "Result not found")}</p>`;
       }
@@ -656,6 +867,22 @@ window.handlePaymentModeChange = mode => {
   }
 };
 
+window.handleStreamChange = streamVal => {
+  const subjectSelect = document.getElementById("std-subject");
+  if (!subjectSelect) return;
+  const isBio = String(streamVal || "").toLowerCase().includes("bio");
+  const list = isBio ? SENIOR_BIO_SUBJECTS : SENIOR_MATHS_SUBJECTS;
+  subjectSelect.innerHTML = list
+    .map(sub => `<option value="${escapeHtml(sub)}">${escapeHtml(sub)}</option>`)
+    .join("");
+};
+
 window.handleClassChange = val => {
-  document.getElementById("stream-group")?.classList.toggle("hidden", parseInt(val, 10) < 11);
+  const isSenior = extractClassNumber(val) >= 11;
+  document.getElementById("senior-stream-container")?.classList.toggle("hidden", !isSenior);
+  document.getElementById("stream-group")?.classList.toggle("hidden", !isSenior);
+  document.getElementById("subject-group")?.classList.toggle("hidden", !isSenior);
+  if (isSenior && typeof window.handleStreamChange === "function") {
+    window.handleStreamChange(document.getElementById("std-stream")?.value || "Maths");
+  }
 };
