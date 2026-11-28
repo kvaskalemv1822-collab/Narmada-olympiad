@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>NVMSO - Student Portal 2026</title>
-  <link rel="stylesheet" href="student.css?v=27">
+  <link rel="stylesheet" href="student.css?v=29">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 </head>
 <body>
@@ -51,9 +51,18 @@
             <label for="std-class">Class:</label>
             <select id="std-class" required onchange="handleClassChange(this.value)">
               <option value="">Select Class</option>
-              <option value="3">Class 3rd</option><option value="4">Class 4th</option><option value="5">Class 5th</option>
-              <option value="6">Class 6th</option><option value="7">Class 7th</option><option value="8">Class 8th</option>
-              <option value="9">Class 9th</option><option value="10">Class 10th</option><option value="11">Class 11th</option><option value="12">Class 12th</option>
+              <option value="1">Class 1st</option>
+              <option value="2">Class 2nd</option>
+              <option value="3">Class 3rd</option>
+              <option value="4">Class 4th</option>
+              <option value="5">Class 5th</option>
+              <option value="6">Class 6th</option>
+              <option value="7">Class 7th</option>
+              <option value="8">Class 8th</option>
+              <option value="9">Class 9th</option>
+              <option value="10">Class 10th</option>
+              <option value="11">Class 11th</option>
+              <option value="12">Class 12th</option>
             </select>
           </div>
           <div class="form-group">
@@ -61,13 +70,26 @@
             <input type="text" id="std-roll" placeholder="e.g. 101" required>
           </div>
         </div>
-        <div class="form-group hidden" id="stream-group">
-          <label for="std-stream">Academic Stream / Subject:</label>
-          <select id="std-stream">
-            <option value="Maths">Mathematics</option>
-            <option value="Science">Science</option>
-          </select>
+
+        <div id="senior-stream-container" class="grid-2 hidden">
+          <div class="form-group" id="stream-group">
+            <label for="std-stream">Academic Stream (Class 11–12):</label>
+            <select id="std-stream" onchange="handleStreamChange(this.value)">
+              <option value="Maths">Maths</option>
+              <option value="Biology">Biology</option>
+            </select>
+          </div>
+          <div class="form-group" id="subject-group">
+            <label for="std-subject">Subject Set:</label>
+            <select id="std-subject">
+              <option value="Mathematics">Mathematics</option>
+              <option value="Physics">Physics</option>
+              <option value="Chemistry">Chemistry</option>
+              <option value="Reasoning">Reasoning</option>
+            </select>
+          </div>
         </div>
+
         <div class="form-group">
           <label for="std-contact">Contact Number:</label>
           <input type="tel" id="std-contact" maxlength="10" placeholder="Mobile number" autocomplete="tel" required>
@@ -174,12 +196,46 @@
       </div>
       <button type="button" onclick="fetchStudentResult()" class="btn-submit" style="background: #0284c7;">🔍 Fetch Scorecard &amp; Certificate</button>
 
-      <div id="student-scorecard-box" style="display: none; margin-top: 20px;"></div>
+      <!-- NEET / MP Police Style Official Scorecard Container -->
+      <div id="student-scorecard-box" style="display: none; margin-top: 22px;">
+        <div id="official-scorecard-sheet" style="background: #ffffff; color: #0f172a; border: 2px solid #0f172a; border-radius: 8px; padding: 18px; font-family: Arial, sans-serif;">
+          <div style="text-align: center; border-bottom: 2px solid #0f172a; padding-bottom: 10px; margin-bottom: 14px;">
+            <div style="font-size: 16px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px;">Narmada Valley Maths &amp; Science Olympiad (NVMSO)</div>
+            <div style="font-size: 12px; font-weight: 700; color: #334155; margin-top: 2px;">PROVISIONAL SUBJECT-WISE RESULT &amp; MARKS STATEMENT — 2026</div>
+          </div>
+
+          <div id="scorecard-candidate-details" style="margin-bottom: 14px; font-size: 13px;"></div>
+
+          <div style="font-size: 12px; font-weight: 800; text-transform: uppercase; margin-bottom: 6px; color: #0f172a;">Subject-Wise Performance Statement</div>
+          <div style="overflow-x: auto; margin-bottom: 14px;">
+            <table id="scorecard-subject-table" style="width: 100%; border-collapse: collapse; font-size: 12px; text-align: center;">
+              <thead>
+                <tr style="background: #0f172a; color: #ffffff;">
+                  <th style="border: 1px solid #0f172a; padding: 8px; text-align: left;">Subject</th>
+                  <th style="border: 1px solid #0f172a; padding: 8px;">Total Qs</th>
+                  <th style="border: 1px solid #0f172a; padding: 8px;">Right</th>
+                  <th style="border: 1px solid #0f172a; padding: 8px;">Wrong</th>
+                  <th style="border: 1px solid #0f172a; padding: 8px;">Obtained Marks</th>
+                  <th style="border: 1px solid #0f172a; padding: 8px;">Max Marks</th>
+                </tr>
+              </thead>
+              <tbody id="scorecard-subject-tbody"></tbody>
+              <tfoot id="scorecard-subject-tfoot"></tfoot>
+            </table>
+          </div>
+
+          <div id="scorecard-final-summary" style="background: #f1f5f9; border: 1.5px solid #0f172a; border-radius: 6px; padding: 12px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;"></div>
+        </div>
+
+        <div style="display: flex; gap: 10px; margin-top: 12px;">
+          <button type="button" onclick="printStudentScorecard()" class="btn-submit" style="background: #10b981; margin-top: 0;">🖨️ Print / Save Result Sheet</button>
+        </div>
+      </div>
     </div>
   </div>
 
 </div>
 
-<script src="student.js?v=27"></script>
+<script src="student.js?v=29"></script>
 </body>
 </html>
