@@ -269,7 +269,7 @@ function fetchPortalConfig() {
           }
         } else {
           if (statusMsg) {
-            statusMsg.textContent = "🔴 Portal is currently offline / locked by Central Admin.";
+            statusMsg.textContent = "🔴 Portal is currently offline / locked by NVMSO.";
             statusMsg.style.color = "#ef4444";
           }
         }
