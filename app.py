@@ -232,6 +232,20 @@ def _normalize_subject_name(sub_str: str) -> str:
     return s
 
 
+def _display_subject_name(sub_str: str) -> str:
+    raw = str(sub_str or "").strip()
+    low = raw.lower()
+    if not raw:
+        return "General"
+    if low in ("math", "maths", "mathematics"):
+        return "Mathematics"
+    if low in ("gk", "general knowledge"):
+        return "General Knowledge"
+    if low in ("chemistry (maths)", "chemistry (bio)", "chemistry"):
+        return "Chemistry"
+    return raw
+
+
 def _resolve_student_bucket(student_class_str, stream_str="", subject_str=""):
     cls_clean = "".join(ch for ch in str(student_class_str or "") if ch.isdigit())
     cls_num = int(cls_clean) if cls_clean else 0
@@ -323,6 +337,57 @@ def _filter_questions_for_student(questions_list, student_data):
                 if q_cls_num == cls_num:
                     filtered.append(q)
     return filtered
+
+
+def _compute_subject_breakdown(eval_questions: list, answers_map: dict):
+    grouped = {}
+    ordered_keys = []
+
+    for q in eval_questions:
+        q_id = str(q.get("id") or "")
+        raw_sub = q.get("subject") or "General"
+        disp_sub = _display_subject_name(raw_sub)
+        key = disp_sub.lower()
+
+        if key not in grouped:
+            grouped[key] = {
+                "subject": disp_sub,
+                "totalQuestions": 0,
+                "right": 0,
+                "wrong": 0,
+                "obtainedMarks": 0.0,
+                "maxMarks": 0.0,
+            }
+            ordered_keys.append(key)
+
+        entry = grouped[key]
+        entry["totalQuestions"] += 1
+        entry["maxMarks"] += 1.0
+
+        selected_opt = str((answers_map or {}).get(q_id) or "").strip().upper()
+        if selected_opt not in ("A", "B", "C", "D"):
+            continue
+
+        correct_opt = str(q.get("correctOption") or "").strip().upper()
+        neg_marking = float(q.get("negativeMarking") or 0)
+
+        if selected_opt == correct_opt:
+            entry["right"] += 1
+            entry["obtainedMarks"] += 1.0
+        else:
+            entry["wrong"] += 1
+            entry["obtainedMarks"] -= neg_marking
+
+    result_list = []
+    for key in ordered_keys:
+        item = grouped[key]
+        item["obtainedMarks"] = round(max(0.0, min(item["maxMarks"], item["obtainedMarks"])), 2)
+        item["maxMarks"] = int(item["maxMarks"]) if float(item["maxMarks"]).is_integer() else round(item["maxMarks"], 2)
+        if float(item["obtainedMarks"]).is_integer():
+            item["obtainedMarks"] = int(item["obtainedMarks"])
+        result_list.append(item)
+
+    return result_list
 
 
 def _sanitize_org_profile(org_code: str, od: dict) -> dict:
@@ -761,11 +826,13 @@ def student_submit_exam():
             s_data,
         )
         if matched_q_list:
-            total_marks = max(1, min(len(matched_q_list), configured_q_limit))
-            allowed_q_ids = {q["id"] for q in matched_q_list[:configured_q_limit]}
+            selected_q_list = matched_q_list[:configured_q_limit]
+            total_marks = max(1, len(selected_q_list))
+            allowed_q_ids = {q["id"] for q in selected_q_list}
         else:
-            total_marks = max(1, configured_q_limit)
-            allowed_q_ids = set(questions_map.keys())
+            selected_q_list = [{"id": q.id, **q.to_dict()} for q in all_q_docs[:configured_q_limit]]
+            total_marks = max(1, len(selected_q_list) or configured_q_limit)
+            allowed_q_ids = {q["id"] for q in selected_q_list}
 
         obtained_score = 0.0
         sanitized_answers = {}
@@ -787,8 +854,12 @@ def student_submit_exam():
             elif opt_clean and opt_clean != correct_opt:
                 obtained_score -= neg_marking
 
-        final_score = max(0.0, min(float(total_marks), obtained_score))
+        final_score = max(0.0, min(float(total_marks), round(obtained_score, 2)))
+        if float(final_score).is_integer():
+            final_score = int(final_score)
         percentage = round((final_score / total_marks) * 100, 2)
+
+        subject_breakdown = _compute_subject_breakdown(selected_q_list, sanitized_answers)
 
         student_ref.update({
             "examCompleted": True,
@@ -796,6 +867,7 @@ def student_submit_exam():
             "totalMarks": total_marks,
             "totalQuestions": total_marks,
             "percentage": percentage,
+            "subjectBreakdown": subject_breakdown,
             "autoSubmitted": auto_submitted,
             "submittedAnswers": sanitized_answers,
         })
@@ -805,6 +877,7 @@ def student_submit_exam():
             "score": final_score,
             "total": total_marks,
             "percentage": percentage,
+            "subjectBreakdown": subject_breakdown,
         }), 200
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
@@ -832,10 +905,19 @@ def student_get_result():
             return jsonify({"status": "error", "message": "Student record not found."}), 404
 
         s_data = student_doc.to_dict()
+        submitted_answers = s_data.get("submittedAnswers") or {}
         s_data.pop("submittedAnswers", None)
 
         org_doc = db.collection("organizers").document(org_code).get()
         s_data["schoolName"] = org_doc.to_dict().get("schoolName", org_code) if org_doc.exists else org_code
+
+        subject_breakdown = s_data.get("subjectBreakdown")
+        if not subject_breakdown and isinstance(submitted_answers, dict):
+            all_q_docs = list(db.collection("questions").stream())
+            q_lookup = {q.id: {"id": q.id, **q.to_dict()} for q in all_q_docs}
+            eval_list = [q_lookup[qid] for qid in submitted_answers.keys() if qid in q_lookup]
+            if eval_list:
+                subject_breakdown = _compute_subject_breakdown(eval_list, submitted_answers)
 
         safe_result = {
             "studentId": s_data.get("studentId", student_id),
@@ -845,10 +927,12 @@ def student_get_result():
             "studentName": s_data.get("studentName"),
             "studentClass": s_data.get("studentClass"),
             "stream": s_data.get("stream", ""),
+            "subject": s_data.get("subject", ""),
             "score": s_data.get("score", 0),
             "totalMarks": s_data.get("totalMarks", s_data.get("totalQuestions", 30)),
             "totalQuestions": s_data.get("totalQuestions", s_data.get("totalMarks", 30)),
             "percentage": s_data.get("percentage", 0),
+            "subjectBreakdown": subject_breakdown or [],
             "examCompleted": bool(s_data.get("examCompleted", False)),
         }
         return jsonify({"status": "success", "result": safe_result}), 200
@@ -974,6 +1058,7 @@ def admin_trigger_reexam():
             "examCompleted": False,
             "score": 0,
             "percentage": 0,
+            "subjectBreakdown": [],
             "submittedAnswers": {},
         })
         return jsonify({"status": "success", "message": "Re-exam triggered"}), 200
