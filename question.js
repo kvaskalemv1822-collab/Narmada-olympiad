@@ -13,6 +13,14 @@ function escapeHtml(str) {
     .replace(/'/g, "&#39;");
 }
 
+function escapeJsSingle(str) {
+  return String(str ?? "")
+    .replace(/\\/g, "\\\\")
+    .replace(/'/g, "\\'")
+    .replace(/"/g, "&quot;")
+    .replace(/\n/g, " ");
+}
+
 function setSyncStatus(text, color = "#94a3b8") {
   const el = document.getElementById("server-sync-status");
   if (!el) return;
@@ -78,19 +86,18 @@ function syncQuestionLimitLabels() {
   if (printBtnLabelEl) printBtnLabelEl.textContent = limit;
 }
 
-function fetchConfiguredQuestionLimit() {
-  return fetchWithRetry(`${SERVER_URL}/api/portal/config`, {}, 1, 2000)
-    .then(res => res.json())
-    .then(data => {
-      if (data && data.status === "success" && data.config) {
-        const cfgLimit = Number(data.config.totalQuestions || data.config.questionCount);
-        if (cfgLimit > 0) {
-          configuredExamQuestionCount = cfgLimit;
-          syncQuestionLimitLabels();
-        }
+async function fetchConfiguredQuestionLimit() {
+  try {
+    const res = await fetchWithRetry(`${SERVER_URL}/api/portal/config`, {}, 1, 2000);
+    const data = await res.json().catch(() => ({}));
+    if (data && data.status === "success" && data.config) {
+      const cfgLimit = Number(data.config.totalQuestions || data.config.questionCount);
+      if (cfgLimit > 0) {
+        configuredExamQuestionCount = cfgLimit;
+        syncQuestionLimitLabels();
       }
-    })
-    .catch(() => {});
+    }
+  } catch (_) {}
 }
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -98,8 +105,13 @@ document.addEventListener("DOMContentLoaded", () => {
     syncSubjectOptionsForClass("q-class-select", "q-subject-select", false);
     syncSubjectOptionsForClass("filter-q-class", "filter-q-subject", true);
   }
+  const searchInput = document.getElementById("search-q-keyword");
+  if (searchInput) {
+    searchInput.addEventListener("input", () => {
+      window.renderFilteredQuestionsPreview();
+    });
+  }
   syncQuestionLimitLabels();
-  fetchConfiguredQuestionLimit();
   loadSavedQuestions();
 });
 
@@ -120,6 +132,8 @@ window.addNewQuestionToBank = async () => {
     document.getElementById("q-subject-select")?.value || "Mathematics"
   ).trim();
   const inferredStream = inferStreamFromSubject(selectedClass, selectedSubject);
+  const rawNeg = parseFloat(document.getElementById("q-negative-marking")?.value);
+  const cleanNeg = Number.isFinite(rawNeg) && rawNeg > 0 ? rawNeg : 0;
 
   const payload = {
     classRange: selectedClass,
@@ -127,7 +141,7 @@ window.addNewQuestionToBank = async () => {
     targetClass: selectedClass,
     subject: selectedSubject,
     stream: inferredStream,
-    negativeMarking: parseFloat(document.getElementById("q-negative-marking")?.value) || 0,
+    negativeMarking: cleanNeg,
     questionText: qText,
     question: qText,
     optionA: optA,
@@ -180,7 +194,7 @@ window.addNewQuestionToBank = async () => {
       if (dEl) dEl.value = "";
       if (qEl) qEl.focus();
 
-      loadSavedQuestions();
+      await loadSavedQuestions();
     } else {
       alert("❌ Operation Terminated: " + (data?.message || "Failed to save question"));
     }
@@ -258,7 +272,7 @@ window.renderFilteredQuestionsPreview = function () {
     const clsLabel = normalizeClassKey(q) ? `Class ${normalizeClassKey(q)}` : "N/A";
     const subLabel = q.subject || "General";
     const rawId = String(q.id || q.questionId || q._id || "");
-    const qId = escapeHtml(rawId);
+    const safeJsId = escapeJsSingle(rawId);
     const qBody = q.questionText || q.question || "";
     const qAns = q.correctOption || q.answer || "A";
     const optA = q.optionA ?? q.options?.A ?? "";
@@ -273,7 +287,7 @@ window.renderFilteredQuestionsPreview = function () {
           <div>
             <span style="color:#f87171; margin-right:10px;">Neg: -${escapeHtml(q.negativeMarking || 0)}</span>
             <span style="color:#facc15; font-weight:bold; margin-right:15px;">Correct: ${escapeHtml(qAns)}</span>
-            <button type="button" onclick="deleteQuestion('${qId}')" style="background:#dc2626; color:#fff; border:none; padding:3px 8px; font-size:10px; border-radius:4px; cursor:pointer; font-weight:bold;">🗑️ Delete</button>
+            <button type="button" onclick="deleteQuestion('${safeJsId}')" style="background:#dc2626; color:#fff; border:none; padding:3px 8px; font-size:10px; border-radius:4px; cursor:pointer; font-weight:bold;">🗑️ Delete</button>
           </div>
         </div>
         <p style="color:#fff; margin:4px 0 8px 0; font-weight:600;">${escapeHtml(qBody)}</p>
@@ -361,28 +375,27 @@ window.printExamQuestionPaper = function () {
   }, 120);
 };
 
-function loadSavedQuestions() {
+async function loadSavedQuestions() {
   setSyncStatus("Syncing...", "#facc15");
-  fetchConfiguredQuestionLimit();
-  fetchWithRetry(`${SERVER_URL}/api/questions`, {}, 2, 2500)
-    .then(res => res.json())
-    .then(data => {
-      if (data && data.status === "success" && Array.isArray(data.questions)) {
-        cachedQuestionsList = data.questions;
-        setSyncStatus("Connected", "#4ade80");
-      } else {
-        cachedQuestionsList = [];
-        setSyncStatus("Connected", "#4ade80");
-      }
-      renderFilteredQuestionsPreview();
-    })
-    .catch(() => {
-      setSyncStatus("Offline / Waking up", "#f87171");
-      const container = document.getElementById("saved-questions-container");
-      if (container) {
-        container.innerHTML = `<p style="color: #f87171; font-size: 13px; text-align: center;">Unable to load questions from server. Refresh after 15 seconds.</p>`;
-      }
-    });
+  await fetchConfiguredQuestionLimit();
+  try {
+    const res = await fetchWithRetry(`${SERVER_URL}/api/questions`, {}, 2, 2500);
+    const data = await res.json().catch(() => ({}));
+    if (data && data.status === "success" && Array.isArray(data.questions)) {
+      cachedQuestionsList = data.questions;
+      setSyncStatus("Connected", "#4ade80");
+    } else {
+      cachedQuestionsList = [];
+      setSyncStatus("Connected", "#4ade80");
+    }
+    window.renderFilteredQuestionsPreview();
+  } catch (_) {
+    setSyncStatus("Offline / Waking up", "#f87171");
+    const container = document.getElementById("saved-questions-container");
+    if (container) {
+      container.innerHTML = `<p style="color: #f87171; font-size: 13px; text-align: center;">Unable to load questions from server. Refresh after 15 seconds.</p>`;
+    }
+  }
 }
 
 window.deleteQuestion = async function (questionId) {
@@ -410,7 +423,7 @@ window.deleteQuestion = async function (questionId) {
     }
     if (data && data.status === "success") {
       alert("🗑️ Question deleted successfully!");
-      loadSavedQuestions();
+      await loadSavedQuestions();
     } else {
       alert("❌ Error deleting question: " + (data?.message || "Unknown error"));
     }
