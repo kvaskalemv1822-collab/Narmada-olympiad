@@ -11,7 +11,7 @@ let centralPortalConfig = {};
 let supportTicketsCache = [];
 let activeTicketId = "";
 let targetOrgCodeForChat = "";
-let chatDeskActivated = false;
+let isChatActivatedByClick = false;
 let autoRefreshTimer = null;
 
 function int(val) {
@@ -232,20 +232,7 @@ function computeOrganizerMetrics(org, onlineFeeConfig, offlineFeeConfig) {
   };
 }
 
-function setChatDeskVisibility(visible) {
-  const chatSection = document.getElementById("support-chat-section");
-  if (!chatSection) return;
-  if (visible) {
-    chatSection.classList.remove("hidden");
-    chatSection.style.display = "";
-  } else {
-    chatSection.classList.add("hidden");
-    chatSection.style.display = "none";
-  }
-}
-
 document.addEventListener("DOMContentLoaded", () => {
-  setChatDeskVisibility(false);
   startLiveClockTracker();
 
   if (sessionStorage.getItem("nvmso_admin_logged") === "true" && adminToken) {
@@ -280,9 +267,6 @@ window.logoutAdminSession = function () {
     autoRefreshTimer = null;
   }
   adminToken = "";
-  chatDeskActivated = false;
-  targetOrgCodeForChat = "";
-  activeTicketId = "";
   sessionStorage.removeItem(ADMIN_TOKEN_KEY);
   sessionStorage.removeItem("nvmso_admin_logged");
   location.reload();
@@ -385,7 +369,6 @@ function triggerGrandWelcome() {
 
 function initializeCentralPanelData() {
   if (!adminToken) return;
-  setChatDeskVisibility(chatDeskActivated);
 
   fetch(`${SERVER_URL}/api/portal/config`)
     .then(res => res.json())
@@ -769,41 +752,64 @@ function renderNvmsCollectionLedger() {
 }
 
 window.openOrganizerChat = function (orgCode) {
-  chatDeskActivated = true;
-  setChatDeskVisibility(true);
-
   const normalizedCode = String(orgCode || "").trim().toUpperCase();
   targetOrgCodeForChat = normalizedCode;
+  isChatActivatedByClick = true;
 
   const selectEl = document.getElementById("admin-chat-ticket-select");
   const bannerEl = document.getElementById("admin-chat-target-banner");
   const msgBox = document.getElementById("admin-chat-messages");
   const inputEl = document.getElementById("admin-chat-reply-input");
 
-  const matchedTicket = supportTicketsCache.find(t => {
-    const tOrg = String(t.orgCode || "").trim().toUpperCase();
-    const tId = String(t.ticketId || t.id || "").trim().toUpperCase();
-    return tOrg === normalizedCode || tId.includes(normalizedCode);
-  });
-
-  if (matchedTicket && selectEl) {
-    const tid = String(matchedTicket.ticketId || matchedTicket.id || "").trim();
-    selectEl.value = tid;
-    activeTicketId = tid;
-    fetchAdminTicketMessages(tid);
-  } else {
-    activeTicketId = "";
-    if (selectEl) selectEl.value = "";
-    if (msgBox) {
-      msgBox.innerHTML = `<p style="color:#cbd5e1; font-size:12px; text-align:center;">No existing ticket for <strong>${escapeHtml(normalizedCode)}</strong> yet. Type a message below to reply.</p>`;
-    }
-  }
-
   if (bannerEl) {
     bannerEl.innerHTML = `Active Chat Target: <strong>${escapeHtml(normalizedCode)}</strong>`;
   }
 
-  fetchAdminSupportTickets();
+  fetch(`${SERVER_URL}/api/admin/queries`, {
+    method: "GET",
+    headers: getAdminHeaders(false)
+  })
+    .then(async res => {
+      if (res.status === 401) {
+        window.logoutAdminSession();
+        return null;
+      }
+      return res.json();
+    })
+    .then(data => {
+      if (!data || data.status !== "success") return;
+      supportTicketsCache = Array.isArray(data.queries) ? data.queries : [];
+
+      let opts = `<option value="">Select School Support Ticket (${supportTicketsCache.length})...</option>`;
+      supportTicketsCache.forEach(t => {
+        const tid = String(t.ticketId || t.id || "").trim();
+        if (!tid) return;
+        const orgTag = t.orgCode ? `[${t.orgCode}] ` : "";
+        const label = `${orgTag}${t.senderName || tid}${t.lastMessage ? " - " + String(t.lastMessage).slice(0, 28) : ""}`;
+        opts += `<option value="${escapeHtml(tid)}">${escapeHtml(label)}</option>`;
+      });
+      if (selectEl) selectEl.innerHTML = opts;
+
+      const matchedTicket = supportTicketsCache.find(t => {
+        const tOrg = String(t.orgCode || "").trim().toUpperCase();
+        const tId = String(t.ticketId || t.id || "").trim().toUpperCase();
+        return tOrg === normalizedCode || tId.includes(normalizedCode);
+      });
+
+      if (matchedTicket) {
+        const tid = String(matchedTicket.ticketId || matchedTicket.id || "").trim();
+        if (selectEl) selectEl.value = tid;
+        activeTicketId = tid;
+        fetchAdminTicketMessages(tid);
+      } else {
+        activeTicketId = `TICKET_${normalizedCode}`;
+        if (selectEl) selectEl.value = "";
+        if (msgBox) {
+          msgBox.innerHTML = `<p style="color:#cbd5e1; font-size:12px; text-align:center;">Chat active for <strong>${escapeHtml(normalizedCode)}</strong>. Type a message below to start.</p>`;
+        }
+      }
+    })
+    .catch(() => {});
 
   const chatSection = document.getElementById("support-chat-section");
   if (chatSection) {
@@ -834,7 +840,6 @@ window.fetchAdminSupportTickets = function () {
     .then(data => {
       if (!data || data.status !== "success") return;
       supportTicketsCache = Array.isArray(data.queries) ? data.queries : [];
-      const prevSelected = activeTicketId || selectEl.value;
 
       let opts = `<option value="">Select School Support Ticket (${supportTicketsCache.length})...</option>`;
       supportTicketsCache.forEach(t => {
@@ -846,20 +851,13 @@ window.fetchAdminSupportTickets = function () {
       });
 
       selectEl.innerHTML = opts;
-      if (prevSelected && [...selectEl.options].some(o => o.value === prevSelected)) {
-        selectEl.value = prevSelected;
-        activeTicketId = prevSelected;
-        fetchAdminTicketMessages(prevSelected);
-      } else if (targetOrgCodeForChat) {
-        const byOrg = supportTicketsCache.find(
-          t => String(t.orgCode || "").trim().toUpperCase() === targetOrgCodeForChat
-        );
-        if (byOrg) {
-          const tid = String(byOrg.ticketId || byOrg.id || "").trim();
-          selectEl.value = tid;
-          activeTicketId = tid;
-          fetchAdminTicketMessages(tid);
-        }
+
+      if (isChatActivatedByClick && activeTicketId && [...selectEl.options].some(o => o.value === activeTicketId)) {
+        selectEl.value = activeTicketId;
+        fetchAdminTicketMessages(activeTicketId);
+      } else if (!isChatActivatedByClick) {
+        selectEl.value = "";
+        msgBox.innerHTML = `<p style="color:#64748b; font-size:12px; text-align:center;">Click 💬 Chat on an organizer row to activate chat.</p>`;
       }
     })
     .catch(() => {});
@@ -868,26 +866,23 @@ window.fetchAdminSupportTickets = function () {
 window.onAdminTicketChange = function () {
   const selectEl = document.getElementById("admin-chat-ticket-select");
   const bannerEl = document.getElementById("admin-chat-target-banner");
-  const tid = selectEl ? String(selectEl.value || "").trim() : "";
+  const tid = String(selectEl?.value || "").trim();
+  if (!tid) return;
+
+  isChatActivatedByClick = true;
   activeTicketId = tid;
-  const matched = supportTicketsCache.find(t => String(t.ticketId || t.id || "").trim() === tid);
-  targetOrgCodeForChat = matched?.orgCode ? String(matched.orgCode).trim().toUpperCase() : "";
-
+  const found = supportTicketsCache.find(t => String(t.ticketId || t.id || "").trim() === tid);
+  if (found && found.orgCode) {
+    targetOrgCodeForChat = String(found.orgCode).trim().toUpperCase();
+  }
   if (bannerEl) {
-    bannerEl.innerHTML = targetOrgCodeForChat
-      ? `Active Chat Target: <strong>${escapeHtml(targetOrgCodeForChat)}</strong>`
-      : tid
-      ? `Active Ticket: <strong>${escapeHtml(tid)}</strong>`
-      : "Active Chat Target: <strong>None</strong>";
+    bannerEl.innerHTML = `Active Chat Target: <strong>${escapeHtml(targetOrgCodeForChat || tid)}</strong>`;
   }
-
-  if (tid) {
-    fetchAdminTicketMessages(tid);
-  }
+  fetchAdminTicketMessages(tid);
 };
 
 function fetchAdminTicketMessages(ticketId) {
-  if (!adminToken || !ticketId) return;
+  if (!adminToken || !ticketId || !isChatActivatedByClick) return;
   const msgBox = document.getElementById("admin-chat-messages");
   if (!msgBox) return;
 
@@ -938,9 +933,11 @@ window.sendAdminChatReply = function () {
     (targetOrgCodeForChat ? `TICKET_${targetOrgCodeForChat}` : "");
 
   if (!tid || !msg) {
-    alert("⚠️ Select a ticket/organizer and type a message first.");
+    alert("⚠️ Click Chat on an organizer or select a ticket and type a message first.");
     return;
   }
+
+  isChatActivatedByClick = true;
 
   fetch(`${SERVER_URL}/api/admin/reply_query`, {
     method: "POST",
@@ -964,7 +961,6 @@ window.sendAdminChatReply = function () {
         if (inputEl) inputEl.value = "";
         activeTicketId = data.ticketId || tid;
         fetchAdminTicketMessages(activeTicketId);
-        fetchAdminSupportTickets();
       } else {
         alert("❌ " + (data.message || "Failed to send reply."));
       }
@@ -1228,8 +1224,15 @@ function parseClassNumber(val) {
   return digits ? parseInt(digits, 10) : 0;
 }
 
-function renderTopSixSplitColumn(title, studentsPool) {
-  const topSix = [...studentsPool]
+function getAwardLabelByRank(rankIdx) {
+  if (rankIdx === 0) return `🏅 Gold Medal + Physical Cert`;
+  if (rankIdx === 1) return `🥈 Silver Medal + Physical Cert`;
+  if (rankIdx === 2) return `🥉 Bronze Medal + Physical Cert`;
+  return `📜 Physical Certificate`;
+}
+
+function renderSplitRankColumn(title, studentsList) {
+  const topSix = [...studentsList]
     .sort((a, b) => {
       const scoreA = parseFloat(a.score) || 0;
       const scoreB = parseFloat(b.score) || 0;
@@ -1241,63 +1244,102 @@ function renderTopSixSplitColumn(title, studentsPool) {
   const itemsHtml = topSix.length
     ? topSix
         .map((st, idx) => {
+          const clsNum = parseClassNumber(st.studentClass || st.class);
           const sc = parseFloat(st.score) || 0;
-          const tot = getConfiguredTotalQuestions(st);
-          const clsNum = parseClassNumber(st.studentClass || st.class) || "-";
           return `
-            <div style="display:flex; justify-content:space-between; align-items:center; padding:7px 10px; border-bottom:1px solid #1e293b; font-size:12px;">
-              <span><strong>#${idx + 1}</strong> ${escapeHtml(st.studentName || "Student")}${getSubjectBadge(st)} <span style="color:#94a3b8;">(Class ${escapeHtml(clsNum)} • ${escapeHtml(st.orgCode || "")})</span></span>
-              <strong style="color:#4ade80;">${sc}/${tot}</strong>
+            <div style="padding:10px 8px; border-bottom:1px solid #1e293b;">
+              <div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
+                <span style="font-size:13px; color:#f8fafc;">
+                  <strong style="color:#facc15;">#${idx + 1}</strong>
+                  <span style="margin-left:4px;">${escapeHtml(st.studentName || "Student")}${getSubjectBadge(st)}</span>
+                  <span style="color:#94a3b8; margin-left:4px;">(${clsNum || escapeHtml(st.studentClass || "-")})</span>
+                </span>
+                <strong style="color:#38bdf8; font-size:14px;">${sc}</strong>
+              </div>
+              <div style="font-size:11px; color:#e2e8f0; margin-top:4px; padding-left:22px;">
+                ${getAwardLabelByRank(idx)}
+              </div>
             </div>
           `;
         })
         .join("")
-    : `<div style="padding:10px; font-size:12px; color:#64748b;">No top 6 ranking records available in this group.</div>`;
+    : `<div style="padding:12px; font-size:12px; color:#64748b; text-align:center;">No ranked students in this group.</div>`;
 
   return `
-    <div style="background:#020617; border:1px solid #1e293b; border-radius:10px; padding:12px;">
-      <div style="font-weight:800; font-size:13px; color:#f8fafc; margin-bottom:8px; padding-bottom:6px; border-bottom:1px solid #1e293b;">
-        ${escapeHtml(title)} (Top 6)
+    <div style="background:#0b1220; border:1px solid #1e293b; border-radius:10px; padding:10px;">
+      <div style="text-align:center; font-weight:800; font-size:13px; color:#38bdf8; padding-bottom:8px; border-bottom:1px solid #1e293b;">
+        ${escapeHtml(title)}
       </div>
       <div>${itemsHtml}</div>
     </div>
   `;
 }
 
+function renderSingleSchoolSplitCard(orgCode, schoolName, schoolStudents) {
+  const groupLeft = schoolStudents.filter(s => {
+    const c = parseClassNumber(s.studentClass || s.class);
+    return c >= 1 && c <= 6;
+  });
+  const groupRight = schoolStudents.filter(s => {
+    const c = parseClassNumber(s.studentClass || s.class);
+    return c >= 7 && c <= 12;
+  });
+
+  return `
+    <div style="grid-column:1 / -1; background:#060c18; border:1px solid #1e293b; border-radius:12px; padding:14px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:12px; flex-wrap:wrap;">
+        <div style="font-weight:800; font-size:15px; color:#f8fafc;">
+          🏫 ${escapeHtml(schoolName)} <span style="font-size:12px; color:#94a3b8;">(${escapeHtml(orgCode)})</span>
+        </div>
+        <span style="background:#0f172a; border:1px solid #334155; color:#cbd5e1; padding:4px 10px; border-radius:8px; font-size:12px; font-weight:700;">
+          ${schoolStudents.length} Total
+        </span>
+      </div>
+      <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(290px, 1fr)); gap:12px;">
+        ${renderSplitRankColumn("Classes 1 to 6", groupLeft)}
+        ${renderSplitRankColumn("Classes 7 to 12", groupRight)}
+      </div>
+    </div>
+  `;
+}
+
 window.loadSchoolRankings = function () {
-  const container = document.getElementById("school-rankings-grid") || document.getElementById("school-rankings-container");
+  const container =
+    document.getElementById("school-rankings-grid") || document.getElementById("school-rankings-container");
   if (!container) return;
 
   const selectedCode = String(document.getElementById("ranking-school-select")?.value || "ALL")
     .trim()
     .toUpperCase();
 
-  const filteredStudents =
+  const schoolMetaMap = new Map();
+  allOrganizersCache.forEach(o => {
+    const code = String(o.code || o.orgCode || "").trim().toUpperCase();
+    if (code) schoolMetaMap.set(code, o.schoolName || code);
+  });
+
+  const groupedBySchool = new Map();
+  allStudentsCache.forEach(s => {
+    const code = String(s.orgCode || s.schoolCode || "UNASSIGNED").trim().toUpperCase();
+    if (!groupedBySchool.has(code)) groupedBySchool.set(code, []);
+    groupedBySchool.get(code).push(s);
+  });
+
+  const codesToRender =
     selectedCode === "ALL"
-      ? allStudentsCache
-      : allStudentsCache.filter(
-          s => String(s.orgCode || s.schoolCode || "").trim().toUpperCase() === selectedCode
-        );
+      ? [...new Set([...schoolMetaMap.keys(), ...groupedBySchool.keys()])].sort()
+      : [selectedCode];
 
-  const group1to6 = filteredStudents.filter(s => {
-    const c = parseClassNumber(s.studentClass || s.class);
-    return c >= 1 && c <= 6;
-  });
+  const html = codesToRender
+    .map(code => {
+      const sName = schoolMetaMap.get(code) || code;
+      const stList = groupedBySchool.get(code) || [];
+      return renderSingleSchoolSplitCard(code, sName, stList);
+    })
+    .join("");
 
-  const group7to12 = filteredStudents.filter(s => {
-    const c = parseClassNumber(s.studentClass || s.class);
-    return c >= 7 && c <= 12;
-  });
-
-  const leftCol = renderTopSixSplitColumn("Class 1 to 6", group1to6);
-  const rightCol = renderTopSixSplitColumn("Class 7 to 12", group7to12);
-
-  container.innerHTML = `
-    <div style="grid-column:1 / -1; display:grid; grid-template-columns:repeat(auto-fit, minmax(300px, 1fr)); gap:14px;">
-      ${leftCol}
-      ${rightCol}
-    </div>
-  `;
+  container.innerHTML =
+    html || `<div style="color:#64748b; font-size:12px; padding:12px;">No ranking data available.</div>`;
 };
 
 window.loadSchoolStudentLedger = function () {
@@ -1345,15 +1387,15 @@ window.loadSchoolStudentLedger = function () {
 
       const approveBtn =
         !isApproved && isDirectOnline
-          ? `<button type="button" onclick="approveStudentPayment('${escapeJsSingle(stId)}')" style="background:#10b981; color:#fff; border:none; padding:4px 8px; font-size:11px; border-radius:4px; cursor:pointer; margin:2px;">Approve</button>`
+          ? `<button type="button" onclick="approveStudentPayment('${escapeJsSingle(stId)}')" style="background:#10b981; color:#fff; border:none; padding:5px 10px; font-size:11px; border-radius:6px; cursor:pointer; margin:2px; font-weight:700;">Approve</button>`
           : "";
 
       const scoreActionBtn =
         examMode === "offline"
-          ? `<button type="button" onclick="openManualScoreModal('${escapeJsSingle(stId)}', '${escapeJsSingle(s.studentName || "")}', '${escapeJsSingle(s.studentClass || "")}')" style="background:#0284c7; color:#fff; border:none; padding:4px 8px; font-size:11px; border-radius:4px; cursor:pointer; margin:2px;">Manual Score</button>`
-          : `<button type="button" onclick="autoScoreStudent('${escapeJsSingle(stId)}')" style="background:#7c3aed; color:#fff; border:none; padding:4px 8px; font-size:11px; border-radius:4px; cursor:pointer; margin:2px;">⚡ Auto Score</button>`;
+          ? `<button type="button" onclick="openManualScoreModal('${escapeJsSingle(stId)}', '${escapeJsSingle(s.studentName || "")}', '${escapeJsSingle(s.studentClass || "")}')" style="background:#f59e0b; color:#020617; border:none; padding:5px 10px; font-size:11px; border-radius:6px; cursor:pointer; margin:2px; font-weight:800;">✍️ Manual Score</button>`
+          : `<button type="button" onclick="autoScoreStudent('${escapeJsSingle(stId)}')" style="background:transparent; color:#38bdf8; border:none; padding:5px 8px; font-size:12px; border-radius:6px; cursor:pointer; margin:2px; font-weight:800;">⚡ Auto Score</button>`;
 
-      const reExamBtn = `<button type="button" onclick="triggerStudentReexam('${escapeJsSingle(stId)}')" style="background:#d97706; color:#fff; border:none; padding:4px 8px; font-size:11px; border-radius:4px; cursor:pointer; margin:2px;">Re-Exam</button>`;
+      const reExamBtn = `<button type="button" onclick="triggerStudentReexam('${escapeJsSingle(stId)}')" style="background:#7e22ce; color:#fff; border:none; padding:5px 10px; font-size:11px; border-radius:6px; cursor:pointer; margin:2px; font-weight:700;">🔁 Re-Exam</button>`;
 
       const modeTag = `<span style="font-size:10px; color:${examMode === "offline" ? "#fbbf24" : "#38bdf8"}; font-weight:700;">${examMode.toUpperCase()}</span>`;
 
